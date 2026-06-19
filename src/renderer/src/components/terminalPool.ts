@@ -55,7 +55,7 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
     lineHeight: 1.0,
     cursorBlink: true,
     cursorStyle: 'block',
-    scrollback: 10000,
+    scrollback: 100000,
     // Guarantee legible text no matter what colors a running program sets.
     // When a program paints a coloured cell background (e.g. a git-diff add line
     // with a green bg, or a yellow-highlighted line) while leaving the default
