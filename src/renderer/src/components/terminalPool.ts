@@ -20,6 +20,8 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
 
 export interface TerminalEntry {
+  /** The pty this terminal mirrors — needed to poke `resizePty` on a reflow. */
+  ptyId: string;
   term: Terminal;
   fit: FitAddon;
   /** The element xterm renders into; views re-parent this in/out of the DOM. */
@@ -78,7 +80,7 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
   // NOTE: don't open() yet — xterm needs its host connected to the document to
   // measure correctly. We open on first attach (see attachTerminal).
 
-  const entry: TerminalEntry = { term, fit, host, opened: false, exited: false, unsub: [] };
+  const entry: TerminalEntry = { ptyId, term, fit, host, opened: false, exited: false, unsub: [] };
 
   // Subscribe to the pty stream ONCE for the terminal's whole lifetime, so the
   // buffer keeps filling even while this terminal isn't mounted in any view.
@@ -176,12 +178,63 @@ export function attachTerminal(entry: TerminalEntry, container: HTMLElement): vo
       webgl.onContextLoss(() => {
         console.warn('[terminal] webgl context lost — falling back to DOM renderer');
         try { webgl.dispose(); } catch { /* noop */ }
+        // Laptop sleep == GPU sleep == WebGL context loss: the likely PRIMARY
+        // trigger for the post-wake "can't scroll past a recent point" bug. The
+        // renderer swap leaves xterm's cached cell-height (and the viewport
+        // scroll-area derived from it) stale, so only part of the intact buffer
+        // is scrollable until something forces a re-measure. Heal it here, on the
+        // next frame so the (waking) layout has settled. Guarded + idempotent, so
+        // it composes safely with the visibilitychange/focus path in the view.
+        requestAnimationFrame(() => reflowTerminal(entry.ptyId));
       });
       entry.term.loadAddon(webgl);
     } catch (e) {
       console.warn('[terminal] webgl renderer unavailable, using DOM renderer:', e);
     }
   }
+}
+
+/**
+ * Re-measure cell metrics and rebuild the viewport scroll-area for a pooled
+ * terminal. Use after a display wake / GPU (WebGL) context loss / DPR change:
+ * xterm caches the cell height measured at open() and only recomputes it on a
+ * font change or resize. When that cached metric goes stale (sleep/wake), the
+ * .xterm-viewport scroll-area height (rows × cellHeight) is wrong, so only PART
+ * of the still-intact buffer is scrollable — the user otherwise has to zoom to
+ * force a fit() and reveal the rest.
+ *
+ * Mirrors the document.fonts.ready re-measure in PtyTerminalView: re-applying the
+ * SAME font invalidates xterm's cached cell metrics, clearTextureAtlas re-rasters
+ * the WebGL glyph atlas at the right size, then fit() recomputes cols/rows and
+ * rebuilds the viewport. Preserves scroll position (NO scrollToBottom) so a user
+ * reading history isn't yanked down. No-op until the terminal is opened and its
+ * host has a real size, so it composes safely with multiple triggers firing
+ * together (onContextLoss + visibilitychange + focus) — a cheap reflow twice is
+ * harmless; the guards make an early/duplicate call a no-op.
+ */
+export function reflowTerminal(ptyId: string): void {
+  const entry = pool.get(ptyId);
+  if (!entry || !entry.opened) return;
+  const host = entry.host;
+  // Skip while detached or unsized — fitting a 0×0 host makes xterm propose a
+  // tiny grid and resize the pty to it (clipped/oversized banner).
+  if (!host.isConnected || !host.clientWidth || !host.clientHeight) return;
+  try {
+    // Re-apply the SAME font options to force xterm's CharSizeService to
+    // re-measure the cell against the now-correct (woken) layout, then drop the
+    // glyph atlas so it re-rasters at the corrected metrics.
+    entry.term.options.fontFamily = entry.term.options.fontFamily;
+    entry.term.options.fontSize = entry.term.options.fontSize;
+    entry.term.clearTextureAtlas?.();
+    const before = { cols: entry.term.cols, rows: entry.term.rows };
+    entry.fit.fit();
+    // Only poke the pty when the grid actually changed (every resize repaints
+    // the TUI and pushes a frame into scrollback).
+    if (entry.term.cols !== before.cols || entry.term.rows !== before.rows) {
+      window.cth.resizePty(ptyId, entry.term.cols, entry.term.rows);
+    }
+    entry.term.refresh(0, Math.max(0, entry.term.rows - 1));
+  } catch { /* host may not be sized yet */ }
 }
 
 /**
