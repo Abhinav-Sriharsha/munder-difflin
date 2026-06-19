@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import '@xterm/xterm/css/xterm.css';
 import { Icon } from './Icon';
-import { acquireTerminal, attachTerminal } from './terminalPool';
+import { acquireTerminal, attachTerminal, reflowTerminal } from './terminalPool';
 
 const DEFAULT_FONT_SIZE = 14;
 const MIN_FONT_SIZE = 8;
@@ -240,10 +240,29 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
     const onWinResize = () => tryFit(false);
     window.addEventListener('resize', onWinResize);
 
+    // Self-heal after a display wake. Closing the laptop lid sleeps the GPU,
+    // which loses the WebGL context and leaves xterm's cached cell-height (and
+    // the viewport scroll-area derived from it) stale — the full buffer is still
+    // there but only part is scrollable until a re-measure (the user otherwise
+    // has to zoom to force a fit). The ResizeObserver/resize listeners DON'T fire
+    // on lid-open because the window's pixel size is unchanged, so we re-fit
+    // explicitly when the page becomes visible / regains focus. reflowTerminal
+    // re-measures + refits WITHOUT scrolling, so a user reading history isn't
+    // yanked to the bottom. rAF lets the waking layout settle first; if the host
+    // is still unsized the reflow no-ops and the next focus/visibility catches it.
+    const onWake = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      requestAnimationFrame(() => reflowTerminal(ptyId));
+    };
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('focus', onWake);
+
     return () => {
       retries.forEach(clearTimeout);
       ro.disconnect();
       window.removeEventListener('resize', onWinResize);
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('focus', onWake);
       // Detach (but DON'T dispose) the terminal — it keeps running in the pool.
       entry.onData = undefined;
       entry.onPrompt = undefined;
