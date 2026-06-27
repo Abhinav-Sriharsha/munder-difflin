@@ -47,7 +47,12 @@ export const OPS_STANDUP_MISSION: ScheduledMission = {
     'contexts stay bounded without losing work. The compaction is queued and ' +
     'runs when an agent is idle, so it never interrupts work mid-step.)',
   enabled: true,
-  autoCompact: true
+  // Auto-compact injection ships OFF: the founder does not want a scheduled
+  // `/compact …` typed into agent terminals (it reads as if they typed it).
+  // Re-enableable per-mission; the one-time autoCompactDisabledMigrated step
+  // also flips this false on existing installs. Claude Code's own near-limit
+  // auto-compaction still protects long sessions independently of this.
+  autoCompact: false
 };
 
 /** The built-in heartbeat (Lane A #1). A context-aware beat that, each tick,
@@ -131,6 +136,7 @@ export interface HarnessConfig {
   /** One-time guard for the built-in heartbeat mission (mirrors opsStandupSeeded
    *  so a user who deletes the heartbeat doesn't get it re-added every boot). */
   heartbeatSeeded?: boolean;
+  autoCompactDisabledMigrated?: boolean; // one-time: flipped every mission's autoCompact off on existing installs (founder opt-out); guards against re-forcing if re-enabled later
   /** Hard dollar ceiling across all active agents before the circuit breaker
    *  trips. UNSET by default (Lane A #6.6b decision): the breaker trips on
    *  behavioral signals; the $-cap is purely opt-in. Legacy — the UI now sets a

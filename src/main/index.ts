@@ -340,6 +340,20 @@ function ensureDefaultMissions(): void {
       heartbeatSeeded: true
     });
   }
+  // One-time opt-out: the founder doesn't want the scheduled /compact injected
+  // into agent terminals. An existing install already persisted the ops standup
+  // with autoCompact:true (which { ...DEFAULTS, ...parsed } keeps), so flipping
+  // the built-in default alone wouldn't reach it — clear the flag on every
+  // persisted mission once. Guarded so a user who deliberately re-enables it
+  // later isn't force-disabled on every boot.
+  const cfg3 = readConfig();
+  if (!cfg3.autoCompactDisabledMigrated) {
+    const missions = cfg3.missions ?? [];
+    writeConfig({
+      missions: missions.map((m) => (m.autoCompact ? { ...m, autoCompact: false } : m)),
+      autoCompactDisabledMigrated: true
+    });
+  }
 }
 
 // ─── Heartbeat (Lane A #1) + circuit-breaker beat (#6.6b) ────────────────────
