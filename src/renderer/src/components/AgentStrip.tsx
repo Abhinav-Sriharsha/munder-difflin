@@ -214,6 +214,40 @@ export function AgentStrip({ config }: AgentStripProps) {
           </PixelButton>
         </span>
       )}
+      {/* Per-agent dismiss: drop one worker from the restore list for good. Wires
+          straight to the store's removeRestorableAgent (filters + persistRestorable
+          → cth.restorableAgents), so a dismissed agent never reappears after reload. */}
+      {restorableAgents.length > 0 && (
+        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+          {restorableAgents.map((a: Agent) => (
+            <span
+              key={a.id}
+              title={`${a.name} — restorable from last session`}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                flexShrink: 0, height: 24, padding: '0 4px 0 8px',
+                fontFamily: 'var(--cth-font-ui)', fontSize: 12,
+                color: 'var(--cth-ink-700)', background: 'var(--cth-paper-100)',
+                boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
+              }}
+            >
+              {a.name}
+              <button
+                onClick={() => useStore.getState().removeRestorableAgent(a.id)}
+                title={`Dismiss ${a.name} — remove permanently from the restore list`}
+                aria-label={`Dismiss ${a.name}`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 16, height: 16, padding: 0, lineHeight: 1,
+                  fontFamily: 'var(--cth-font-ui)', fontSize: 12,
+                  color: 'var(--cth-ink-500)', background: 'transparent',
+                  border: 'none', cursor: 'pointer'
+                }}
+              >✕</button>
+            </span>
+          ))}
+        </span>
+      )}
       {restoreNote && (
         <span
           style={{
