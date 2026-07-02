@@ -4,6 +4,44 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] — 2026-07-03
+
+**An IDE on the floor, and a seventh engine.** Two headliners: a **built-in Monaco IDE** — the
+VS Code editor engine in a full-window overlay, with a git CHANGES rail, side-by-side diffs vs
+HEAD, a file tree, editor tabs, and Cmd/Ctrl+S save — and **GitHub Copilot CLI** as a first-class
+agent engine, the project's **first community-contributed provider**
+([PR #101](https://github.com/chaitanyagiri/munder-difflin/pull/101) by
+[@anxkhn](https://github.com/anxkhn)).
+
+### Added
+- **Built-in Monaco IDE panel.** A title-bar **IDE** button toggles a full-window IDE overlay
+  (matching the existing fullscreen-overlay pattern — the office floor, terminals, and voice UX are
+  untouched). Left rail: a **git CHANGES list** (click a file → read-only **side-by-side diff vs
+  HEAD**) plus the reused workspace **file tree** (click → edit). Right: **editor tabs** with
+  dirty-state dots, save, and close; **Cmd/Ctrl+S** saves the active tab. The workspace root
+  snapshots from the selected/god/first agent cwd. Monaco is **fully self-hosted** —
+  electron-vite-safe bootstrap with bundled `?worker` imports and `loader.config({ monaco })`, no
+  CDN — themed to the harness's light palette, and **all fs/git access goes through main-process
+  IPC** (`git:diff` + preload bridge; the renderer holds no fs/git access)
+  (`src/renderer/src/ide/*`, `src/main/git.ts`).
+- **GitHub Copilot CLI agent engine** (`copilot`, npm `@github/copilot`) — community-contributed.
+  Registered as a provider preset driven in Copilot's documented non-interactive **print mode**:
+  `copilot -p "<prompt>" -s --allow-all-tools --no-ask-user [--model <id>]`, with the auto-approval
+  flags **gated by the floor auto-mode toggle** like every other engine. Includes a
+  **`COPILOT_MODELS` picker** (Claude Sonnet 4.5 default · GPT-5.4 · auto), `--resume` session
+  continuity (best-effort), voice-hire (`spawn`) support, binary inference for pasted commands, and
+  the official `npm install -g @github/copilot` offered by the missing-CLI installer. Non-hiveAware
+  by design: print mode exits per turn and exposes no hook bridge, so `canReceiveInbox` is `false`
+  and routed mail bounces to the GOD orchestrator instead of silently dropping
+  (`src/shared/agentProvider.ts`, PR #101 — thanks [@anxkhn](https://github.com/anxkhn)).
+- **Agent-provider registry test.** A self-contained, framework-free test
+  (`node test/agent-provider.test.cjs`) transpiles the shared registry and asserts provider
+  selection, the copilot command shape, model/resume passthrough, and codex non-regression.
+
+### Fixed
+- **IDE: no silent loss of edits typed during an in-flight save.** Keystrokes entered while a save
+  was still writing can no longer be dropped when the save completes.
+
 ## [0.3.2] — 2026-06-27
 
 **Talk to Michael.** The headline is **Realtime Michael** — a low-latency **voice channel to the

@@ -1,9 +1,35 @@
-# Munder Difflin v0.3.2
+# Munder Difflin v0.3.3
 
-**A local hive of Claude Code, Antigravity & Codex agents that run themselves** — messaging,
+**A local hive of Claude Code, Antigravity, Codex & Copilot agents that run themselves** — messaging,
 routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-first and open source.
 
 ### → [**munderdiffl.in**](https://munderdiffl.in/) — see it in action, then grab a build below
+
+---
+
+## What's new in 0.3.3 — *A built-in Monaco IDE + GitHub Copilot CLI*
+
+**Read your agents' work where it happens.** The title bar gains an **IDE** button that opens a
+full-window **Monaco** editor (the VS Code editor engine) over the office floor — and the engine
+roster grows to **seven** with **GitHub Copilot CLI**, our **first community-contributed provider**.
+
+- **Built-in Monaco IDE.** A toggleable full-window overlay (the floor, terminals, and voice UX are
+  untouched underneath): a **git CHANGES rail** listing every file your agents touched — click one
+  for a **read-only, side-by-side diff against HEAD** — plus the workspace **file tree**, **editor
+  tabs** with dirty-state dots, and **Cmd/Ctrl+S** save. Monaco is **fully self-hosted** (bundled
+  workers, no CDN), themed to the harness palette, and **every fs/git call is brokered through the
+  main process** — the renderer holds no direct disk access. Also hardened: keystrokes typed while
+  a save is in flight can no longer be silently lost.
+- **GitHub Copilot CLI as an agent engine** (`copilot`, npm `@github/copilot`) — contributed in
+  [PR #101](https://github.com/chaitanyagiri/munder-difflin/pull/101) by
+  [**@anxkhn**](https://github.com/anxkhn). Hire a Copilot-powered worker in its documented
+  non-interactive **print mode** (`copilot -p "<prompt>" -s --allow-all-tools --no-ask-user`), with
+  the auto-approval flags **gated by the floor auto-mode toggle** like every other engine, a
+  **model picker** (Claude Sonnet 4.5 default · GPT-5.4 · auto), best-effort `--resume` session
+  continuity, voice-hire support, and the official npm installer offered when the CLI is missing —
+  authenticated by your **existing GitHub Copilot login**, no new keys. Honest caveat: print mode
+  exits per turn with no hook bridge, so routed inbox mail **bounces back to the GOD orchestrator**
+  rather than draining — Copilot workers shine on dispatched, self-contained tasks.
 
 ---
 
