@@ -22,3 +22,6 @@ docs/media/*.mov
 
 # git worktree mounts for hive worker agents — never commit (each is a separate branch checkout)
 .worktrees/
+
+# raw demo screen recordings — only the compressed docs/media/demo/*.mp4 are deployed
+docs/media/MunderDifflin*.mp4
