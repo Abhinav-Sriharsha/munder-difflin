@@ -340,6 +340,12 @@
   }
   .lightfall canvas { width: 100%; height: 100%; display: block; }
   html[data-theme="dark"] .lightfall { display: block; }
+  /* dark hero: drop the sky-blue wash (too bright over the headline), keep a faint warm glow;
+     and lift the description contrast so streaks never wash it out */
+  html[data-theme="dark"] .hero::before {
+    background: radial-gradient(680px 380px at 50% 0%, rgba(255,202,84,0.08), transparent 70%);
+  }
+  html[data-theme="dark"] .hero-sub { color: #CDC8B8; }
   .hero .wrap { position: relative; z-index: 1; }
   .hero .demo { position: relative; z-index: 1; }
   .chip-wrap { position: relative; display: inline-block; margin-bottom: 28px; }
@@ -1409,7 +1415,7 @@
       '  vec2 inner=vec2(length(max(Pp,vec2(-1.0,0.0))),length(Pp)-zr)-zr;',
       '  vec2 sm=vec2(1.0)-smoothstep(-rr,rr,inner);',
       '  O.rgb+=dot(sm,vec2(exp(tail*Pp.y),3.0))*col*weight;C.x+=Y.x/8.0;}',
-      ' vec3 colr=sqrt(tanhv(max(O.rgb*uGlow-vec3(0.04,0.08,0.02),0.0)));o=vec4(colr,uOpacity);}',
+      ' vec3 colr=sqrt(tanhv(max(O.rgb*uGlow-vec3(0.05),0.0)));o=vec4(colr,uOpacity);}',
       'void main(){vec4 color;mainImage(color,vUv*iResolution.xy);gl_FragColor=color;}'
     ].join('\n');
 
@@ -1453,10 +1459,10 @@
     gl.uniform1f(U('uStreakWidth'), 0.6);
     gl.uniform1f(U('uStreakLength'), 1);
     gl.uniform1f(U('uGlow'), 1);
-    gl.uniform1f(U('uDensity'), 0.3);
+    gl.uniform1f(U('uDensity'), 0.15);
     gl.uniform1f(U('uTwinkle'), 0.85);
     gl.uniform1f(U('uZoom'), 3);
-    gl.uniform1f(U('uBgGlow'), 0.25);
+    gl.uniform1f(U('uBgGlow'), 0.0);
     gl.uniform1f(U('uOpacity'), 1);
     gl.uniform1f(U('uMouseEnabled'), 1);
     gl.uniform1f(U('uMouseStrength'), 0.35);
