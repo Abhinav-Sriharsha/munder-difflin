@@ -556,10 +556,21 @@
   .compare-table tr:last-child td { border-bottom: none; }
   .compare-table thead th { font-size: 13px; font-weight: 600; color: var(--faint); background: var(--bg); text-transform: uppercase; letter-spacing: .06em; font-family: var(--font-mono); }
   .compare-table td:first-child { color: var(--ink); font-weight: 500; }
-  .compare-table td, .compare-table th { width: 40%; }
-  .compare-table td:first-child, .compare-table th:first-child { width: 20%; }
+  .compare-table td, .compare-table th { width: 37%; }
+  .compare-table td:first-child, .compare-table th:first-child { width: 26%; }
+  /* the Munder Difflin column carries the brand */
+  .compare-table th:last-child, .compare-table td:last-child { background: rgba(255,202,84,0.08); }
+  .compare-table th:last-child { border-bottom: 2px solid var(--yellow); }
+  .compare-table .md-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--yellow); color: #17150E; border-radius: 999px; padding: 4px 12px;
+    font-weight: 700; letter-spacing: .04em;
+  }
+  .compare-table .md-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #17150E; }
   .c-no { color: var(--faint); }
   .c-yes { color: var(--green); font-weight: 600; }
+  .c-yes .ck { color: var(--yellow); margin-right: 2px; }
+  .c-fun { color: var(--ink); font-weight: 600; }
   @media (max-width: 640px) {
     .compare-table th, .compare-table td { padding: 12px 12px; font-size: 13px; }
   }
@@ -1135,16 +1146,20 @@
     <div class="compare-table reveal">
       <table>
         <thead>
-          <tr><th></th><th>A single CLI tab</th><th>Munder Difflin</th></tr>
+          <tr><th></th><th>A single CLI tab</th><th><span class="md-pill">Munder Difflin</span></th></tr>
         </thead>
         <tbody>
-          <tr><td>Agents in parallel</td><td class="c-no">One, babysat by you</td><td class="c-yes">✓ A whole floor, orchestrated</td></tr>
-          <tr><td>Runs unattended</td><td class="c-no">Stops when you close the lid</td><td class="c-yes">✓ Hours to days, autonomously</td></tr>
-          <tr><td>Long-term memory</td><td class="c-no">Forgets every session</td><td class="c-yes">✓ MemPalace, shared by every agent</td></tr>
-          <tr><td>Trigger from anywhere</td><td class="c-no">Keyboard only</td><td class="c-yes">✓ Slack · webhook · schedule · voice</td></tr>
-          <tr><td>See what's happening</td><td class="c-no">Scrollback archaeology</td><td class="c-yes">✓ A live office floor + Command Center</td></tr>
-          <tr><td>Safety rails</td><td class="c-no">Hope</td><td class="c-yes">✓ Human gates on spend, scope &amp; deletes</td></tr>
-          <tr><td>Cost</td><td class="c-yes">Your existing subscription</td><td class="c-yes">✓ Same — free &amp; open source on top</td></tr>
+          <tr><td>Agents in parallel</td><td class="c-no">One, babysat by you</td><td class="c-yes"><span class="ck">✓</span> A whole floor, orchestrated</td></tr>
+          <tr><td>Multiple CLI tools</td><td class="c-no">One at a time</td><td class="c-yes"><span class="ck">✓</span> Seven engines, one office — Claude Code to Copilot</td></tr>
+          <tr><td>Talk to your agents</td><td class="c-no">Typing only</td><td class="c-yes"><span class="ck">✓</span> Talk mode — run the floor by voice</td></tr>
+          <tr><td>Trigger from Slack</td><td class="c-no">—</td><td class="c-yes"><span class="ck">✓</span> Message a channel; the reply comes back when it's done</td></tr>
+          <tr><td>Webhooks &amp; schedules</td><td class="c-no">Cron + duct tape</td><td class="c-yes"><span class="ck">✓</span> POST a webhook or set it on a schedule</td></tr>
+          <tr><td>Runs unattended</td><td class="c-no">Stops when you close the lid</td><td class="c-yes"><span class="ck">✓</span> Hours to days, autonomously</td></tr>
+          <tr><td>Long-term memory</td><td class="c-no">Forgets every session</td><td class="c-yes"><span class="ck">✓</span> MemPalace, shared by every agent</td></tr>
+          <tr><td>See what's happening</td><td class="c-no">Scrollback archaeology</td><td class="c-yes"><span class="ck">✓</span> A live office floor + Command Center</td></tr>
+          <tr><td>Safety rails</td><td class="c-no">Hope</td><td class="c-yes"><span class="ck">✓</span> Human gates on spend, scope &amp; deletes</td></tr>
+          <tr><td>Cost</td><td class="c-yes">Your existing subscription</td><td class="c-yes"><span class="ck">✓</span> Same — free &amp; open source on top</td></tr>
+          <tr><td>Cool to look at?</td><td class="c-no">It's… a terminal</td><td class="c-fun">😎 Extremely. It's <em>The Office</em>, starring your agents.</td></tr>
         </tbody>
       </table>
     </div>
@@ -1464,8 +1479,8 @@
     gl.uniform1f(U('uZoom'), 3);
     gl.uniform1f(U('uBgGlow'), 0.0);
     gl.uniform1f(U('uOpacity'), 1);
-    gl.uniform1f(U('uMouseEnabled'), 1);
-    gl.uniform1f(U('uMouseStrength'), 0.35);
+    gl.uniform1f(U('uMouseEnabled'), 0); // no hover spotlight
+    gl.uniform1f(U('uMouseStrength'), 0);
     gl.uniform1f(U('uMouseRadius'), 1);
     var uRes = U('iResolution'), uMouse = U('iMouse'), uTime = U('iTime');
 
@@ -1481,14 +1496,6 @@
     if ('ResizeObserver' in window) new ResizeObserver(resize).observe(host);
     else window.addEventListener('resize', resize);
 
-    // damped mouse
-    var mx = 0, my = 0, tx = 0, ty = 0;
-    window.addEventListener('pointermove', function (e) {
-      var rect = canvas.getBoundingClientRect();
-      tx = (e.clientX - rect.left) * dpr;
-      ty = (rect.height - (e.clientY - rect.top)) * dpr;
-    }, { passive: true });
-
     // only render while the hero is on screen, the tab is visible, and theme is dark
     var onScreen = true;
     if ('IntersectionObserver' in window) {
@@ -1499,8 +1506,6 @@
       requestAnimationFrame(frame);
       if (!onScreen || document.hidden) return;
       if (document.documentElement.getAttribute('data-theme') !== 'dark') return;
-      mx += (tx - mx) * 0.12; my += (ty - my) * 0.12;
-      gl.uniform2f(uMouse, mx, my);
       gl.uniform1f(uTime, (now - t0) / 1000);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
