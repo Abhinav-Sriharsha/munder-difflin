@@ -70,11 +70,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script>
-  // theme init — BEFORE first paint. Dark is the default; the toggle persists a choice.
+  // theme init — BEFORE first paint. Default: dark on desktop, light on phones
+  // (dark's WebGL hero + grid are tuned for big screens); the toggle persists a choice.
   (function () {
     var t;
     try { t = localStorage.getItem('mdf_theme'); } catch (e) {}
-    if (t !== 'light' && t !== 'dark') t = 'dark';
+    if (t !== 'light' && t !== 'dark') {
+      var mobile = false;
+      try { mobile = window.matchMedia('(max-width: 768px)').matches; } catch (e) {}
+      t = mobile ? 'light' : 'dark';
+    }
     document.documentElement.setAttribute('data-theme', t);
   })();
 </script>
@@ -515,6 +520,8 @@
     font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--ink);
   }
   .badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+  /* yellow "NEW" badges always use dark ink text — never the theme ink (white-on-yellow is unreadable) */
+  .badge-new { background: var(--yellow); border-color: var(--yellow); color: #17150E; font-weight: 700; }
 
   /* small utility chips row (also-included) */
   .mini-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 18px; }
@@ -704,6 +711,12 @@
     .demo-tab { font-size: 12px; padding: 8px 13px; }
     .demo-frame { border-radius: var(--r-md); }
     .demo-cap { font-size: 13px; padding: 0 4px; }
+    /* slimmer badges on phones */
+    .badge { font-size: 10.5px; padding: 3px 9px; gap: 5px; }
+    .badge .dot { width: 6px; height: 6px; }
+    .fcard-title { flex-wrap: wrap; row-gap: 6px; font-size: 16px; }
+    .fcard .badges { gap: 6px; }
+    .prov { font-size: 12px; padding: 8px 12px; }
   }
 </style>
 </head>
@@ -861,7 +874,7 @@
       <span class="prov"><span class="p-dot" style="background:#E4DEFB;"></span>OpenCode</span>
       <span class="prov"><span class="p-dot" style="background:#FBD7CD;"></span>Crush</span>
       <span class="prov"><span class="p-dot" style="background:var(--yellow);"></span>pi.dev</span>
-      <span class="prov"><span class="p-dot" style="background:#C3E8D0;"></span>GitHub Copilot <span class="badge" style="padding:2px 8px; font-size:10px; background:var(--yellow); border-color:var(--yellow); font-weight:700;">NEW</span></span>
+      <span class="prov"><span class="p-dot" style="background:#C3E8D0;"></span>GitHub Copilot <span class="badge badge-new" style="padding:2px 8px; font-size:10px;">NEW</span></span>
       <span class="prov ghosted">+ your own keys &amp; local LLMs</span>
     </div>
     <p class="prov-sub reveal">No new API bills. It drives the <b>CLIs and subscriptions you already have</b> — each one gets a desk, a mailbox, and a seat in the same hive.</p>
@@ -952,7 +965,7 @@
       <!-- Talk mode (wide) -->
       <div class="fcard span-2 reveal">
         <div class="fcard-body" style="padding: 26px 28px;">
-          <div class="fcard-title"><span class="ic">🎙️</span> Talk mode — run the floor by voice <span class="badge" style="background:var(--yellow); border-color:var(--yellow); font-weight:700;">NEW in v0.3.2</span></div>
+          <div class="fcard-title"><span class="ic">🎙️</span> Talk mode — run the floor by voice <span class="badge badge-new">NEW in v0.3.2</span></div>
           <p class="fcard-desc">Flip it on and Michael greets you out loud. Describe the goal; he spawns hires, assigns and
             steers the work, reads back memory or any agent's status on request, and speaks up when it's done.
             Hands-free orchestration — with the same human-in-the-loop confirms before anything risky.</p>
@@ -967,7 +980,7 @@
       <!-- Monaco IDE (wide) -->
       <div class="fcard span-2 reveal">
         <div class="fcard-body" style="padding: 26px 28px;">
-          <div class="fcard-title"><span class="ic">📝</span> A real IDE, built into the floor <span class="badge" style="background:var(--yellow); border-color:var(--yellow); font-weight:700;">NEW in v0.3.3</span></div>
+          <div class="fcard-title"><span class="ic">📝</span> A real IDE, built into the floor <span class="badge badge-new">NEW in v0.3.3</span></div>
           <p class="fcard-desc">One click opens a full <b>Monaco IDE</b> — the same editor engine as VS&nbsp;Code — right over the office.
             Browse the file tree, review every change your agents made as a <b>side-by-side git diff</b>, edit in tabs with
             dirty-state tracking, and save with <b>Cmd/Ctrl+S</b>. No context switch, no external editor — read, tweak, and
