@@ -129,7 +129,9 @@
     --line:        rgba(244,241,230,0.10);
     --line-strong: rgba(244,241,230,0.22);
     --ver-accent:   #72C2DF;
-    --nav-bg:       transparent;
+    /* opaque page-color nav: looks transparent (same color, no border) but the
+       body grid pattern never shows through the bar */
+    --nav-bg:       #0F0E09;
     --frame-border: rgba(244,241,230,0.14);
     --media-tint:   rgba(244,241,230,0.04);
     --chip-bg:      rgba(244,241,230,0.14);
@@ -346,7 +348,8 @@
     background: radial-gradient(680px 380px at 50% 0%, rgba(255,202,84,0.08), transparent 70%);
   }
   html[data-theme="dark"] .hero-sub { color: #CDC8B8; }
-  .hero .wrap { position: relative; z-index: 1; }
+  /* .wrap sits ABOVE .demo so the open download menu never hides behind the video tabs */
+  .hero .wrap { position: relative; z-index: 2; }
   .hero .demo { position: relative; z-index: 1; }
   .chip-wrap { position: relative; display: inline-block; margin-bottom: 28px; }
   .chip {
@@ -389,20 +392,23 @@
   /* ---------- demo: tabs + frame (the Orca-style multi-section demo) ---------- */
   .demo { margin-top: 56px; padding-bottom: 96px; }
   .demo-tabs {
-    display: inline-flex; gap: 4px; flex-wrap: wrap; justify-content: center;
+    display: inline-flex; gap: 4px; flex-wrap: nowrap; justify-content: flex-start;
     background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
     padding: 5px; box-shadow: var(--shadow-sm); margin-bottom: 26px;
-    max-width: 100%;
+    max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; scroll-snap-type: x proximity;
   }
+  .demo-tabs::-webkit-scrollbar { display: none; }
   .demo-tab {
-    font-family: var(--font-sans); font-size: 13.5px; font-weight: 500; color: var(--muted);
-    background: transparent; border: 0; border-radius: 999px; padding: 9px 16px; cursor: pointer;
-    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+    font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--muted);
+    background: transparent; border: 0; border-radius: 999px; padding: 9px 15px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; flex: none;
+    scroll-snap-align: center;
     transition: background .15s ease, color .15s ease;
   }
   .demo-tab:hover { color: var(--ink); }
-  .demo-tab[aria-selected="true"] { background: var(--ink); color: var(--bg); font-weight: 600; }
-  .demo-tab .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: none; }
+  .demo-tab[aria-selected="true"] { background: var(--yellow); color: #17150E; }
+  .demo-tab .dot { width: 6px; height: 6px; border-radius: 50%; background: #17150E; display: none; }
   .demo-tab[aria-selected="true"] .dot { display: inline-block; }
   .demo-frame {
     max-width: 1060px; margin: 0 auto;
@@ -689,7 +695,15 @@
     .brand-logo { height: 28px; }
     .nav-actions { gap: 8px; }
     .chip { font-size: 10.5px; letter-spacing: 0; padding: 6px 11px; gap: 6px; white-space: nowrap; }
-    .demo-tabs { border-radius: var(--r-md); }
+    /* video tabs: edge-to-edge scroll strip on phones */
+    .demo-tabs {
+      display: flex; width: calc(100% + 2 * var(--pad-x));
+      margin-left: calc(-1 * var(--pad-x)); margin-right: calc(-1 * var(--pad-x));
+      padding: 5px var(--pad-x); border-radius: 0; border-left: 0; border-right: 0;
+    }
+    .demo-tab { font-size: 12px; padding: 8px 13px; }
+    .demo-frame { border-radius: var(--r-md); }
+    .demo-cap { font-size: 13px; padding: 0 4px; }
   }
 </style>
 </head>
@@ -1584,6 +1598,11 @@
       current = idx;
       track.style.transform = 'translateX(-' + (idx * 100) + '%)';
       tabs.forEach(function (x, i) { x.setAttribute('aria-selected', i === idx ? 'true' : 'false'); });
+      // keep the active tab visible in the (mobile) scrollable tab strip
+      var bar = tabs[idx].parentElement;
+      if (bar && bar.scrollWidth > bar.clientWidth) {
+        bar.scrollTo({ left: tabs[idx].offsetLeft - (bar.clientWidth - tabs[idx].offsetWidth) / 2, behavior: 'smooth' });
+      }
       var key = panels[idx].getAttribute('data-panel');
       if (META[key]) { title.textContent = META[key].title; cap.innerHTML = META[key].cap; }
       // warm up the incoming video's metadata so the play click starts instantly
