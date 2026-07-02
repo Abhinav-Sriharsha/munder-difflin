@@ -22,7 +22,7 @@
 <meta name="twitter:description" content="Turn the agent CLIs you already have into a coordinated office that plans, builds, and ships around the clock — on a live office floor you can watch. Free &amp; open source." />
 <meta name="twitter:image" content="https://munderdiffl.in/media/og.png" />
 <meta name="twitter:image:alt" content="Munder Difflin office floor — agents at their desks, the GOD orchestrator in Michael's office, and a live terminal session." />
-<meta name="theme-color" content="#FAF8F1" />
+<meta name="theme-color" content="#0F0E09" />
 <link rel="alternate" type="application/rss+xml" title="Munder Difflin Blog" href="https://munderdiffl.in/blog/feed.xml" />
 <script type="application/ld+json">
 {
@@ -69,9 +69,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script>
+  // theme init — BEFORE first paint. Dark is the default; the toggle persists a choice.
+  (function () {
+    var t;
+    try { t = localStorage.getItem('mdf_theme'); } catch (e) {}
+    if (t !== 'light' && t !== 'dark') t = 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
 <style>
   :root {
-    /* canvas — slightly off-white, warm */
+    /* canvas — slightly off-white, warm (light theme; dark overrides below) */
     --bg:       #FAF8F1;
     --surface:  #FFFFFF;
     --dark:     #131208;   /* demo frames, final CTA */
@@ -83,6 +92,12 @@
     /* hairlines */
     --line:        rgba(23,21,14,0.12);
     --line-strong: rgba(23,21,14,0.22);
+    /* theme-dependent surfaces */
+    --nav-bg:       rgba(250,248,241,0.85);
+    --frame-border: rgba(23,21,14,0.35);
+    --media-tint:   rgba(23,21,14,0.03);
+    --chip-bg:      rgba(23,21,14,0.08);
+    --grid-line:    rgba(23,21,14,0.045);
     /* brand accents */
     --yellow: #FFCA54;
     --maroon: #B23A4E;
@@ -103,11 +118,37 @@
     --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
 
+  /* ---------- dark theme (the default; toggle in the nav) ---------- */
+  html[data-theme="dark"] {
+    --bg:       #0F0E09;
+    --surface:  #17150F;
+    --ink:      #F4F1E6;
+    --muted:    #B5B0A0;
+    --faint:    #7C7869;
+    --line:        rgba(244,241,230,0.10);
+    --line-strong: rgba(244,241,230,0.22);
+    --nav-bg:       rgba(15,14,9,0.80);
+    --frame-border: rgba(244,241,230,0.14);
+    --media-tint:   rgba(244,241,230,0.04);
+    --chip-bg:      rgba(244,241,230,0.14);
+    --grid-line:    rgba(244,241,230,0.05);
+    --green: #4CC38A;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.45), 0 12px 32px rgba(0,0,0,0.35);
+    --shadow-lg: 0 4px 16px rgba(0,0,0,0.5), 0 24px 64px rgba(0,0,0,0.45);
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
   body {
     font-family: var(--font-sans);
-    background: var(--bg);
+    background-color: var(--bg);
+    /* subtle grid pattern across the page (sections with their own surface sit on top) */
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 44px 44px;
+    background-attachment: fixed;
     color: var(--muted);
     line-height: 1.6;
     overflow-x: hidden;
@@ -132,7 +173,7 @@
     position: sticky; top: 0; z-index: 80;
     display: flex; align-items: center; gap: 18px;
     padding: 12px var(--pad-x);
-    background: rgba(250,248,241,0.85);
+    background: var(--nav-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid transparent;
@@ -209,7 +250,7 @@
   /* live GitHub star count appended into the Star buttons (populated by JS) */
   .star-count {
     font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 600;
-    background: rgba(23,21,14,0.08); border-radius: 999px; padding: 3px 8px; margin-left: 2px;
+    background: var(--chip-bg); border-radius: 999px; padding: 3px 8px; margin-left: 2px;
   }
   .btn.primary .star-count { background: rgba(255,255,255,0.18); }
   .star-count:empty { display: none; }
@@ -259,6 +300,19 @@
   .center { text-align: center; }
   .center .lead { margin-left: auto; margin-right: auto; }
 
+  /* ---------- theme toggle ---------- */
+  .theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; padding: 0; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--line-strong); border-radius: 999px;
+    color: var(--ink); box-shadow: var(--shadow-sm); font-size: 15px; line-height: 1;
+    transition: transform .12s ease, border-color .12s ease;
+  }
+  .theme-toggle:hover { transform: translateY(-1px); border-color: var(--ink); }
+  .theme-toggle .sun { display: none; } .theme-toggle .moon { display: inline; }
+  html[data-theme="dark"] .theme-toggle .sun { display: inline; }
+  html[data-theme="dark"] .theme-toggle .moon { display: none; }
+
   /* ---------- hero ---------- */
   .hero { padding: 84px 0 0; text-align: center; position: relative; }
   .hero::before {
@@ -268,7 +322,17 @@
       radial-gradient(900px 500px at 50% 10%, rgba(114,194,223,0.10), transparent 70%);
     pointer-events: none;
   }
+  /* Lightfall (react-bits) — WebGL falling light streaks behind the hero; dark theme only */
+  .lightfall {
+    position: absolute; inset: 0 0 auto 0; height: min(880px, 100%); z-index: 0;
+    pointer-events: none; display: none; overflow: hidden;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 62%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 0%, #000 62%, transparent 100%);
+  }
+  .lightfall canvas { width: 100%; height: 100%; display: block; }
+  html[data-theme="dark"] .lightfall { display: block; }
   .hero .wrap { position: relative; z-index: 1; }
+  .hero .demo { position: relative; z-index: 1; }
   .chip {
     display: inline-flex; align-items: center; gap: 8px; margin-bottom: 28px;
     font-family: var(--font-mono); font-size: 12px; color: var(--muted);
@@ -308,7 +372,7 @@
   .demo-tab[aria-selected="true"] .dot { display: inline-block; }
   .demo-frame {
     max-width: 1060px; margin: 0 auto;
-    background: var(--dark); border: 1px solid rgba(23,21,14,0.35); border-radius: var(--r-lg);
+    background: var(--dark); border: 1px solid var(--frame-border); border-radius: var(--r-lg);
     box-shadow: var(--shadow-lg); overflow: hidden;
   }
   .demo-frame .bar {
@@ -392,7 +456,7 @@
   }
   .fcard:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--line-strong); }
   .fcard-media {
-    background: linear-gradient(180deg, rgba(23,21,14,0.03), rgba(23,21,14,0.00));
+    background: linear-gradient(180deg, var(--media-tint), transparent);
     border-bottom: 1px solid var(--line);
     padding: 26px; display: flex; align-items: center; justify-content: center; min-height: 168px;
   }
@@ -496,7 +560,7 @@
 
   /* ---------- install ---------- */
   .term {
-    margin-top: 26px; background: var(--dark); border: 1px solid rgba(23,21,14,0.3); border-radius: var(--r-md);
+    margin-top: 26px; background: var(--dark); border: 1px solid var(--frame-border); border-radius: var(--r-md);
     padding: 20px 22px; font-family: var(--font-mono); font-size: 13.5px; color: #D8D4C6;
     overflow-x: auto; line-height: 1.9; width: 100%; max-width: 760px; min-width: 0;
     box-shadow: var(--shadow-md);
@@ -604,6 +668,9 @@
     <a class="nav-menu-only btn primary sm" href="https://github.com/chaitanyagiri/munder-difflin/releases/latest"><span class="ic">⤓</span> Download</a>
   </div>
   <div class="nav-actions">
+    <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch between dark and light theme">
+      <span class="sun" aria-hidden="true">☀️</span><span class="moon" aria-hidden="true">🌙</span>
+    </button>
     <a class="btn ghost sm nav-desktop-only" data-gh-stars href="https://github.com/chaitanyagiri/munder-difflin"><span class="star-ic">★</span> Star<span class="star-count"></span></a>
     <a class="btn primary sm nav-desktop-only" data-download data-align="right" href="https://github.com/chaitanyagiri/munder-difflin/releases/latest"><span class="ic">⤓</span> Download</a>
     <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navMenu">
@@ -614,6 +681,7 @@
 
 <!-- ===================== HERO ===================== -->
 <header class="hero">
+  <div class="lightfall" id="lightfall" aria-hidden="true"></div>
   <div class="wrap">
     <div class="chip reveal"><span class="new">NEW</span> <b>v0.3.3</b> · Built-in Monaco IDE + GitHub Copilot CLI</div>
     <h1 class="hero-title reveal">Forever running cli agent cluster to do all your work</h1>
@@ -1201,6 +1269,175 @@
     var nav = document.getElementById('nav');
     var onScroll = function () { nav.classList.toggle('scrolled', window.scrollY > 8); };
     onScroll(); window.addEventListener('scroll', onScroll, { passive: true });
+  })();
+
+  // theme toggle — dark by default (set pre-paint in <head>), persisted per visitor
+  (function () {
+    var btn = document.getElementById('themeToggle');
+    if (!btn) return;
+    var meta = document.querySelector('meta[name="theme-color"]');
+    function apply(t) {
+      document.documentElement.setAttribute('data-theme', t);
+      if (meta) meta.setAttribute('content', t === 'dark' ? '#0F0E09' : '#FAF8F1');
+      try { localStorage.setItem('mdf_theme', t); } catch (e) {}
+    }
+    apply(document.documentElement.getAttribute('data-theme') || 'dark');
+    btn.addEventListener('click', function () {
+      var cur = document.documentElement.getAttribute('data-theme');
+      apply(cur === 'dark' ? 'light' : 'dark');
+    });
+  })();
+
+  // Lightfall — falling light streaks behind the hero (dark theme only).
+  // Vanilla-WebGL port of the react-bits <Lightfall/> background (MIT,
+  // https://reactbits.dev/backgrounds/lightfall) — same fragment shader, no deps.
+  (function () {
+    var host = document.getElementById('lightfall');
+    if (!host || !window.WebGLRenderingContext) return;
+    var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var canvas = document.createElement('canvas');
+    var gl = canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: false });
+    if (!gl) return;
+    host.appendChild(canvas);
+
+    var VERT = 'attribute vec2 position;attribute vec2 uv;varying vec2 vUv;' +
+      'void main(){vUv=uv;gl_Position=vec4(position,0.0,1.0);}';
+    var FRAG = [
+      'precision highp float;',
+      'uniform vec3 iResolution;uniform vec2 iMouse;uniform float iTime;',
+      'uniform vec3 uColor0;uniform vec3 uColor1;uniform vec3 uColor2;uniform vec3 uColor3;',
+      'uniform vec3 uColor4;uniform vec3 uColor5;uniform vec3 uColor6;uniform vec3 uColor7;',
+      'uniform int uColorCount;uniform vec3 uBgColor;uniform vec3 uMouseColor;',
+      'uniform float uSpeed;uniform int uStreakCount;uniform float uStreakWidth;uniform float uStreakLength;',
+      'uniform float uGlow;uniform float uDensity;uniform float uTwinkle;uniform float uZoom;',
+      'uniform float uBgGlow;uniform float uOpacity;uniform float uMouseEnabled;uniform float uMouseStrength;uniform float uMouseRadius;',
+      'varying vec2 vUv;',
+      'vec3 palette(float h){int count=uColorCount;if(count<1)count=1;',
+      ' int idx=int(floor(clamp(h,0.0,0.999999)*float(count)));',
+      ' if(idx<=0)return uColor0;if(idx==1)return uColor1;if(idx==2)return uColor2;if(idx==3)return uColor3;',
+      ' if(idx==4)return uColor4;if(idx==5)return uColor5;if(idx==6)return uColor6;return uColor7;}',
+      'vec3 tanhv(vec3 x){vec3 e=exp(-2.0*x);return (1.0-e)/(1.0+e);}',
+      'vec2 sceneC(vec2 frag,vec2 r){vec2 P=(frag+frag-r)/r.x;float z=0.0;float d=1e3;vec4 O=vec4(0.0);',
+      ' for(int k=0;k<39;k++){if(d<=1e-4)break;O=z*normalize(vec4(P,uZoom,0.0))-vec4(0.0,4.0,1.0,0.0)/4.5;',
+      '  d=1.0-sqrt(length(O*O));z+=d;}return vec2(O.x,atan(O.z,O.y));}',
+      'void mainImage(out vec4 o,vec2 C){',
+      ' vec2 r=iResolution.xy;vec2 uv0=(C+C-r)/r.x;float T=0.1*iTime*uSpeed+9.0;',
+      ' float angRings=max(1.0,floor(6.28318530718*max(uDensity,0.05)+0.5));',
+      ' vec2 Y=vec2(5e-3,6.28318530718/angRings);',
+      ' vec2 c0=sceneC(C,r);vec2 cdx=sceneC(C+vec2(1.0,0.0),r);vec2 cdy=sceneC(C+vec2(0.0,1.0),r);',
+      ' vec2 dCx=cdx-c0;vec2 dCy=cdy-c0;',
+      ' dCx.y-=6.28318530718*floor(dCx.y/6.28318530718+0.5);',
+      ' dCy.y-=6.28318530718*floor(dCy.y/6.28318530718+0.5);',
+      ' vec2 fw=abs(dCx)+abs(dCy);C=c0;',
+      ' vec2 P=vec2(2.0,1.0)*uv0-(r/r.x)*vec2(0.0,1.0);',
+      ' vec4 O=vec4(uBgColor*90.0*uBgGlow/(1e3*dot(P,P)+6.0),0.0);',
+      ' float mGlow=0.0;',
+      ' if(uMouseEnabled>0.5){vec2 mN=(iMouse+iMouse-r)/r.x;float md=length(uv0-mN);',
+      '  mGlow=exp(-md*md/max(uMouseRadius*uMouseRadius,1e-4))*uMouseStrength;O.rgb+=uMouseColor*mGlow*0.25;}',
+      ' float zr=5e-4*uStreakWidth;vec2 rr=vec2(max(length(fw),1e-5));float tail=19.0/max(uStreakLength,0.05);',
+      ' for(int m=0;m<16;m++){if(m>=uStreakCount)break;float jf=float(m)+1.0;',
+      '  float ic=fract(sin(dot(vec2(jf,floor(C.x/Y.x+0.5)),vec2(7.0,11.0))*73.0));',
+      '  vec2 Pp=C-(T+T*ic)*vec2(0.0,1.0);Pp-=floor(Pp/Y+0.5)*Y;',
+      '  float h=fract(8663.0*ic);vec3 col=palette(h);',
+      '  float weight=mix(1.5,1.0+sin(T+7.0*h+4.0),uTwinkle);weight*=(1.0+mGlow*2.0);',
+      '  vec2 inner=vec2(length(max(Pp,vec2(-1.0,0.0))),length(Pp)-zr)-zr;',
+      '  vec2 sm=vec2(1.0)-smoothstep(-rr,rr,inner);',
+      '  O.rgb+=dot(sm,vec2(exp(tail*Pp.y),3.0))*col*weight;C.x+=Y.x/8.0;}',
+      ' vec3 colr=sqrt(tanhv(max(O.rgb*uGlow-vec3(0.04,0.08,0.02),0.0)));o=vec4(colr,uOpacity);}',
+      'void main(){vec4 color;mainImage(color,vUv*iResolution.xy);gl_FragColor=color;}'
+    ].join('\n');
+
+    function sh(type, src) {
+      var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { return null; }
+      return s;
+    }
+    var vs = sh(gl.VERTEX_SHADER, VERT), fs = sh(gl.FRAGMENT_SHADER, FRAG);
+    if (!vs || !fs) return;
+    var prog = gl.createProgram();
+    gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
+    gl.useProgram(prog);
+
+    // fullscreen triangle (position + uv), same geometry as ogl's Triangle
+    var buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+      -1, -1, 0, 0,   3, -1, 2, 0,   -1, 3, 0, 2
+    ]), gl.STATIC_DRAW);
+    var aPos = gl.getAttribLocation(prog, 'position'), aUv = gl.getAttribLocation(prog, 'uv');
+    gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
+    gl.enableVertexAttribArray(aUv);  gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 16, 8);
+
+    function hexRGB(hex) {
+      var c = hex.replace('#', '');
+      return [parseInt(c.slice(0, 2), 16) / 255, parseInt(c.slice(2, 4), 16) / 255, parseInt(c.slice(4, 6), 16) / 255];
+    }
+    var U = function (n) { return gl.getUniformLocation(prog, n); };
+    // brand palette: yellow / sky / rose streaks, a faint maroon core glow
+    var colors = ['#FFCA54', '#72C2DF', '#FBADB9'];
+    var avg = [0, 0, 0];
+    colors.forEach(function (c) { var v = hexRGB(c); avg[0] += v[0] / 3; avg[1] += v[1] / 3; avg[2] += v[2] / 3; });
+    for (var i = 0; i < 8; i++) gl.uniform3fv(U('uColor' + i), hexRGB(colors[Math.min(i, colors.length - 1)]));
+    gl.uniform1i(U('uColorCount'), colors.length);
+    gl.uniform3fv(U('uBgColor'), hexRGB('#B23A4E'));
+    gl.uniform3fv(U('uMouseColor'), avg);
+    gl.uniform1f(U('uSpeed'), 0.5);
+    gl.uniform1i(U('uStreakCount'), 10);
+    gl.uniform1f(U('uStreakWidth'), 1);
+    gl.uniform1f(U('uStreakLength'), 1);
+    gl.uniform1f(U('uGlow'), 1);
+    gl.uniform1f(U('uDensity'), 0.9);
+    gl.uniform1f(U('uTwinkle'), 0.85);
+    gl.uniform1f(U('uZoom'), 3);
+    gl.uniform1f(U('uBgGlow'), 0.25);
+    gl.uniform1f(U('uOpacity'), 1);
+    gl.uniform1f(U('uMouseEnabled'), 1);
+    gl.uniform1f(U('uMouseStrength'), 0.35);
+    gl.uniform1f(U('uMouseRadius'), 1);
+    var uRes = U('iResolution'), uMouse = U('iMouse'), uTime = U('iTime');
+
+    var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    function resize() {
+      var rect = host.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.round(rect.width * dpr));
+      canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.uniform3f(uRes, canvas.width, canvas.height, 1);
+    }
+    resize();
+    if ('ResizeObserver' in window) new ResizeObserver(resize).observe(host);
+    else window.addEventListener('resize', resize);
+
+    // damped mouse
+    var mx = 0, my = 0, tx = 0, ty = 0;
+    window.addEventListener('pointermove', function (e) {
+      var rect = canvas.getBoundingClientRect();
+      tx = (e.clientX - rect.left) * dpr;
+      ty = (rect.height - (e.clientY - rect.top)) * dpr;
+    }, { passive: true });
+
+    // only render while the hero is on screen, the tab is visible, and theme is dark
+    var onScreen = true;
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (en) { onScreen = en[0].isIntersecting; }).observe(host);
+    }
+    var t0 = performance.now();
+    function frame(now) {
+      requestAnimationFrame(frame);
+      if (!onScreen || document.hidden) return;
+      if (document.documentElement.getAttribute('data-theme') !== 'dark') return;
+      mx += (tx - mx) * 0.12; my += (ty - my) * 0.12;
+      gl.uniform2f(uMouse, mx, my);
+      gl.uniform1f(uTime, (now - t0) / 1000);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+    if (reduced) { // static frame, no animation
+      gl.uniform2f(uMouse, 0, 0); gl.uniform1f(uTime, 9);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    } else {
+      requestAnimationFrame(frame);
+    }
   })();
 
   // demo: sliding tab switcher + lazy click-to-play videos.
