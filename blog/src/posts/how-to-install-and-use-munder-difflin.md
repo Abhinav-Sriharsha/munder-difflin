@@ -7,7 +7,7 @@ categoryLabel: Guides
 type: Technical
 primaryKeyword: "how to install munder difflin"
 secondaryKeywords: ["munder difflin download", "munder difflin app", "munder difflin tutorial"]
-tags: ["Guides", "Getting Started", "Tutorial", "Claude Code", "Automation"]
+tags: ["Guides", "Getting Started", "Tutorial", "Claude Code", "Automation", "Video"]
 author:
   name: Chaitanya Giri
   initials: CG
@@ -30,6 +30,9 @@ launch you'll pick a harness home, add your repos, and confirm auto mode. Then y
 <strong>Michael</strong> — the <a href="/#how">GOD orchestrator</a> — spin up agents with a
 <strong>Goal</strong>, and let the hive work <strong>ambitious, long-horizon tasks for hours or
 days</strong> while you watch the floor.</p></div>
+
+*Watch the 51-second setup walkthrough:*
+<video controls preload="none" playsinline poster="/media/demo/setup-poster.jpg" style="width:100%; border-radius:12px; margin:12px 0 24px;"><source src="/media/demo/setup.mp4" type="video/mp4" /></video>
 
 Most tools help you run a Claude Code agent. Munder Difflin helps you run a *team* of them —
 unattended, coordinated, and aimed at the big jobs: a multi-day refactor, a migration, an
