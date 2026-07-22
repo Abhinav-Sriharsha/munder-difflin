@@ -18,8 +18,13 @@ export function AgentStrip({ config }: AgentStripProps) {
   const select = useStore(s => s.select);
   const setAddAgentOpen = useStore(s => s.setAddAgentOpen);
   const openTaskDetail = useStore(s => s.openTaskDetail);
+  const reorderAgents = useStore(s => s.reorderAgents);
   const [restoring, setRestoring] = useState(false);
   const [restoreNote, setRestoreNote] = useState<string | null>(null);
+  // Drag-to-reorder the roster: dragId = the card being dragged, overId = the card
+  // currently hovered as a drop target (drives the insertion-line cue).
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
   // Each worker's actively-DOING ledger tasks, polled from hive/tasks.json —
   // rendered as a sticky note on the avatar card (click → task detail).
   const [doingByAgent, setDoingByAgent] = useState<Record<string, string[]>>({});
@@ -176,26 +181,58 @@ export function AgentStrip({ config }: AgentStripProps) {
       alignItems: 'center'
     }}>
       {agents.map(a => (
-        <AgentCard
+        // Draggable wrapper: reorder the roster by dragging one card onto another.
+        // Native HTML5 DnD (no dep). A plain click still selects — a drag only
+        // starts on movement — so AgentCard's onClick is unaffected.
+        <div
           key={a.id}
-          name={a.name}
-          character={a.character}
-          accent={a.accent}
-          status={a.status}
-          project={a.project}
-          action={a.action}
-          progress={a.progress}
-          contextTokens={a.contextTokens}
-          contextLimit={a.contextLimit}
-          selected={a.id === selectedId}
-          isGod={a.isGod}
-          onClick={() => select(a.id)}
-          doingCount={doingByAgent[a.id]?.length ?? 0}
-          onTaskNoteClick={() => {
-            const first = doingByAgent[a.id]?.[0];
-            if (first) openTaskDetail(first);
+          draggable
+          onDragStart={(e) => { setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
+          onDragOver={(e) => {
+            if (!dragId || dragId === a.id) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (overId !== a.id) setOverId(a.id);
           }}
-        />
+          onDragLeave={() => { if (overId === a.id) setOverId(null); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (dragId && dragId !== a.id) reorderAgents(dragId, a.id);
+            setDragId(null);
+            setOverId(null);
+          }}
+          onDragEnd={() => { setDragId(null); setOverId(null); }}
+          style={{
+            flexShrink: 0,
+            cursor: 'grab',
+            opacity: dragId === a.id ? 0.4 : 1,
+            // Insertion-line cue on the hovered drop target.
+            boxShadow: overId === a.id && dragId && dragId !== a.id
+              ? 'inset 3px 0 0 0 var(--cth-ink-900)'
+              : 'none',
+            transition: 'opacity 120ms ease'
+          }}
+        >
+          <AgentCard
+            name={a.name}
+            character={a.character}
+            accent={a.accent}
+            status={a.status}
+            project={a.project}
+            action={a.action}
+            progress={a.progress}
+            contextTokens={a.contextTokens}
+            contextLimit={a.contextLimit}
+            selected={a.id === selectedId}
+            isGod={a.isGod}
+            onClick={() => select(a.id)}
+            doingCount={doingByAgent[a.id]?.length ?? 0}
+            onTaskNoteClick={() => {
+              const first = doingByAgent[a.id]?.[0];
+              if (first) openTaskDetail(first);
+            }}
+          />
+        </div>
       ))}
       {restorableAgents.length > 0 && (
         <span
