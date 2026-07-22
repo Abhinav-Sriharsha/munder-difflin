@@ -99,8 +99,10 @@ export interface ModelOption {
  *  `[1m]` selects the 1M-token context window variant. */
 export const AGENT_MODELS: ModelOption[] = [
   { id: undefined, label: 'default' },
+  { id: 'claude-fable-5', label: 'Fable 5' },
   { id: 'claude-opus-4-8', label: 'Opus 4.8' },
   { id: 'claude-opus-4-8[1m]', label: 'Opus 4.8 · 1M' },
+  { id: 'claude-sonnet-5', label: 'Sonnet 5' },
   { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
   { id: ASSISTANT_MODEL, label: 'Sonnet 4.6 · 1M' },
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' }

@@ -235,6 +235,10 @@ const DEFAULTS: HarnessConfig = {
   registeredRepos: [],
   autoMode: true,
   defaultCommand: 'claude',
+  // Global default model for every agent that hasn't picked one explicitly — wins
+  // over the role-based tiers (modelForRole) in the spawn handler, so all agents
+  // (incl. god) default to Fable 5. A per-agent model choice still overrides it.
+  defaultModel: 'claude-fable-5',
   semanticMemory: true,
   embeddingModel: 'minilm',
   missions: [OPS_STANDUP_MISSION],
