@@ -1493,11 +1493,21 @@ ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & { hive?: AgentMeta;
   // handled in the Claude-only block above; this generic flag path covers the
   // other CLIs (it must not blindly attach `--resume` when the seed failed).
   if (opts.hive && opts.resume === true && !claudeProvider) {
-    const rf = providerPreset(provider).resumeFlag;
+    const preset = providerPreset(provider);
+    const rf = preset.resumeFlag;
+    const rsub = preset.resumeSubcommand;
     const sid = hive.lastSession(opts.hive.id);
     if (rf && sid) {
       const args = opts.args ?? [];
       if (!args.includes(rf)) { args.push(rf, sid); opts.args = args; }
+    } else if (rsub && sid) {
+      // Subcommand form (Codex): `codex resume [OPTIONS] [SESSION_ID]` — the
+      // subcommand MUST be the first argv entry, the session id trails the flags.
+      const args = opts.args ?? [];
+      if (args[0] !== rsub) {
+        opts.args = [rsub, ...args, sid];
+        didResume = true;
+      }
     }
   }
   // Remember which agent owns this PTY so closing the tab can archive it. A

@@ -25,6 +25,7 @@ export interface AgentCardProps {
    *  sticky note stuck to the card. Clicking it opens the first task's detail. */
   doingCount?: number;
   onTaskNoteClick?: () => void;
+  draggable?: boolean; // must sit on the <button> itself — Chromium won't start a drag on an ancestor from inside a form control
 }
 
 const fmtK = (n: number): string => `${Math.round(n / 1000)}k`;
@@ -32,7 +33,7 @@ const fmtK = (n: number): string => `${Math.round(n / 1000)}k`;
 export function AgentCard({
   name, character, accent, status, project, action, progress = 0,
   contextTokens, contextLimit, selected, isGod, onClick,
-  doingCount = 0, onTaskNoteClick
+  doingCount = 0, onTaskNoteClick, draggable
 }: AgentCardProps) {
   // The god is always framed (stands out from the row); others only when selected.
   const framed = isGod || selected;
@@ -40,6 +41,7 @@ export function AgentCard({
   return (
     <button
       onClick={onClick}
+      draggable={draggable}
       className="cth-titlebar-nodrag"
       style={{
         width: 220, minWidth: 220, height: 96,
