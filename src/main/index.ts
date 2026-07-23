@@ -1359,14 +1359,27 @@ function installAppMenu(): void {
  *  (<hive>/agents/<id>/.codex/sessions/<Y>/<M>/<D>/rollout-*-<sessionId>.jsonl).
  *  A NEWLY added agent gets an empty CODEX_HOME, so `codex resume <sid>` finds
  *  nothing and silently opens a BLANK session — which is exactly what the Add
- *  Agent "resume session" field looked like it was doing. Copy the rollout across
- *  (the Codex analogue of seedSessionTranscript for Claude), preserving the Y/M/D
- *  layout Codex scans. Returns true when the session is present afterwards. */
-function seedCodexSession(codexHome: string, sessionId: string): boolean {
+ *  Agent "resume session" field looked like it was doing. Find the agent whose
+ *  CODEX_HOME owns this rollout and RETURN that home so the resumed agent can be
+ *  pointed at it (the rollout AND its state_5.sqlite index live there together). */
+function findCodexHomeForSession(sessionId: string, siblingsRoot: string): string | null {
   try {
-    if (!sessionId || !/^[0-9a-fA-F][0-9a-fA-F-]{15,}$/.test(sessionId)) return false;
-    const findIn = (root: string): string | null => {
-      const stack = [root];
+    if (!sessionId || !/^[0-9a-fA-F][0-9a-fA-F-]{15,}$/.test(sessionId)) return null;
+    // Walk each sibling agent's CODEX_HOME (<agent>/.codex) looking for the
+    // rollout that owns this session. We RETURN that home rather than copy the
+    // rollout out of it: Codex indexes sessions in its state_5.sqlite, so a lone
+    // rollout file in a fresh home is invisible to `codex resume`. Pointing the
+    // resumed agent at the OWNING home gives it the rollout AND the index.
+    let agents: Array<{ name: string; isDirectory(): boolean }>;
+    try {
+      agents = readdirSync(siblingsRoot, { withFileTypes: true }) as unknown as Array<{ name: string; isDirectory(): boolean }>;
+    } catch { return null; }
+    for (const a of agents) {
+      if (!a.isDirectory()) continue;
+      const home = join(siblingsRoot, a.name, '.codex');
+      const sessions = join(home, 'sessions');
+      if (!existsSync(sessions)) continue;
+      const stack = [sessions];
       while (stack.length) {
         const d = stack.pop() as string;
         let ents: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
@@ -1374,30 +1387,16 @@ function seedCodexSession(codexHome: string, sessionId: string): boolean {
           ents = readdirSync(d, { withFileTypes: true }) as unknown as Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
         } catch { continue; }
         for (const e of ents) {
-          const p = join(d, e.name);
-          if (e.isDirectory()) stack.push(p);
-          else if (e.isFile() && e.name.endsWith('.jsonl') && e.name.includes(sessionId)) return p;
+          const pth = join(d, e.name);
+          if (e.isDirectory()) stack.push(pth);
+          else if (e.isFile() && e.name.endsWith('.jsonl') && e.name.includes(sessionId)) return home;
         }
       }
-      return null;
-    };
-    const mySessions = join(codexHome, 'sessions');
-    if (existsSync(mySessions) && findIn(mySessions)) return true; // already ours
-    // Search sibling agents' codex homes for the rollout.
-    const agentsRoot = dirname(dirname(codexHome));
-    const src = existsSync(agentsRoot) ? findIn(agentsRoot) : null;
-    if (!src) return false;
-    const marker = `${sep}sessions${sep}`;
-    const i = src.indexOf(marker);
-    const rel = i === -1 ? basename(src) : src.slice(i + marker.length);
-    const dest = join(mySessions, rel);
-    mkdirSync(dirname(dest), { recursive: true });
-    copyFileSync(src, dest);
-    console.log('[resume] seeded codex session', sessionId, '->', dest);
-    return true;
+    }
+    return null;
   } catch (e) {
-    console.error('[resume] seedCodexSession failed:', e);
-    return false;
+    console.error('[resume] findCodexHomeForSession failed:', e);
+    return null;
   }
 }
 
@@ -1553,16 +1552,22 @@ ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & { hive?: AgentMeta;
       if (!args.includes(rf)) { args.push(rf, sid); opts.args = args; didResume = true; }
     } else if (sid && rsub) {
       // Subcommand form (Codex): `codex resume [OPTIONS] [SESSION_ID]` — the
-      // subcommand MUST be argv[0], the session id trails the flags. Seed the
-      // rollout into this agent's CODEX_HOME first, else resume opens blank.
-      const codexHome = (opts.env ?? {}).CODEX_HOME;
-      const seeded = codexHome ? seedCodexSession(codexHome, sid) : false;
-      if (!seeded) {
+      // subcommand MUST be argv[0], the id trails the flags. Codex indexes
+      // sessions in state_5.sqlite, so a fresh agent's empty CODEX_HOME can't
+      // resume by id. If this agent's own home already has the session, resume in
+      // place; otherwise point CODEX_HOME at the agent home that OWNS it (that
+      // home has both the rollout and the sqlite index).
+      const myHome = (opts.env ?? {}).CODEX_HOME;
+      const agentsRoot = myHome ? dirname(dirname(myHome)) : '';
+      const ownerHome = agentsRoot ? findCodexHomeForSession(sid, agentsRoot) : null;
+      if (!ownerHome) {
         console.warn(`[resume] codex session "${sid}" not found in any agent CODEX_HOME - starting fresh`);
         if (typedSid) resumeNotFound = true;
       } else {
+        if (ownerHome !== myHome) opts.env = { ...(opts.env ?? {}), CODEX_HOME: ownerHome };
         const args = opts.args ?? [];
         if (args[0] !== rsub) { opts.args = [rsub, ...args, sid]; didResume = true; }
+        console.log('[resume] codex resume', sid, 'in', ownerHome);
       }
     }
   }
