@@ -1365,6 +1365,7 @@ function installAppMenu(): void {
 function findCodexHomeForSession(sessionId: string, siblingsRoot: string): string | null {
   try {
     if (!sessionId || !/^[0-9a-fA-F][0-9a-fA-F-]{15,}$/.test(sessionId)) return null;
+    let fallbackHome: string | null = null;
     // Walk each sibling agent's CODEX_HOME (<agent>/.codex) looking for the
     // rollout that owns this session. We RETURN that home rather than copy the
     // rollout out of it: Codex indexes sessions in its state_5.sqlite, so a lone
@@ -1380,7 +1381,8 @@ function findCodexHomeForSession(sessionId: string, siblingsRoot: string): strin
       const sessions = join(home, 'sessions');
       if (!existsSync(sessions)) continue;
       const stack = [sessions];
-      while (stack.length) {
+      let hasRollout = false;
+      while (stack.length && !hasRollout) {
         const d = stack.pop() as string;
         let ents: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
         try {
@@ -1389,11 +1391,23 @@ function findCodexHomeForSession(sessionId: string, siblingsRoot: string): strin
         for (const e of ents) {
           const pth = join(d, e.name);
           if (e.isDirectory()) stack.push(pth);
-          else if (e.isFile() && e.name.endsWith('.jsonl') && e.name.includes(sessionId)) return home;
+          else if (e.isFile() && e.name.endsWith('.jsonl') && e.name.includes(sessionId)) { hasRollout = true; break; }
         }
       }
+      if (!hasRollout) continue;
+      // Prefer the home whose Codex state DB actually INDEXES this session — a
+      // fresh/seeded home may carry only a stray rollout copy (no index), which
+      // `codex resume` can't open. Match the id as raw bytes in state_5.sqlite
+      // (+ its WAL). Homes with the rollout but no index are a last-resort fallback.
+      const idBuf = Buffer.from(sessionId);
+      let indexed = false;
+      for (const db of ['state_5.sqlite', 'state_5.sqlite-wal']) {
+        try { if (readFileSync(join(home, db)).includes(idBuf)) { indexed = true; break; } } catch { /* no db */ }
+      }
+      if (indexed) return home;
+      if (!fallbackHome) fallbackHome = home;
     }
-    return null;
+    return fallbackHome;
   } catch (e) {
     console.error('[resume] findCodexHomeForSession failed:', e);
     return null;
