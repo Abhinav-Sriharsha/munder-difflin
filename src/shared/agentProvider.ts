@@ -73,6 +73,7 @@ export interface AgentProviderPreset {
    *  (Claude `--resume <sid>`, Antigravity `--conversation <id>`). undefined = no
    *  resume support, spawn fresh. */
   resumeFlag?: string;
+  resumeSubcommand?: string; // CLIs that resume via a subcommand instead of a flag (Codex: `codex resume [OPTIONS] [SESSION_ID]`)
 }
 
 export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
@@ -118,9 +119,11 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     // inbox-wake nudge remains as a harmless fallback for an idle worker).
     canReceiveInbox: true,
     initialPromptFlag: undefined,
-    // Codex has no stable session-resume CLI flag in the curated reference; spawn
-    // fresh on respawn (the protocol is re-injected as the initial prompt anyway).
-    resumeFlag: undefined
+    // Codex resumes via a SUBCOMMAND, not a flag: `codex resume [OPTIONS]
+    // [SESSION_ID]`. A `--resume <id>` flag does not exist, which is why restarts
+    // used to silently start a brand-new session instead of continuing.
+    resumeFlag: undefined,
+    resumeSubcommand: 'resume'
   },
   {
     id: 'antigravity',

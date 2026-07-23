@@ -340,6 +340,20 @@ function ensureDefaultMissions(): void {
       heartbeatSeeded: true
     });
   }
+  // One-time opt-out: the founder doesn't want the scheduled /compact injected
+  // into agent terminals. An existing install already persisted the ops standup
+  // with autoCompact:true (which { ...DEFAULTS, ...parsed } keeps), so flipping
+  // the built-in default alone wouldn't reach it — clear the flag on every
+  // persisted mission once. Guarded so a user who deliberately re-enables it
+  // later isn't force-disabled on every boot.
+  const cfg3 = readConfig();
+  if (!cfg3.autoCompactDisabledMigrated) {
+    const missions = cfg3.missions ?? [];
+    writeConfig({
+      missions: missions.map((m) => (m.autoCompact ? { ...m, autoCompact: false } : m)),
+      autoCompactDisabledMigrated: true
+    });
+  }
 }
 
 // ─── Heartbeat (Lane A #1) + circuit-breaker beat (#6.6b) ────────────────────
@@ -1479,11 +1493,21 @@ ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & { hive?: AgentMeta;
   // handled in the Claude-only block above; this generic flag path covers the
   // other CLIs (it must not blindly attach `--resume` when the seed failed).
   if (opts.hive && opts.resume === true && !claudeProvider) {
-    const rf = providerPreset(provider).resumeFlag;
+    const preset = providerPreset(provider);
+    const rf = preset.resumeFlag;
+    const rsub = preset.resumeSubcommand;
     const sid = hive.lastSession(opts.hive.id);
     if (rf && sid) {
       const args = opts.args ?? [];
       if (!args.includes(rf)) { args.push(rf, sid); opts.args = args; }
+    } else if (rsub && sid) {
+      // Subcommand form (Codex): `codex resume [OPTIONS] [SESSION_ID]` — the
+      // subcommand MUST be the first argv entry, the session id trails the flags.
+      const args = opts.args ?? [];
+      if (args[0] !== rsub) {
+        opts.args = [rsub, ...args, sid];
+        didResume = true;
+      }
     }
   }
   // Remember which agent owns this PTY so closing the tab can archive it. A

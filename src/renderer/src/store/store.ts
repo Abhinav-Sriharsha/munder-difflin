@@ -154,6 +154,7 @@ interface State {
   removeArchivedAgent: (id: string) => void;
   /** Drop one agent from the restorable list (it was respawned or dismissed). */
   removeRestorableAgent: (id: string) => void;
+  reorderAgents: (fromId: string, toId: string) => void; // move agent fromId into toId's slot (AgentStrip drag-reorder) and persist the new order
   /** One-shot request to open a Command-Center tab (e.g. clicking the office
    *  task board → 'tasks'). `seq` makes repeated identical requests distinct. */
   ccTabRequest: { tab: string; seq: number } | null;
@@ -461,6 +462,20 @@ export const useStore = create<State>((set) => ({
       const restorableAgents = s.restorableAgents.filter((a) => a.id !== id);
       persistRestorable(restorableAgents);
       return { restorableAgents };
+    }),
+  reorderAgents: (fromId, toId) =>
+    set((s) => {
+      if (fromId === toId) return s;
+      const from = s.agents.findIndex((a) => a.id === fromId);
+      const to = s.agents.findIndex((a) => a.id === toId);
+      if (from === -1 || to === -1) return s;
+      const agents = [...s.agents];
+      const [moved] = agents.splice(from, 1);
+      agents.splice(to, 0, moved);
+      // Persist the new roster order so it survives a reload (same slim key the
+      // rest of the roster uses). selectedId is unchanged by a reorder.
+      persistAgents(agents, s.selectedId);
+      return { agents };
     }),
   taskDetailId: null,
   openTaskDetail: (id) => set({ taskDetailId: id }),
