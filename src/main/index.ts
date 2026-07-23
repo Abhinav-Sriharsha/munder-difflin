@@ -1580,7 +1580,12 @@ ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & { hive?: AgentMeta;
       } else {
         if (ownerHome !== myHome) opts.env = { ...(opts.env ?? {}), CODEX_HOME: ownerHome };
         const args = opts.args ?? [];
-        if (args[0] !== rsub) { opts.args = [rsub, ...args, sid]; didResume = true; }
+        // Positional order matters: `codex resume [OPTIONS] [SESSION_ID] [PROMPT]`.
+        // The hive identity prompt rides in `args` as a POSITIONAL (codex has no
+        // prompt flag), so the id must come BEFORE it — appending the id last made
+        // codex read the prompt as SESSION_ID ("No saved session found with ID
+        // You are \"Dev2\"…") and the id as the prompt.
+        if (args[0] !== rsub) { opts.args = [rsub, sid, ...args]; didResume = true; }
         console.log('[resume] codex resume', sid, 'in', ownerHome);
       }
     }
