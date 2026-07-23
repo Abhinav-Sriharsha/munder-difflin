@@ -1,8 +1,8 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, powerSaveBlocker, screen, shell, Notification } from 'electron';
 import { spawn } from 'node:child_process';
-import { rmSync, existsSync, readFileSync, readdirSync, statSync, cpSync, writeFileSync, unlinkSync, mkdirSync, createWriteStream } from 'node:fs';
+import { rmSync, existsSync, readFileSync, readdirSync, statSync, cpSync, writeFileSync, unlinkSync, mkdirSync, createWriteStream, copyFileSync } from 'node:fs';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
-import { join, resolve, sep, basename } from 'node:path';
+import { join, resolve, sep, basename, dirname } from 'node:path';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
 import {
@@ -1355,6 +1355,52 @@ function installAppMenu(): void {
 }
 
 // ─── IPC: pty lifecycle ─────────────────────────────────────────────────────
+/** Codex stores its rollout transcripts under a PER-AGENT CODEX_HOME
+ *  (<hive>/agents/<id>/.codex/sessions/<Y>/<M>/<D>/rollout-*-<sessionId>.jsonl).
+ *  A NEWLY added agent gets an empty CODEX_HOME, so `codex resume <sid>` finds
+ *  nothing and silently opens a BLANK session — which is exactly what the Add
+ *  Agent "resume session" field looked like it was doing. Copy the rollout across
+ *  (the Codex analogue of seedSessionTranscript for Claude), preserving the Y/M/D
+ *  layout Codex scans. Returns true when the session is present afterwards. */
+function seedCodexSession(codexHome: string, sessionId: string): boolean {
+  try {
+    if (!sessionId || !/^[0-9a-fA-F][0-9a-fA-F-]{15,}$/.test(sessionId)) return false;
+    const findIn = (root: string): string | null => {
+      const stack = [root];
+      while (stack.length) {
+        const d = stack.pop() as string;
+        let ents: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
+        try {
+          ents = readdirSync(d, { withFileTypes: true }) as unknown as Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
+        } catch { continue; }
+        for (const e of ents) {
+          const p = join(d, e.name);
+          if (e.isDirectory()) stack.push(p);
+          else if (e.isFile() && e.name.endsWith('.jsonl') && e.name.includes(sessionId)) return p;
+        }
+      }
+      return null;
+    };
+    const mySessions = join(codexHome, 'sessions');
+    if (existsSync(mySessions) && findIn(mySessions)) return true; // already ours
+    // Search sibling agents' codex homes for the rollout.
+    const agentsRoot = dirname(dirname(codexHome));
+    const src = existsSync(agentsRoot) ? findIn(agentsRoot) : null;
+    if (!src) return false;
+    const marker = `${sep}sessions${sep}`;
+    const i = src.indexOf(marker);
+    const rel = i === -1 ? basename(src) : src.slice(i + marker.length);
+    const dest = join(mySessions, rel);
+    mkdirSync(dirname(dest), { recursive: true });
+    copyFileSync(src, dest);
+    console.log('[resume] seeded codex session', sessionId, '->', dest);
+    return true;
+  } catch (e) {
+    console.error('[resume] seedCodexSession failed:', e);
+    return false;
+  }
+}
+
 ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & { hive?: AgentMeta; isolate?: boolean; resume?: boolean; resumeSessionId?: string; provider?: AgentProvider }) => {
   if (!opts || typeof opts.id !== 'string' || typeof opts.cwd !== 'string' || typeof opts.command !== 'string') {
     return { ok: false, error: 'invalid SpawnOptions' };
@@ -1492,21 +1538,31 @@ ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & { hive?: AgentMeta;
   // Claude resume — incl. transcript seeding + only-attach-when-present — is
   // handled in the Claude-only block above; this generic flag path covers the
   // other CLIs (it must not blindly attach `--resume` when the seed failed).
-  if (opts.hive && opts.resume === true && !claudeProvider) {
+  if (opts.hive && !claudeProvider) {
     const preset = providerPreset(provider);
     const rf = preset.resumeFlag;
     const rsub = preset.resumeSubcommand;
-    const sid = hive.lastSession(opts.hive.id);
-    if (rf && sid) {
+    // An id typed into Add Agent's "resume session" field wins; otherwise fall
+    // back to this agent's own recorded session (restart-in-place). Previously
+    // resumeSessionId was read ONLY in the Claude branch, so a Codex agent
+    // silently ignored it and started a brand-new empty session.
+    const typedSid = typeof opts.resumeSessionId === 'string' ? opts.resumeSessionId.trim() : '';
+    const sid = typedSid || (opts.resume === true ? hive.lastSession(opts.hive.id) : undefined);
+    if (sid && rf) {
       const args = opts.args ?? [];
-      if (!args.includes(rf)) { args.push(rf, sid); opts.args = args; }
-    } else if (rsub && sid) {
+      if (!args.includes(rf)) { args.push(rf, sid); opts.args = args; didResume = true; }
+    } else if (sid && rsub) {
       // Subcommand form (Codex): `codex resume [OPTIONS] [SESSION_ID]` — the
-      // subcommand MUST be the first argv entry, the session id trails the flags.
-      const args = opts.args ?? [];
-      if (args[0] !== rsub) {
-        opts.args = [rsub, ...args, sid];
-        didResume = true;
+      // subcommand MUST be argv[0], the session id trails the flags. Seed the
+      // rollout into this agent's CODEX_HOME first, else resume opens blank.
+      const codexHome = (opts.env ?? {}).CODEX_HOME;
+      const seeded = codexHome ? seedCodexSession(codexHome, sid) : false;
+      if (!seeded) {
+        console.warn(`[resume] codex session "${sid}" not found in any agent CODEX_HOME - starting fresh`);
+        if (typedSid) resumeNotFound = true;
+      } else {
+        const args = opts.args ?? [];
+        if (args[0] !== rsub) { opts.args = [rsub, ...args, sid]; didResume = true; }
       }
     }
   }
