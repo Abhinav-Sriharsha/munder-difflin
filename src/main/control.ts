@@ -20,6 +20,7 @@
 export interface AgentControlSnapshot {
   paused: boolean;
   halted: boolean;
+  autoDeliveryPaused: boolean;
   gatedTools: string[];
   pendingSteers: number;
 }
@@ -27,6 +28,7 @@ export interface AgentControlSnapshot {
 interface AgentControl {
   paused: boolean;
   halted: boolean;
+  autoDeliveryPaused: boolean;
   gatedTools: Set<string>;
   steerQueue: string[];
 }
@@ -36,13 +38,32 @@ export class ControlRegistry {
 
   private ensure(id: string): AgentControl {
     let c = this.map.get(id);
-    if (!c) { c = { paused: false, halted: false, gatedTools: new Set(), steerQueue: [] }; this.map.set(id, c); }
+    if (!c) {
+      c = {
+        paused: false,
+        halted: false,
+        autoDeliveryPaused: false,
+        gatedTools: new Set(),
+        steerQueue: []
+      };
+      this.map.set(id, c);
+    }
     return c;
   }
 
   // ─── Operator actions (wired to IPC) ───────────────────────────────────────
 
   pause(id: string, on: boolean): void { this.ensure(id).paused = on; }
+  pauseAutoDelivery(id: string, on: boolean): void {
+    this.ensure(id).autoDeliveryPaused = on;
+  }
+  replaceAutoDeliveryPauses(ids: Iterable<string>): void {
+    const paused = new Set(ids);
+    for (const [id, control] of this.map) {
+      control.autoDeliveryPaused = paused.has(id);
+    }
+    for (const id of paused) this.ensure(id).autoDeliveryPaused = true;
+  }
   gateTool(id: string, tool: string, on: boolean): void {
     const c = this.ensure(id);
     if (on) c.gatedTools.add(tool); else c.gatedTools.delete(tool);
@@ -62,6 +83,9 @@ export class ControlRegistry {
   // ─── Reads (used by HookServer) ────────────────────────────────────────────
 
   shouldHalt(id: string): boolean { return this.map.get(id)?.halted ?? false; }
+  isAutoDeliveryPaused(id: string): boolean {
+    return this.map.get(id)?.autoDeliveryPaused ?? false;
+  }
 
   /** Whether a tool call should be denied (paused agent, or this tool gated). */
   toolDecision(id: string, tool: string): { deny: boolean; reason?: string } {
@@ -80,6 +104,7 @@ export class ControlRegistry {
     return {
       paused: c?.paused ?? false,
       halted: c?.halted ?? false,
+      autoDeliveryPaused: c?.autoDeliveryPaused ?? false,
       gatedTools: c ? Array.from(c.gatedTools) : [],
       pendingSteers: c?.steerQueue.length ?? 0
     };

@@ -216,6 +216,7 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
   // Per-agent token limit (overrides the floor budget for that agent), keyed by id.
   const [agentTokenCaps, setAgentTokenCaps] = useState<Record<string, number>>({});
   const [restarting, setRestarting] = useState<string | null>(null);
+  const [restartErrors, setRestartErrors] = useState<Record<string, string>>({});
   const [dispatchTo, setDispatchTo] = useState<string>(''); // '' = Michael decides
   const [dispatchText, setDispatchText] = useState('');
   const [dispatchMsg, setDispatchMsg] = useState<string | null>(null);
@@ -253,20 +254,34 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
   ) => {
     if (!a.ptyId) return;
     setRestarting(a.id);
+    setRestartErrors((errors) => ({ ...errors, [a.id]: '' }));
     try {
       const cfg = await window.cth.getConfig();
-      await window.cth.killPty(a.ptyId);
+      const previousProvider = inferAgentProvider(a.command, a.provider);
+      const provider = opts.provider ?? previousProvider;
+      const resume = opts.resume === true && provider === previousProvider;
+      if (opts.resume && !resume) {
+        throw new Error('Cannot resume a session through a different provider.');
+      }
+      let resumeSessionId: string | undefined;
+      if (resume) {
+        const registry = await window.cth.hiveRegistry();
+        resumeSessionId = registry.agents[a.id]?.sessionId;
+        if (!resumeSessionId) {
+          throw new Error('No recorded session ID; current process was left running.');
+        }
+        if (provider === 'claude' && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
+          throw new Error('Session transcript not found; current process was left running.');
+        }
+      }
+      const killed = await window.cth.killPty(a.ptyId);
+      if (!killed.ok) throw new Error(killed.error ?? 'Could not stop the current process.');
       // Soft-reset the pooled terminal in place rather than disposing it: the
       // same ptyId is reused, so its data subscription, opened xterm and keyboard
       // wiring all survive the restart. (Disposing dropped the live terminal while
       // the view — keyed on the unchanged ptyId — never re-attached a replacement,
       // leaving a dead pane that swallowed every keystroke.)
-      resetTerminal(a.ptyId);
-      // A model choice may also switch CLI/provider. Cross-provider sessions are
-      // incompatible, so only same-provider Restart & Continue requests resume.
-      const previousProvider = inferAgentProvider(a.command, a.provider);
-      const provider = opts.provider ?? previousProvider;
-      const resume = opts.resume === true && provider === previousProvider;
+      resetTerminal(a.ptyId, { preserveScrollback: resume });
       const command = buildSpawnCommand(cfg, model, provider);
       const [exe, ...args] = tokenizeCommand(command.trim());
       const hive = a.isGod
@@ -289,8 +304,14 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
         cols,
         rows,
         hive,
-        resume
+        resume,
+        resumeSessionId,
+        requireResume: resume
       });
+      if (!res.ok) throw new Error(res.error ?? 'Restart failed.');
+      if (resume && res.resumed !== true) {
+        throw new Error('Resume was refused; no replacement session was accepted.');
+      }
       if (res.ok) {
         // On a pure resume the model is unchanged — don't overwrite it.
         const patch = resume
@@ -304,7 +325,12 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
             };
         updateAgent(a.id, patch);
       }
-    } catch { /* noop */ } finally {
+    } catch (error) {
+      setRestartErrors((errors) => ({
+        ...errors,
+        [a.id]: error instanceof Error ? error.message : String(error)
+      }));
+    } finally {
       setRestarting(null);
     }
   };
@@ -571,6 +597,11 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
                 </PixelButton>
               </>}
             </div>
+            {restartErrors[a.id] && (
+              <div style={{ fontSize: 11, color: 'var(--cth-coral)' }}>
+                {restartErrors[a.id]}
+              </div>
+            )}
           </div>
           );
         })}

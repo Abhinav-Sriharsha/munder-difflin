@@ -24,6 +24,7 @@ import {
   type TerminalRecoveryState
 } from './terminalRecovery';
 import {
+  canAutomateTerminal,
   opensInteractiveTerminalUi,
   shouldFollowTerminalOutput
 } from './terminalAutomation';
@@ -49,6 +50,8 @@ export interface TerminalEntry {
   /** A user-opened slash-command picker (for example Codex `/model`) owns the
    * input line. Queue automation waits until the picker closes. */
   automationBlocked: boolean;
+  /** True while the user has unsubmitted text in the live TUI prompt. */
+  inputDirty: boolean;
   automationSettleUntil: number;
   webgl?: WebglAddon;
 }
@@ -108,6 +111,7 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
     recovery: createTerminalRecoveryState(),
     needsRendererRepaint: false,
     automationBlocked: false,
+    inputDirty: false,
     automationSettleUntil: 0
   };
 
@@ -180,8 +184,11 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
       entry.automationSettleUntil = Date.now() + 500;
       lineBuf = '';
     }
-    for (let i = 0; i < data.length; i++) {
-      const ch = data[i];
+    // Bracketed paste is still user-owned draft text; remove only its wrapper so
+    // pasted content marks the prompt dirty instead of looking automation-safe.
+    const input = data.replace(/\x1b\[200~/g, '').replace(/\x1b\[201~/g, '');
+    for (let i = 0; i < input.length; i++) {
+      const ch = input[i];
       if (ch === '\r' || ch === '\n') {
         const t = lineBuf.trim();
         lineBuf = '';
@@ -201,6 +208,7 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
         lineBuf += ch;
       }
     }
+    entry.inputDirty = lineBuf.length > 0;
   });
 
   pool.set(ptyId, entry);
@@ -212,7 +220,12 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
 export function isTerminalAutomationSafe(ptyId: string, now = Date.now()): boolean {
   const entry = pool.get(ptyId);
   if (!entry) return true;
-  return !entry.exited && !entry.automationBlocked && now >= entry.automationSettleUntil;
+  return canAutomateTerminal({
+    exited: entry.exited,
+    pickerOpen: entry.automationBlocked,
+    inputDirty: entry.inputDirty,
+    settleUntil: entry.automationSettleUntil
+  }, now);
 }
 
 /** Re-parent a pty's terminal into `container`, opening xterm on first attach. */
@@ -340,15 +353,24 @@ export function reflowTerminal(ptyId: string): void {
  * replacement terminal. Disposing therefore left a dead, detached pane that
  * swallowed every keystroke. Resetting in place avoids that entirely.
  */
-export function resetTerminal(ptyId: string): void {
+export function resetTerminal(
+  ptyId: string,
+  opts: { preserveScrollback?: boolean } = {}
+): void {
   const entry = pool.get(ptyId);
   if (!entry) return;
   // Re-arm input — a prior exit (or the kill that precedes the respawn) may have
   // latched `exited`, which otherwise makes onData drop keystrokes silently.
   entry.exited = false;
-  // Wipe the old frame + the "process exited" line so the restarted TUI paints
-  // onto a clean grid instead of overlapping stale content.
-  try { entry.term.reset(); } catch { /* not yet open */ }
+  entry.inputDirty = false;
+  try {
+    if (opts.preserveScrollback) {
+      entry.term.writeln('\r\n\x1b[2m─ resuming existing session ─\x1b[0m');
+    } else {
+      // Fresh sessions need a clean grid; resume keeps the existing scrollback.
+      entry.term.reset();
+    }
+  } catch { /* not yet open */ }
 }
 
 /** Tear down a pty's terminal (call when the agent/pty is gone for good). */

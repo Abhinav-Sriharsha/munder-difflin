@@ -42,10 +42,10 @@ export interface AgentProviderPreset {
    *  env only. Gates the Claude-specific spawn injection in hive.ensureAgent.
    *  NOTE: this gates the *Claude-only* flag path specifically — it is NOT the
    *  same as "participates in the hive". A non-hiveAware provider can still be a
-   *  full hive citizen (live status + Stop→inbox-drain) via a `hookBridge`. */
+   *  full hive citizen (live status + guarded idle delivery) via a `hookBridge`. */
   hiveAware: boolean;
   /** Which config-file lifecycle-hook bridge a NON-hiveAware provider uses to get
-   *  the same live status + Stop→inbox-drain that Claude gets from `--settings`:
+   *  the same live status that Claude gets from `--settings`:
    *    - 'agy'   → installAgyHooks() writes ~/.gemini/.../hooks.json (translating
    *                shim, because agy's stdin/stdout shape differs from Claude's).
    *    - 'codex' → installCodexHooks() writes a per-agent CODEX_HOME/hooks.json and
@@ -56,9 +56,9 @@ export interface AgentProviderPreset {
    *  single switch hive.ensureAgent dispatches on to wire the bridge. */
   hookBridge?: 'agy' | 'codex';
   /** Whether the router may DELIVER inbox mail to this provider (vs bouncing it
-   *  to the god). Requires a way for the agent to actually drain its inbox: Claude
-   *  via its Stop hook, and Antigravity/Codex via their `hookBridge` Stop→drain.
-   *  A provider with no inbox-drain path (custom) can't, so its mail still bounces.
+   *  to the god). Requires lifecycle status so the renderer can deliver only at a
+   *  safe idle prompt: Claude natively, Antigravity/Codex via their hookBridge.
+   *  A hookless custom provider cannot expose safe-idle state, so mail bounces.
    *  Distinct from hiveAware: agy/codex are NOT hiveAware (no Claude injection)
    *  but CAN receive inbox via their bridge. */
   canReceiveInbox: boolean;
@@ -203,9 +203,8 @@ export function isHiveAwareProvider(provider: AgentProvider | undefined): boolea
 }
 
 /** Whether the router may deliver inbox mail to this provider (else bounce to
- *  the god). True for any provider that can actually drain its inbox — Claude
- *  (Stop hook), Antigravity and Codex (their `hookBridge` Stop→drain); false for
- *  hookless custom commands. */
+ *  the god). True when lifecycle status supports guarded idle delivery; false
+ *  for hookless custom commands. */
 export function canReceiveInbox(provider: AgentProvider | undefined): boolean {
   return providerPreset(provider ?? 'claude').canReceiveInbox;
 }

@@ -36,7 +36,12 @@ export interface HiveRegistry {
   godId: string | null;
   /** `archived` agents have had their terminal closed — retained + flagged, not
    *  deleted; only live-PTY agents are 'active'. */
-  agents: Record<string, HiveAgentMeta & { status: string; lastSeen: number; archived?: boolean }>;
+  agents: Record<string, HiveAgentMeta & {
+    status: string;
+    lastSeen: number;
+    archived?: boolean;
+    sessionId?: string;
+  }>;
 }
 
 /** One question→answer exchange with the human, recorded ON the task card. */
@@ -114,6 +119,8 @@ export interface SpawnPtyOptions {
    *  Claude the main process looks up the session id from the hive registry and
    *  seeds its transcript into the cwd's project dir (#1 — restore on restart). */
   resume?: boolean;
+  /** Fail before spawning when a requested resume cannot be attached. */
+  requireResume?: boolean;
   /** Explicit Claude session id to resume (#2 — Add Agent "resume session"). The
    *  main process seeds that session's `.jsonl` into the target cwd's project dir
    *  (copying it from wherever it lives) and launches `claude --resume <id>`. */
@@ -181,6 +188,7 @@ export interface HarnessConfig {
   costCapUsd?: number;
   costCapTokens?: number;
   agentTokenCaps?: Record<string, number>;
+  autoDeliveryPausedAgents?: string[];
   maxTurns?: number;
   circuitBreaker?: CircuitBreakerConfig;
   /** Enterprise Knowledge Graph (multimodal context for agents). Default OFF. */
@@ -311,6 +319,7 @@ export interface ClosingTimeEvent {
 export interface AgentControlSnapshot {
   paused: boolean;
   halted: boolean;
+  autoDeliveryPaused: boolean;
   gatedTools: string[];
   pendingSteers: number;
 }
@@ -631,6 +640,9 @@ const api = {
   /** Pause/unpause an agent — paused → its tool calls are denied at PreToolUse. */
   controlPause: (agentId: string, on: boolean): Promise<AgentControlSnapshot | null> =>
     ipcRenderer.invoke('control:pause', agentId, on),
+  /** Pause/resume automatic inbox and queued-message delivery for one agent. */
+  controlAutoDelivery: (agentId: string, paused: boolean): Promise<AgentControlSnapshot | null> =>
+    ipcRenderer.invoke('control:autoDelivery', agentId, paused),
   /** Clear pause + halt so the agent can run again. */
   controlResume: (agentId: string): Promise<AgentControlSnapshot | null> =>
     ipcRenderer.invoke('control:resume', agentId),

@@ -20,12 +20,14 @@ export function AgentStrip({ config }: AgentStripProps) {
   const setAddAgentOpen = useStore(s => s.setAddAgentOpen);
   const openTaskDetail = useStore(s => s.openTaskDetail);
   const reorderAgents = useStore(s => s.reorderAgents);
+  const setAgentNote = useStore(s => s.setAgentNote);
   const [restoring, setRestoring] = useState(false);
   const [restoreNote, setRestoreNote] = useState<string | null>(null);
   // Drag-to-reorder the roster: dragId = the card being dragged, overId = the card
   // currently hovered as a drop target (drives the insertion-line cue).
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [noteHoverId, setNoteHoverId] = useState<string | null>(null);
   // Each worker's actively-DOING ledger tasks, polled from hive/tasks.json —
   // rendered as a sticky note on the avatar card (click → task detail).
   const [doingByAgent, setDoingByAgent] = useState<Record<string, string[]>>({});
@@ -264,7 +266,10 @@ export function AgentStrip({ config }: AgentStripProps) {
             setOverId(null);
           }}
           onDragEnd={() => { setDragId(null); setOverId(null); }}
+          onMouseEnter={() => setNoteHoverId(a.id)}
+          onMouseLeave={() => setNoteHoverId((id) => id === a.id ? null : id)}
           style={{
+            position: 'relative',
             flexShrink: 0,
             cursor: 'grab',
             opacity: dragId === a.id ? 0.4 : 1,
@@ -295,6 +300,38 @@ export function AgentStrip({ config }: AgentStripProps) {
               if (first) openTaskDetail(first);
             }}
           />
+          {noteHoverId === a.id && !dragId && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute', left: 60, right: 7, bottom: 7, height: 25, zIndex: 5,
+                display: 'flex', alignItems: 'center', gap: 4, padding: '3px 4px',
+                background: 'var(--cth-paper-100)',
+                boxShadow: 'inset 0 0 0 1px var(--cth-ink-900), 2px 2px 0 rgba(26,19,32,0.2)',
+                boxSizing: 'border-box'
+              }}
+            >
+              <span style={{
+                flexShrink: 0, fontFamily: 'var(--cth-font-mono)', fontSize: 9,
+                lineHeight: '18px', color: 'var(--cth-ink-700)'
+              }}>NOTE</span>
+              <input
+                draggable={false}
+                value={a.note ?? ''}
+                onChange={(e) => setAgentNote(a.id, e.target.value)}
+                placeholder="private note…"
+                aria-label={`Note for ${a.name}`}
+                style={{
+                  flex: 1, minWidth: 0, height: 17, padding: '0 4px',
+                  border: 'none', outline: 'none', boxSizing: 'border-box',
+                  background: 'var(--cth-cream-100)',
+                  fontFamily: 'var(--cth-font-mono)', fontSize: 10,
+                  lineHeight: '17px', color: 'var(--cth-ink-900)'
+                }}
+              />
+            </div>
+          )}
         </div>
       ))}
       {restorableAgents.length > 0 && (

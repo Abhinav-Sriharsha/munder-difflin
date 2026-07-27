@@ -460,13 +460,18 @@ export function useHive(config: HarnessConfig | null): void {
     const iv = setInterval(async () => {
       const now = Date.now();
       const agents = useStore.getState().agents.filter(
-        (a) => a.ptyId && (a.status === 'idle' || a.status === 'waiting')
+        // Never type into an explicit human/permission wait. A worker waiting on
+        // the user must stay parked until the user answers or resumes delivery.
+        (a) => a.ptyId && a.status === 'idle'
           // Don't type into an agent still running its boot sequence — the nudge
           // would collide with /remote-control + the orientation prompt.
           && (bootGraceUntil.current[a.id] ?? 0) < now
       );
       for (const a of agents) {
         try {
+          const control = await window.cth.controlSnapshot(a.id);
+          if (control?.autoDeliveryPaused) continue;
+          if (!isTerminalAutomationSafe(a.ptyId!, now)) continue;
           const inbox = await window.cth.hiveInbox(a.id);
           // Dedup by the newest message id, not the count — a count can oscillate
           // as messages drain and re-arrive, which would re-nudge for the same set.
@@ -474,12 +479,12 @@ export function useHive(config: HarnessConfig | null): void {
             ? inbox.map((m) => m.id).sort().slice(-1)[0]
             : '';
           if (newest && nudged.current[a.id] !== newest) {
-            nudged.current[a.id] = newest;
             await submitToPty(
               a.ptyId!,
               'You have new hive inbox message(s) — read your inbox, act on them now, and move handled ones to inbox/.done/. Act autonomously; only message god if you genuinely need a decision.',
               inferAgentProvider(a.command, a.provider)
             );
+            nudged.current[a.id] = newest;
           } else if (!newest) {
             nudged.current[a.id] = '';
           }
@@ -511,6 +516,8 @@ export function useHive(config: HarnessConfig | null): void {
       const next = messageQueues[srcId]?.[0];
       if (!next || !target?.ptyId || target.status !== 'idle') return { sent: false };
       const now = Date.now();
+      const control = await window.cth.controlSnapshot(target.id);
+      if (control?.autoDeliveryPaused) return { sent: false };
       // Hold queued messages until the target finishes its boot sequence.
       if ((bootGraceUntil.current[target.id] ?? 0) >= now) return { sent: false };
       if (!isTerminalAutomationSafe(target.ptyId, now)) return { sent: false };

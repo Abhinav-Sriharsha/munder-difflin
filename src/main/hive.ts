@@ -641,10 +641,9 @@ export class HiveManager {
     const targets = msg.to === 'broadcast'
       // The roster for fan-out is the ACTIVE registry: skip the send-only prep
       // assistant, any archived agent (closed tab), and providers that can't
-      // drain an inbox (hookless custom commands) so mail never piles into a dead
-      // inbox no one reads. Claude, Codex AND Antigravity workers ARE included —
-      // each can drain its inbox on Stop: Claude via its native Stop hook, and
-      // Antigravity/Codex via their `hookBridge` Stop→drain (agy-hook / codex-hook).
+      // expose safe-idle lifecycle state (hookless custom commands), so mail never
+      // piles into a dead inbox. Claude, Codex and Antigravity are included; their
+      // hooks let the renderer wake them only after a safe idle boundary.
       ? Object.keys(reg.agents).filter((a) =>
           a !== msg.from
           && !reg.agents[a]?.isAssistant
@@ -666,10 +665,9 @@ export class HiveManager {
         }, godId);
         continue;
       }
-      // A provider that can't drain its own inbox (a hookless custom command)
-      // would let direct mail rot unread. Claude (native Stop hook) and
-      // Antigravity/Codex (their `hookBridge` Stop→drain) all drain their inbox,
-      // so they receive directly into their inbox/. For a provider that can't, try
+      // A provider without safe-idle lifecycle state (a hookless custom command)
+      // would let direct mail rot unread. Claude and bridged Antigravity/Codex
+      // receive directly into inbox/ for guarded renderer delivery. Otherwise try
       // a terminal work-order handoff to its REPL (#53);
       // if the renderer is unavailable, bounce to god to relay. God is exempt
       // (the bounce target).
@@ -824,7 +822,7 @@ export class HiveManager {
   /** Install the Antigravity (`agy`) lifecycle-hook bridge: write the normalizer
    *  shim and merge a `munder-hive` hook group into agy's global hooks.json so a
    *  Gemini worker reports PreToolUse/PostToolUse/Stop/PreInvocation/PostInvocation
-   *  to this HookServer (live status + inbox-drain), reusing the Claude pipeline.
+   *  to this HookServer (live status + guarded idle delivery), reusing the Claude pipeline.
    *
    *  Two agy-isms handled: (1) antigravity-cli#49 — agy LOADS hooks from
    *  `~/.gemini/antigravity-cli/hooks.json` but TRIGGERS from `~/.gemini/config/

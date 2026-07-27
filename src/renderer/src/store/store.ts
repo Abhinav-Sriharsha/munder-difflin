@@ -37,6 +37,8 @@ export interface Agent {
   tmuxTarget: string;
   cwd: string;
   goal?: string;
+  /** User-authored private note shown and edited from the roster-card hover. */
+  note?: string;
   status: StatusKind;
   action: string;
   progress: number;
@@ -143,6 +145,7 @@ interface State {
   setGodStatus: (status: GodStatus) => void;
   select: (id: string) => void;
   updateAgent: (id: string, patch: Partial<Agent>) => void;
+  setAgentNote: (id: string, note: string) => void;
   pushFeed: (id: string, line: string) => void;
   addAgent: (agent: Agent) => void;
   removeAgent: (id: string) => void;
@@ -395,6 +398,12 @@ export const useStore = create<State>((set) => ({
   select: (id) => set((s) => { persistAgents(s.agents, id); return { selectedId: id, ccTabRequest: null }; }),
   updateAgent: (id, patch) =>
     set((s) => ({ agents: s.agents.map(a => a.id === id ? { ...a, ...patch } : a) })),
+  setAgentNote: (id, note) =>
+    set((s) => {
+      const agents = s.agents.map((a) => a.id === id ? { ...a, note } : a);
+      persistAgents(agents, s.selectedId);
+      return { agents };
+    }),
   pushFeed: (id, line) =>
     set((s) => ({ feeds: { ...s.feeds, [id]: [...(s.feeds[id] ?? []), line] } })),
   addAgent: (agent) =>

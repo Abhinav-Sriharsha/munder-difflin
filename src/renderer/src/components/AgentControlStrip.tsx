@@ -5,7 +5,13 @@ import { PixelButton } from './PixelButton';
  *  boundary), graceful halt (clean stop), and mid-run steering (inject context
  *  without typing into the TUI). All ride Claude Code's hook-return protocol; no
  *  PTY keystrokes. A thin strip under the agent header. */
-interface Snapshot { paused: boolean; halted: boolean; gatedTools: string[]; pendingSteers: number }
+interface Snapshot {
+  paused: boolean;
+  halted: boolean;
+  autoDeliveryPaused: boolean;
+  gatedTools: string[];
+  pendingSteers: number;
+}
 
 export function AgentControlStrip({ agentId }: { agentId: string }) {
   const [snap, setSnap] = useState<Snapshot | null>(null);
@@ -35,6 +41,12 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
     if (s) setSnap(s);
     flash('halt requested — stops cleanly at next hook');
   };
+  const toggleAutoDelivery = async () => {
+    const paused = !(snap?.autoDeliveryPaused ?? false);
+    const s = await window.cth.controlAutoDelivery(agentId, paused);
+    if (s) setSnap(s);
+    flash(paused ? 'auto-delivery paused — messages stay queued' : 'auto-delivery resumed');
+  };
   const sendSteer = async () => {
     const t = steer.trim();
     if (!t) return;
@@ -56,6 +68,13 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
           {snap?.paused ? 'resume' : 'pause'}
         </PixelButton>
         <PixelButton variant="destructive" size="sm" onClick={halt}>halt</PixelButton>
+        <PixelButton
+          variant={snap?.autoDeliveryPaused ? 'primary' : 'secondary'}
+          size="sm"
+          onClick={toggleAutoDelivery}
+        >
+          {snap?.autoDeliveryPaused ? 'delivery paused' : 'auto-delivery on'}
+        </PixelButton>
         {snap?.halted && <span style={{ fontSize: 11, color: 'var(--cth-coral)' }}>halting…</span>}
         {!!snap?.pendingSteers && <span style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>{snap.pendingSteers} steer queued</span>}
       </div>

@@ -154,6 +154,9 @@ export interface HarnessConfig {
    *  tokens exceed its cap the breaker trips that agent alone (independent of the
    *  floor budget). Set from each agent's card in the Command Center. */
   agentTokenCaps?: Record<string, number>;
+  /** Agent ids whose automatic inbox/queue delivery is paused. Pending messages
+   *  stay durable until the operator explicitly resumes delivery. */
+  autoDeliveryPausedAgents?: string[];
   /** Passed to every spawned agent as `--max-turns <n>` when set; unset = no cap
    *  (Claude Code's default). A coarse runaway guard independent of the breaker. */
   maxTurns?: number;

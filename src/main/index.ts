@@ -458,15 +458,19 @@ function ensureDefaultMissions(): void {
       heartbeatSeeded: true
     });
   }
-  // One-time upgrade: the prior release persisted autoCompact:false on existing
-  // ops standups. Updating the built-in default only affects fresh installs, so
-  // explicitly enable the persisted built-in mission too. Other missions and
-  // the standup's own enabled/deleted state remain user-controlled.
+  // Repair the built-in mission on every main-process boot. An older long-lived
+  // build persisted autoCompact:false without exposing any UI to turn it back on;
+  // a one-shot marker alone left that broken value durable across upgrades.
+  // Other missions and the standup's enabled/deleted state remain user-controlled.
   const cfg3 = readConfig();
-  if (!cfg3.autoCompactEnabledMigrated) {
-    const missions = cfg3.missions ?? [];
+  const missions = cfg3.missions ?? [];
+  const repaired = enableOpsStandupAutoCompact(missions);
+  const needsRepair = repaired.some((mission, index) =>
+    mission.autoCompact !== missions[index]?.autoCompact
+  );
+  if (needsRepair || !cfg3.autoCompactEnabledMigrated) {
     writeConfig({
-      missions: enableOpsStandupAutoCompact(missions),
+      missions: repaired,
       autoCompactEnabledMigrated: true
     });
   }
@@ -1530,7 +1534,14 @@ function findCodexHomeForSession(sessionId: string, siblingsRoot: string): strin
   }
 }
 
-ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & { hive?: AgentMeta; isolate?: boolean; resume?: boolean; resumeSessionId?: string; provider?: AgentProvider }) => {
+ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & {
+  hive?: AgentMeta;
+  isolate?: boolean;
+  resume?: boolean;
+  requireResume?: boolean;
+  resumeSessionId?: string;
+  provider?: AgentProvider;
+}) => {
   if (!opts || typeof opts.id !== 'string' || typeof opts.cwd !== 'string' || typeof opts.command !== 'string') {
     return { ok: false, error: 'invalid SpawnOptions' };
   }
@@ -1705,6 +1716,13 @@ ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & { hive?: AgentMeta;
         console.log('[resume] codex resume', sid, 'in', ownerHome);
       }
     }
+  }
+  if (opts.requireResume === true && !didResume) {
+    return {
+      ok: false,
+      error: 'Existing session could not be resumed; no replacement process was started.',
+      ...(resumeNotFound ? { resumeNotFound: true } : {})
+    };
   }
   // Remember which agent owns this PTY so closing the tab can archive it. A
   // live terminal means active — ensureAgent above already cleared `archived`.
@@ -2195,6 +2213,15 @@ ipcMain.handle('control:pause', (_evt, agentId: unknown, on: unknown) => {
   control.pause(agentId, on === true);
   return control.snapshot(agentId);
 });
+ipcMain.handle('control:autoDelivery', (_evt, agentId: unknown, paused: unknown) => {
+  if (typeof agentId !== 'string') return null;
+  const on = paused === true;
+  control.pauseAutoDelivery(agentId, on);
+  const current = new Set(readConfig().autoDeliveryPausedAgents ?? []);
+  if (on) current.add(agentId); else current.delete(agentId);
+  writeConfig({ autoDeliveryPausedAgents: Array.from(current).sort() });
+  return control.snapshot(agentId);
+});
 ipcMain.handle('control:resume', (_evt, agentId: unknown) => {
   if (typeof agentId !== 'string') return null;
   control.resume(agentId);
@@ -2397,6 +2424,7 @@ ipcMain.handle('freeflow:transcribe', async (_evt, arg: unknown) => {
 function bootstrapHiveServices(): void {
   if (!hive.enabled()) return;
   hive.ensureHive();
+  control.replaceAutoDeliveryPauses(readConfig().autoDeliveryPausedAgents ?? []);
   archiveOrphanedAgents(); // #57/#58: archive stale archived:false entries with no live PTY
   hive.startRouter();
   ensureDefaultMissions(); // one-time: seed the built-in hourly ops standup

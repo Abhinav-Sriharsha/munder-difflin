@@ -28,3 +28,21 @@ export function opensInteractiveTerminalUi(input: string): boolean {
 export function shouldFollowTerminalOutput(viewportY: number, baseY: number): boolean {
   return baseY - viewportY <= 1;
 }
+
+export interface TerminalAutomationState {
+  exited: boolean;
+  pickerOpen: boolean;
+  inputDirty: boolean;
+  settleUntil: number;
+}
+
+/** Automatic writes may own the prompt only when no user draft or picker does. */
+export function canAutomateTerminal(
+  state: TerminalAutomationState,
+  now = Date.now()
+): boolean {
+  return !state.exited
+    && !state.pickerOpen
+    && !state.inputDirty
+    && now >= state.settleUntil;
+}
