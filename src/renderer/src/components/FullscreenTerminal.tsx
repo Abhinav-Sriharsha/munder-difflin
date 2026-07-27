@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { PixelBadge } from './PixelBadge';
 import { PixelButton } from './PixelButton';
 import { PtyTerminalView } from './PtyTerminalView';
+import { terminalInstanceKey } from './terminalRecovery';
 import { MessageQueueComposer } from './MessageQueueComposer';
 import { disposeTerminal } from './terminalPool';
 import { Icon } from './Icon';
@@ -137,7 +138,7 @@ export function FullscreenTerminal() {
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
             <PtyTerminalView
-              key={agent.ptyId}
+              key={terminalInstanceKey(agent.ptyId, agent.terminalGeneration)}
               ptyId={agent.ptyId}
               onStreamData={parser}
               onUserPrompt={(t) => {

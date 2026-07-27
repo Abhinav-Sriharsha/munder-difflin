@@ -7,6 +7,22 @@ export function createTerminalRecoveryState(): TerminalRecoveryState {
   return { initialRedrawRequested: false, webglRecoveryPending: false };
 }
 
+/** React key for one disposable xterm instance attached to a stable PTY id. */
+export function terminalInstanceKey(ptyId: string, generation = 0): string {
+  return `${ptyId}:${generation}`;
+}
+
+/** Accept output from the current string protocol and the short-lived replay
+ * protocol so a renderer hot reload stays usable until the app next exits. */
+export function normalizePtyChunk(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'data' in value) {
+    const data = (value as { data?: unknown }).data;
+    if (typeof data === 'string') return data;
+  }
+  return '';
+}
+
 /** Request exactly one redraw after the renderer has subscribed to PTY output. */
 export function requestInitialPtyRedraw(
   state: TerminalRecoveryState,

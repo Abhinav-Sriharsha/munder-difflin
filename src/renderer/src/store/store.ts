@@ -52,6 +52,9 @@ export interface Agent {
   blockReason?: BlockReason;
   /** present iff this agent has a real PTY in the main process */
   ptyId?: string;
+  /** Incremented by Restart & Continue to remount this agent's xterm without
+   * changing its durable PTY/session identity. */
+  terminalGeneration?: number;
   /** the command being run in the PTY (e.g. 'claude' or 'agy') */
   command?: string;
   /** which agent CLI preset owns this PTY recipe; drives the model picker +

@@ -19,6 +19,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import {
   createTerminalRecoveryState,
+  normalizePtyChunk,
   requestInitialPtyRedraw,
   scheduleWebglRecovery,
   type TerminalRecoveryState
@@ -117,7 +118,9 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
 
   // Subscribe to the pty stream ONCE for the terminal's whole lifetime, so the
   // buffer keeps filling even while this terminal isn't mounted in any view.
-  entry.unsub.push(window.cth.onPtyData(ptyId, (chunk) => {
+  entry.unsub.push(window.cth.onPtyData(ptyId, (rawChunk) => {
+    const chunk = normalizePtyChunk(rawChunk);
+    if (!chunk) return;
     const active = term.buffer.active;
     const follow = shouldFollowTerminalOutput(active.viewportY, active.baseY);
     term.write(chunk, () => {

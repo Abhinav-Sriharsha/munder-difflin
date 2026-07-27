@@ -8,7 +8,8 @@ import { MessageQueueComposer } from './MessageQueueComposer';
 import { TasksKanban } from './TasksKanban';
 import { AskMeTab } from './AskMeTab';
 import { SchedulesTab } from './SchedulesTab';
-import { acquireTerminal, resetTerminal } from './terminalPool';
+import { acquireTerminal, disposeTerminal, resetTerminal } from './terminalPool';
+import { terminalInstanceKey } from './terminalRecovery';
 import { Icon } from './Icon';
 import { MemoryGraphPanel } from './MemoryGraphPanel';
 import { useFleetTelemetry } from '@/hooks/useTelemetry';
@@ -158,7 +159,7 @@ export function CommandCenterPanel({ agent }: { agent: Agent }) {
             <>
               <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
                 <PtyTerminalView
-                  key={agent.ptyId}
+                  key={terminalInstanceKey(agent.ptyId, agent.terminalGeneration)}
                   ptyId={agent.ptyId}
                   onStreamData={onPtyStream}
                   onUserPrompt={(t) => {
@@ -274,14 +275,35 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
           throw new Error('Session transcript not found; current process was left running.');
         }
       }
+      // Capture the live grid before replacing anything. Restart & Continue
+      // recreates only this agent's xterm; model changes retain the old
+      // in-place reset behavior.
+      const oldEntry = acquireTerminal(a.ptyId);
+      let cols = oldEntry.term.cols || 100;
+      let rows = oldEntry.term.rows || 30;
+      try {
+        oldEntry.fit.fit();
+        cols = oldEntry.term.cols;
+        rows = oldEntry.term.rows;
+      } catch { /* host not sized yet */ }
+
       const killed = await window.cth.killPty(a.ptyId);
       if (!killed.ok) throw new Error(killed.error ?? 'Could not stop the current process.');
-      // Soft-reset the pooled terminal in place rather than disposing it: the
-      // same ptyId is reused, so its data subscription, opened xterm and keyboard
-      // wiring all survive the restart. (Disposing dropped the live terminal while
-      // the view — keyed on the unchanged ptyId — never re-attached a replacement,
-      // leaving a dead pane that swallowed every keystroke.)
-      resetTerminal(a.ptyId, { preserveScrollback: resume });
+      if (resume) {
+        // A blank xterm can retain corrupt renderer/DOM/subscription state even
+        // after its PTY is healthy. Throw that one terminal away, acquire its
+        // replacement BEFORE spawning (so startup output has a listener), then
+        // bump the key so React remounts only this agent's terminal card.
+        disposeTerminal(a.ptyId);
+        acquireTerminal(a.ptyId);
+        updateAgent(a.id, {
+          terminalGeneration: (a.terminalGeneration ?? 0) + 1,
+          status: 'idle',
+          action: 'recreating terminal…'
+        });
+      } else {
+        resetTerminal(a.ptyId);
+      }
       const command = buildSpawnCommand(cfg, model, provider);
       const [exe, ...args] = tokenizeCommand(command.trim());
       const hive = a.isGod
@@ -289,12 +311,6 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
         : a.isAssistant
         ? { id: a.id, name: a.name, cwd: a.cwd, provider, isAssistant: true, role: "Michael's prep assistant" }
         : { id: a.id, name: a.name, cwd: a.cwd, provider, role: a.description };
-      // Spawn the replacement at the terminal's REAL grid, not the fixed 100×30
-      // default. A size mismatch makes the Claude TUI's absolute cursor moves land
-      // in the wrong cells, so the screen renders as scattered/overlapping text.
-      const entry = acquireTerminal(a.ptyId);
-      let cols = 100, rows = 30;
-      try { entry.fit.fit(); cols = entry.term.cols; rows = entry.term.rows; } catch { /* host not sized yet */ }
       const res = await window.cth.spawnPty({
         id: a.ptyId,
         cwd: a.cwd,
