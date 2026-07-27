@@ -372,9 +372,18 @@ const api = {
     ipcRenderer.invoke('pty:write', id, data),
   resizePty: (id: string, cols: number, rows: number): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('pty:resize', id, cols, rows),
+  redrawPty: (id: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('pty:redraw', id),
   killPty: (id: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('pty:kill', id),
-  listPtys: (): Promise<Array<{ id: string; cwd: string; command: string; pid: number }>> =>
+  listPtys: (): Promise<Array<{
+    id: string;
+    cwd: string;
+    command: string;
+    pid: number;
+    lastOutputAt: number;
+    hasOutput: boolean;
+  }>> =>
     ipcRenderer.invoke('pty:list'),
   /** Resolve a Claude session id to the cwd it originally ran in (Add Agent
    *  resume auto-fill), or null if the id is invalid/unknown. */

@@ -15,7 +15,17 @@ import { useFleetTelemetry } from '@/hooks/useTelemetry';
 import { COMMAND_GROUPS } from '@shared/claudeCommands';
 import { useStore, type Agent } from '@/store/store';
 import { usePtyParser } from '@/hooks/usePtyParser';
-import { buildSpawnCommand, modelsForProvider, tokenizeCommand, inferAgentProvider, isClaudeProvider } from '@/store/config';
+import {
+  buildSpawnCommand,
+  decodeProviderModel,
+  encodeProviderModel,
+  inferAgentProvider,
+  modelProvidersForAgent,
+  modelsForProvider,
+  providerPreset,
+  tokenizeCommand,
+  type AgentProvider
+} from '@/store/config';
 
 /** Michael's control surface. Shown instead of the plain terminal/files panel
  *  when the god agent is selected: terminal + queue, the floor roster (with
@@ -236,7 +246,11 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
   // hatch for a corrupted/garbled terminal (e.g. xterm reflow after dragging the
   // window between displays of different sizes). With `resume` unset it's the
   // old behavior: a model change that starts a fresh session.
-  const restartWithModel = async (a: Agent, model: string | undefined, opts: { resume?: boolean } = {}) => {
+  const restartWithModel = async (
+    a: Agent,
+    model: string | undefined,
+    opts: { resume?: boolean; provider?: AgentProvider } = {}
+  ) => {
     if (!a.ptyId) return;
     setRestarting(a.id);
     try {
@@ -248,10 +262,11 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
       // the view — keyed on the unchanged ptyId — never re-attached a replacement,
       // leaving a dead pane that swallowed every keystroke.)
       resetTerminal(a.ptyId);
-      // Respawn on the same CLI this agent already runs on (inferred from its
-      // command if not explicitly tagged) so an Antigravity/Codex worker stays
-      // on its own binary. tokenizeCommand keeps quoted model labels one arg.
-      const provider = inferAgentProvider(a.command, a.provider);
+      // A model choice may also switch CLI/provider. Cross-provider sessions are
+      // incompatible, so only same-provider Restart & Continue requests resume.
+      const previousProvider = inferAgentProvider(a.command, a.provider);
+      const provider = opts.provider ?? previousProvider;
+      const resume = opts.resume === true && provider === previousProvider;
       const command = buildSpawnCommand(cfg, model, provider);
       const [exe, ...args] = tokenizeCommand(command.trim());
       const hive = a.isGod
@@ -265,12 +280,28 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
       const entry = acquireTerminal(a.ptyId);
       let cols = 100, rows = 30;
       try { entry.fit.fit(); cols = entry.term.cols; rows = entry.term.rows; } catch { /* host not sized yet */ }
-      const res = await window.cth.spawnPty({ id: a.ptyId, cwd: a.cwd, command: exe, args, provider, cols, rows, hive, resume: opts.resume });
+      const res = await window.cth.spawnPty({
+        id: a.ptyId,
+        cwd: a.cwd,
+        command: exe,
+        args,
+        provider,
+        cols,
+        rows,
+        hive,
+        resume
+      });
       if (res.ok) {
         // On a pure resume the model is unchanged — don't overwrite it.
-        const patch = opts.resume
+        const patch = resume
           ? { status: 'idle' as const, action: 'continuing…' }
-          : { command: command.trim(), provider, model, status: 'idle' as const, action: 'restarting…' };
+          : {
+              command: command.trim(),
+              provider,
+              model,
+              status: 'idle' as const,
+              action: provider === previousProvider ? 'restarting…' : `switching to ${providerPreset(provider).label}…`
+            };
         updateAgent(a.id, patch);
       }
     } catch { /* noop */ } finally {
@@ -386,6 +417,8 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
 
       <Section title="AGENTS">
         {agents.map((a) => {
+          const agentProvider = inferAgentProvider(a.command, a.provider);
+          const agentPreset = providerPreset(agentProvider);
           const sample = samples[a.id];
           const breaker = breakers[a.id];
           const armed = !!breaker && (breaker.level === 'constrained' || breaker.level === 'stopped');
@@ -400,6 +433,8 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
           const hasSpark = sparkSeries.some((v) => v > 0);
           const rateVal = Math.round(rate[a.id] ?? 0);
           const rateLabel = rateVal > 0 ? `${fmtTokens(rateVal)}/m` : 'rate';
+          const currentModelKnown = modelsForProvider(agentProvider)
+            .some((model) => model.id === a.model);
           return (
           <div key={a.id} style={{
             display: 'flex', flexDirection: 'column', gap: 4,
@@ -486,43 +521,56 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
                 </span>
               )}
             </div>
-            {isClaudeProvider(inferAgentProvider(a.command, a.provider)) ? <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Select
-                value={a.model ?? ''}
+                value={encodeProviderModel(agentProvider, a.model)}
                 disabled={restarting === a.id}
-                onChange={(v) => restartWithModel(a, v || undefined)}
+                onChange={(value) => {
+                  const choice = decodeProviderModel(value);
+                  if (choice) void restartWithModel(a, choice.model, { provider: choice.provider });
+                }}
               >
-                {modelsForProvider(inferAgentProvider(a.command, a.provider)).map((m) => (
-                  <option key={m.label} value={m.id ?? ''}>{m.label}</option>
+                {(!agentPreset.supportsModel || !currentModelKnown) && (
+                  <option value={encodeProviderModel(agentProvider, a.model)}>
+                    {agentPreset.label} · {a.model ?? 'current'}
+                  </option>
+                )}
+                {modelProvidersForAgent(a.isGod).map((preset) => (
+                  <optgroup key={preset.id} label={preset.label}>
+                    {modelsForProvider(preset.id).map((model) => (
+                      <option
+                        key={`${preset.id}:${model.id ?? 'default'}`}
+                        value={encodeProviderModel(preset.id, model.id)}
+                      >
+                        {model.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </Select>
               <span style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>
                 {restarting === a.id
                   ? 'restarting…'
-                  : isClaudeProvider(inferAgentProvider(a.command, a.provider))
-                    ? 'model (restarts agent)'
-                    : `${inferAgentProvider(a.command, a.provider)} · model (restarts agent)`}
+                  : `${agentPreset.label} model (restarts agent)`}
               </span>
               {/* Restart & Continue — kill + respawn keeping the SAME model and
                   resuming the prior conversation (--resume). Use this to redraw a
                   garbled TUI (e.g. after dragging the window across displays)
                   without losing the thread. */}
-              <span style={{ flex: 1 }} />
-              <PixelButton
-                variant="secondary"
-                size="sm"
-                disabled={restarting === a.id}
-                onClick={() => restartWithModel(a, a.model, { resume: true })}
-              >
-                <span title="Kill and respawn this agent, resuming its current conversation — fixes a corrupted/garbled terminal without losing context">
-                  restart &amp; continue
-                </span>
-              </PixelButton>
-            </div> : (
-              <div style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>
-                provider: {inferAgentProvider(a.command, a.provider)}
-              </div>
-            )}
+              {(agentProvider === 'claude' || agentPreset.resumeFlag || agentPreset.resumeSubcommand) && <>
+                <span style={{ flex: 1 }} />
+                <PixelButton
+                  variant="secondary"
+                  size="sm"
+                  disabled={restarting === a.id}
+                  onClick={() => restartWithModel(a, a.model, { resume: true })}
+                >
+                  <span title="Kill and respawn this agent, resuming its current conversation — fixes a corrupted/garbled terminal without losing context">
+                    restart &amp; continue
+                  </span>
+                </PixelButton>
+              </>}
+            </div>
           </div>
           );
         })}

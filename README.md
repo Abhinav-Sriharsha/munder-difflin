@@ -94,7 +94,7 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 
 | Area | What works today |
 |---|---|
-| **Real terminals** | Spawn Claude Code, Antigravity (`agy` / Gemini), OpenAI Codex, or a custom command in a `node-pty` PTY. Full read/write/resize/kill, live streaming over IPC, multi-agent. |
+| **Real terminals** | Spawn Claude Code, Antigravity (`agy` / Gemini), OpenAI Codex (GPT), Kimi Code, or a custom command in a `node-pty` PTY. Full read/write/resize/kill, live streaming over IPC, multi-agent. |
 | **Multi-provider hive** | Claude Code, Antigravity, and Codex workers can all participate in the same hive. Claude uses native hooks; Antigravity gets a native `agy-hook` bridge; Codex receives the protocol as its initial prompt and participates through inbox/outbox routing. |
 | **The hive** | On-disk multi-agent layer: per-agent identity + long-term memory, atomic-file mailboxes, a shared blackboard, append-only event log, single-committer git. |
 | **GOD orchestrator** | An always-on supervisor agent that adjudicates traffic, routes tasks, scribes the blackboard, and escalates only critical items to you. |
@@ -142,7 +142,8 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
   xcode-select --install
   ```
 - At least one supported terminal-agent CLI on your `PATH`: **[Claude Code](https://claude.com/claude-code)**
-  (`claude`, the default command), **Antigravity** (`agy`, Gemini), or **OpenAI Codex** (`codex`).
+  (`claude`, the default command), **Antigravity** (`agy`, Gemini), **OpenAI Codex** (`codex`),
+  or **Kimi Code** (`kimi`).
   Claude uses native hooks, Antigravity uses the `agy-hook` bridge, and Codex participates through
   initial-prompt protocol injection plus inbox/outbox routing.
 - *Optional:* the semantic memory index for instant cross-session recall (the app works without it —

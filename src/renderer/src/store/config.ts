@@ -100,6 +100,7 @@ export interface ModelOption {
 export const AGENT_MODELS: ModelOption[] = [
   { id: undefined, label: 'default' },
   { id: 'claude-fable-5', label: 'Fable 5' },
+  { id: 'claude-opus-5', label: 'Opus 5 · 1M' },
   { id: 'claude-opus-4-8', label: 'Opus 4.8' },
   { id: 'claude-opus-4-8[1m]', label: 'Opus 4.8 · 1M' },
   { id: 'claude-sonnet-5', label: 'Sonnet 5' },
@@ -126,6 +127,22 @@ export const ANTIGRAVITY_MODELS: ModelOption[] = [
   { id: 'GPT-OSS 120B (Medium)', label: 'GPT-OSS 120B' }
 ];
 
+/** Current OpenAI models offered by Codex for coding agents. */
+export const CODEX_MODELS: ModelOption[] = [
+  { id: undefined, label: 'default' },
+  { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
+  { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
+  { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' }
+];
+
+/** Managed Kimi Code aliases accepted by `kimi --model <alias>`. */
+export const KIMI_MODELS: ModelOption[] = [
+  { id: undefined, label: 'default' },
+  { id: 'kimi-code/k3', label: 'Kimi K3' },
+  { id: 'kimi-code/kimi-for-coding', label: 'Kimi K2.7 Code' },
+  { id: 'kimi-code/kimi-for-coding-highspeed', label: 'Kimi K2.7 · HighSpeed' }
+];
+
 /** Split a command string into argv, respecting double/single quotes so a model
  *  value with spaces (agy's `--model "Gemini 3.1 Pro (High)"`) stays one token.
  *  Quotes are stripped from the result. */
@@ -139,7 +156,44 @@ export function tokenizeCommand(command: string): string[] {
 
 /** The model preset list for a given provider's picker. */
 export function modelsForProvider(provider: AgentProvider): ModelOption[] {
-  return provider === 'antigravity' ? ANTIGRAVITY_MODELS : AGENT_MODELS;
+  switch (provider) {
+    case 'codex': return CODEX_MODELS;
+    case 'kimi': return KIMI_MODELS;
+    case 'antigravity': return ANTIGRAVITY_MODELS;
+    case 'claude': return AGENT_MODELS;
+    case 'custom': return [];
+  }
+}
+
+/** Providers shown in the Command Center's cross-provider model picker.
+ *  God must remain on a provider with a working inbox drain; otherwise switching
+ *  to a terminal-only provider would silently disable orchestration. */
+export function modelProvidersForAgent(isGod = false) {
+  return AGENT_PROVIDER_PRESETS.filter((preset) =>
+    preset.supportsModel && (!isGod || preset.canReceiveInbox)
+  );
+}
+
+/** Native <select> values must carry both provider and model because each
+ *  provider has its own "default" option and model namespace. */
+export function encodeProviderModel(provider: AgentProvider, model?: string): string {
+  return `${provider}:${encodeURIComponent(model ?? '')}`;
+}
+
+export function decodeProviderModel(value: string): {
+  provider: AgentProvider;
+  model?: string;
+} | null {
+  const split = value.indexOf(':');
+  if (split < 1) return null;
+  const provider = value.slice(0, split);
+  if (!AGENT_PROVIDER_PRESETS.some((preset) => preset.id === provider)) return null;
+  try {
+    const model = decodeURIComponent(value.slice(split + 1));
+    return { provider: provider as AgentProvider, model: model || undefined };
+  } catch {
+    return null;
+  }
 }
 
 /** Build the command line to feed into spawnPty, honoring the provider's flags,
@@ -153,7 +207,7 @@ export function buildSpawnCommand(
 ): string {
   const preset = providerPreset(provider);
   // Claude keeps the user's configured defaultCommand; custom falls back to it
-  // too; every other provider (codex, agy) uses its preset binary so the app
+  // too; every other provider (codex, kimi, agy) uses its preset binary so the app
   // works even without Claude installed.
   const base =
     provider === 'claude'
@@ -169,7 +223,7 @@ export function buildSpawnCommand(
     cmd = `${cmd} ${preset.modelFlag} ${m}`;
   }
   // Auto (skip-permissions) mode appends each provider's own flag — Claude's
-  // bypassPermissions, codex's `-a never -s workspace-write`, agy's skip flag.
+  // bypassPermissions, Codex's dangerous bypass, Kimi's auto, or agy's skip flag.
   if (config.autoMode && preset.autoFlag) cmd = `${cmd} ${preset.autoFlag}`;
   return cmd;
 }

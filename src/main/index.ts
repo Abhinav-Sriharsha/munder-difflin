@@ -1,10 +1,16 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, powerSaveBlocker, screen, shell, Notification } from 'electron';
 import { spawn } from 'node:child_process';
-import { rmSync, existsSync, readFileSync, readdirSync, statSync, cpSync, writeFileSync, unlinkSync, mkdirSync, createWriteStream, copyFileSync } from 'node:fs';
+import {
+  rmSync, existsSync, readFileSync, readdirSync, statSync, cpSync, writeFileSync,
+  unlinkSync, mkdirSync, createWriteStream, copyFileSync, lstatSync, readlinkSync,
+  symlinkSync
+} from 'node:fs';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { join, resolve, sep, basename, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
+import { enableOpsStandupAutoCompact } from '../shared/autoCompact';
 import {
   readConfig, writeConfig, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, type HarnessConfig, type ScheduledMission
@@ -37,6 +43,12 @@ import {
   providerPreset,
   type AgentProvider
 } from '../shared/agentProvider';
+import {
+  CODEX_REMOTE_SOCKET_RELATIVE,
+  codexRemoteAliasPath,
+  codexRemoteEndpoint,
+  withCodexRemoteArgs
+} from '../shared/codexRemote';
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
 
@@ -53,6 +65,112 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const ptyManager = new PtyManager();
+
+function runCodexDaemonCommand(
+  executable: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  timeoutMs = 20_000
+): Promise<{ ok: boolean; error?: string }> {
+  return new Promise((resolveResult) => {
+    let settled = false;
+    let stderr = '';
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(executable, args, {
+        env,
+        stdio: ['ignore', 'ignore', 'pipe'],
+        windowsHide: true
+      });
+    } catch (e) {
+      resolveResult({ ok: false, error: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+    let timer: NodeJS.Timeout;
+    const finish = (result: { ok: boolean; error?: string }): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveResult(result);
+    };
+    child.stderr?.on('data', (chunk) => {
+      if (stderr.length < 8_000) stderr += String(chunk);
+    });
+    child.once('error', (e) => finish({ ok: false, error: e.message }));
+    child.once('exit', (code) => {
+      finish(code === 0
+        ? { ok: true }
+        : { ok: false, error: stderr.trim() || `Codex exited with code ${code ?? 'unknown'}` });
+    });
+    timer = setTimeout(() => {
+      try { child.kill(); } catch { /* already exited */ }
+      finish({ ok: false, error: `Codex daemon command timed out after ${timeoutMs}ms` });
+    }, timeoutMs);
+  });
+}
+
+/** Start/enable one managed remote-control daemon for this isolated Codex home,
+ * then point the TUI at its app-server socket. Failure is non-fatal: the worker
+ * still starts as a normal local Codex session. */
+async function enableCodexRemoteForSpawn(
+  opts: SpawnOptions & { hive?: AgentMeta },
+  agentId: string
+): Promise<boolean> {
+  if (process.platform === 'win32') return false;
+  const realHome = opts.env?.CODEX_HOME;
+  if (!realHome) return false;
+  try {
+    const alias = codexRemoteAliasPath(realHome, agentId, tmpdir());
+    const aliasRoot = dirname(alias);
+    mkdirSync(aliasRoot, { recursive: true });
+    if (existsSync(alias)) {
+      const st = lstatSync(alias);
+      if (!st.isSymbolicLink() || resolve(dirname(alias), readlinkSync(alias)) !== resolve(realHome)) {
+        console.warn('[codex-remote] short home alias is occupied; starting local TUI:', alias);
+        return false;
+      }
+    } else {
+      symlinkSync(realHome, alias, 'dir');
+    }
+
+    const socket = join(alias, CODEX_REMOTE_SOCKET_RELATIVE);
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      ...(opts.env ?? {}),
+      CODEX_HOME: alias
+    };
+    const executable = ptyManager.resolveCommand(opts.command);
+    const started = await runCodexDaemonCommand(
+      executable,
+      ['app-server', 'daemon', 'start'],
+      env
+    );
+    if (!started.ok) {
+      console.warn('[codex-remote] daemon start failed; starting local TUI:', started.error);
+      return false;
+    }
+    const enabled = await runCodexDaemonCommand(
+      executable,
+      ['app-server', 'daemon', 'enable-remote-control'],
+      env
+    );
+    if (!enabled.ok) {
+      console.warn('[codex-remote] enable failed; starting local TUI:', enabled.error);
+      return false;
+    }
+    if (!existsSync(socket)) {
+      console.warn('[codex-remote] daemon returned without a control socket; starting local TUI');
+      return false;
+    }
+    opts.env = { ...(opts.env ?? {}), CODEX_HOME: alias };
+    opts.args = withCodexRemoteArgs(opts.args ?? [], codexRemoteEndpoint(alias));
+    return true;
+  } catch (e) {
+    console.warn('[codex-remote] setup failed; starting local TUI:',
+      e instanceof Error ? e.message : e);
+    return false;
+  }
+}
 /** Live PTY id → its hive agent id, recorded at spawn. The pty:kill handler only
  *  gets the PTY id, so this lets a closed tab archive the right registry agent. */
 const ptyToAgent = new Map<string, string>();
@@ -340,18 +458,16 @@ function ensureDefaultMissions(): void {
       heartbeatSeeded: true
     });
   }
-  // One-time opt-out: the founder doesn't want the scheduled /compact injected
-  // into agent terminals. An existing install already persisted the ops standup
-  // with autoCompact:true (which { ...DEFAULTS, ...parsed } keeps), so flipping
-  // the built-in default alone wouldn't reach it — clear the flag on every
-  // persisted mission once. Guarded so a user who deliberately re-enables it
-  // later isn't force-disabled on every boot.
+  // One-time upgrade: the prior release persisted autoCompact:false on existing
+  // ops standups. Updating the built-in default only affects fresh installs, so
+  // explicitly enable the persisted built-in mission too. Other missions and
+  // the standup's own enabled/deleted state remain user-controlled.
   const cfg3 = readConfig();
-  if (!cfg3.autoCompactDisabledMigrated) {
+  if (!cfg3.autoCompactEnabledMigrated) {
     const missions = cfg3.missions ?? [];
     writeConfig({
-      missions: missions.map((m) => (m.autoCompact ? { ...m, autoCompact: false } : m)),
-      autoCompactDisabledMigrated: true
+      missions: enableOpsStandupAutoCompact(missions),
+      autoCompactEnabledMigrated: true
     });
   }
 }
@@ -1607,6 +1723,13 @@ ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & { hive?: AgentMeta;
   if (Object.keys(nonInteractiveEnv).length > 0) {
     opts.env = { ...(opts.env ?? {}), ...nonInteractiveEnv };
   }
+  // Codex Remote is daemon-based (there is no `/remote-control` slash command).
+  // Start/enable the daemon under this agent's isolated CODEX_HOME and connect
+  // the TUI to it so the thread is visible in ChatGPT mobile. Best-effort: an
+  // unavailable/older Codex install still gets a normal local terminal.
+  if (provider === 'codex' && opts.hive?.id) {
+    await enableCodexRemoteForSpawn(opts, opts.hive.id);
+  }
   // Record the spawning window as the PTY's owner so its output (pty:data/exit)
   // routes ONLY back to that floor — never leaking into another window's stream.
   const owner = BrowserWindow.fromWebContents(evt.sender)?.webContents ?? null;
@@ -1626,6 +1749,10 @@ ipcMain.handle('pty:write', (_evt, id: string, data: string) => {
 ipcMain.handle('pty:resize', (_evt, id: string, cols: number, rows: number) => {
   if (typeof id !== 'string' || typeof cols !== 'number' || typeof rows !== 'number') return { ok: false, error: 'invalid args' };
   return ptyManager.resize(id, cols, rows);
+});
+ipcMain.handle('pty:redraw', (_evt, id: string) => {
+  if (typeof id !== 'string') return { ok: false, error: 'invalid id' };
+  return ptyManager.redraw(id);
 });
 ipcMain.handle('pty:kill', (_evt, id: string) => {
   if (typeof id !== 'string') return { ok: false, error: 'invalid id' };

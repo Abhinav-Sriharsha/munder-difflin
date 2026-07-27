@@ -373,11 +373,12 @@ export class HiveManager {
           } catch (e) { console.error(`[hive] install ${bridge} hooks failed:`, e); }
         }
       }
-      // Inject the protocol text whichever way the CLI accepts it. If a provider
-      // somehow exposes neither a flag nor a positional prompt, spawn bare.
+      // Inject protocol text only through a form the CLI explicitly supports.
+      // Kimi/custom have neither an interactive prompt flag nor positional prompt
+      // support, so they spawn bare instead of receiving an invalid argument.
       if (flag) return { args: [...preArgs, flag, prompt], env };
-      // Positional initial prompt (codex). Append as a trailing argv element.
-      return { args: [...preArgs, prompt], env };
+      if (preset.positionalInitialPrompt) return { args: [...preArgs, prompt], env };
+      return { args: preArgs, env };
     }
 
     // Stage 7A — first-party Claude Code telemetry → the embedded loopback OTLP
@@ -897,6 +898,16 @@ export class HiveManager {
       if (existsSync(authSrc) && !existsSync(authDest)) {
         try { symlinkSync(authSrc, authDest); }
         catch { try { copyFileSync(authSrc, authDest); } catch { /* best-effort */ } }
+      }
+      // The managed app-server daemon used by Codex Remote Control is launched
+      // from the standalone install rooted at $CODEX_HOME/packages. Share the
+      // user's installed binaries without duplicating them into every agent.
+      const packagesSrc = join(userHome, 'packages');
+      const packagesDest = join(home, 'packages');
+      if (existsSync(packagesSrc) && !existsSync(packagesDest)) {
+        try {
+          symlinkSync(packagesSrc, packagesDest, process.platform === 'win32' ? 'junction' : 'dir');
+        } catch { /* remote integration falls back to a local TUI if unavailable */ }
       }
       // Wire lifecycle hooks via config.toml `[hooks]` tables — the user-layer
       // discovery surface Codex actually scans. (A bare $CODEX_HOME/hooks.json is

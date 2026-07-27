@@ -17,6 +17,16 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
+import {
+  createTerminalRecoveryState,
+  requestInitialPtyRedraw,
+  scheduleWebglRecovery,
+  type TerminalRecoveryState
+} from './terminalRecovery';
+import {
+  opensInteractiveTerminalUi,
+  shouldFollowTerminalOutput
+} from './terminalAutomation';
 import '@xterm/xterm/css/xterm.css';
 
 export interface TerminalEntry {
@@ -34,6 +44,13 @@ export interface TerminalEntry {
   /** Current consumer callbacks — set by whichever view is mounted. */
   onData?: (chunk: string) => void;
   onPrompt?: (text: string) => void;
+  recovery: TerminalRecoveryState;
+  needsRendererRepaint: boolean;
+  /** A user-opened slash-command picker (for example Codex `/model`) owns the
+   * input line. Queue automation waits until the picker closes. */
+  automationBlocked: boolean;
+  automationSettleUntil: number;
+  webgl?: WebglAddon;
 }
 
 const pool = new Map<string, TerminalEntry>();
@@ -80,12 +97,30 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
   // NOTE: don't open() yet — xterm needs its host connected to the document to
   // measure correctly. We open on first attach (see attachTerminal).
 
-  const entry: TerminalEntry = { ptyId, term, fit, host, opened: false, exited: false, unsub: [] };
+  const entry: TerminalEntry = {
+    ptyId,
+    term,
+    fit,
+    host,
+    opened: false,
+    exited: false,
+    unsub: [],
+    recovery: createTerminalRecoveryState(),
+    needsRendererRepaint: false,
+    automationBlocked: false,
+    automationSettleUntil: 0
+  };
 
   // Subscribe to the pty stream ONCE for the terminal's whole lifetime, so the
   // buffer keeps filling even while this terminal isn't mounted in any view.
   entry.unsub.push(window.cth.onPtyData(ptyId, (chunk) => {
-    term.write(chunk);
+    const active = term.buffer.active;
+    const follow = shouldFollowTerminalOutput(active.viewportY, active.baseY);
+    term.write(chunk, () => {
+      if (follow) {
+        try { term.scrollToBottom(); } catch { /* terminal may be detaching */ }
+      }
+    });
     entry.onData?.(chunk);
   }));
   entry.unsub.push(window.cth.onPtyExit(ptyId, ({ exitCode, signal }) => {
@@ -138,11 +173,25 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
   term.onData((data) => {
     if (entry.exited) return;
     window.cth.writePty(ptyId, data);
+    // A lone Escape or Ctrl-C closes interactive pickers. Arrow-key escape
+    // sequences must NOT clear the block while the user navigates a picker.
+    if (data === '\x1b' || data === '\x03') {
+      entry.automationBlocked = false;
+      entry.automationSettleUntil = Date.now() + 500;
+      lineBuf = '';
+    }
     for (let i = 0; i < data.length; i++) {
       const ch = data[i];
       if (ch === '\r' || ch === '\n') {
         const t = lineBuf.trim();
         lineBuf = '';
+        if (entry.automationBlocked) {
+          // Enter chooses an item and closes the current picker.
+          entry.automationBlocked = false;
+          entry.automationSettleUntil = Date.now() + 500;
+        } else if (opensInteractiveTerminalUi(t)) {
+          entry.automationBlocked = true;
+        }
         if (t.length >= 2) entry.onPrompt?.(t);
       } else if (ch === '\x7f' || ch === '\b') {
         lineBuf = lineBuf.slice(0, -1);
@@ -156,6 +205,14 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
 
   pool.set(ptyId, entry);
   return entry;
+}
+
+/** Whether queued automation can safely own this terminal's input line. A PTY
+ * without a pooled terminal cannot have a user-opened local picker. */
+export function isTerminalAutomationSafe(ptyId: string, now = Date.now()): boolean {
+  const entry = pool.get(ptyId);
+  if (!entry) return true;
+  return !entry.exited && !entry.automationBlocked && now >= entry.automationSettleUntil;
 }
 
 /** Re-parent a pty's terminal into `container`, opening xterm on first attach. */
@@ -176,7 +233,10 @@ export function attachTerminal(entry: TerminalEntry, container: HTMLElement): vo
     try {
       const webgl = new WebglAddon();
       webgl.onContextLoss(() => {
+        if (entry.webgl !== webgl) return;
         console.warn('[terminal] webgl context lost — falling back to DOM renderer');
+        entry.webgl = undefined;
+        entry.needsRendererRepaint = true;
         try { webgl.dispose(); } catch { /* noop */ }
         // Laptop sleep == GPU sleep == WebGL context loss: the likely PRIMARY
         // trigger for the post-wake "can't scroll past a recent point" bug. The
@@ -185,13 +245,44 @@ export function attachTerminal(entry: TerminalEntry, container: HTMLElement): vo
         // is scrollable until something forces a re-measure. Heal it here, on the
         // next frame so the (waking) layout has settled. Guarded + idempotent, so
         // it composes safely with the visibilitychange/focus path in the view.
-        requestAnimationFrame(() => reflowTerminal(entry.ptyId));
+        scheduleWebglRecovery(entry.recovery, requestAnimationFrame, () => {
+          repaintTerminalAfterRendererLoss(entry);
+        });
       });
+      // Set before loadAddon: an immediately-lost context may call the handler
+      // during initialization, and it must be recognized as the active renderer.
+      entry.webgl = webgl;
       entry.term.loadAddon(webgl);
     } catch (e) {
+      try { entry.webgl?.dispose(); } catch { /* noop */ }
+      entry.webgl = undefined;
       console.warn('[terminal] webgl renderer unavailable, using DOM renderer:', e);
     }
+    // PTY startup output can arrive before this pooled terminal subscribes.
+    // Request one same-size redraw after open/subscription even when fit() later
+    // sees unchanged dimensions and therefore emits no resize of its own.
+    requestInitialPtyRedraw(entry.recovery, () => {
+      void window.cth.redrawPty(entry.ptyId);
+    });
   }
+  if (entry.needsRendererRepaint) {
+    scheduleWebglRecovery(entry.recovery, requestAnimationFrame, () => {
+      repaintTerminalAfterRendererLoss(entry);
+    });
+  }
+}
+
+function repaintTerminalAfterRendererLoss(entry: TerminalEntry): void {
+  if (!entry.opened || !entry.host.isConnected
+      || !entry.host.clientWidth || !entry.host.clientHeight) {
+    entry.needsRendererRepaint = true;
+    return;
+  }
+  entry.needsRendererRepaint = false;
+  reflowTerminal(entry.ptyId);
+  try {
+    entry.term.refresh(0, Math.max(0, entry.term.rows - 1));
+  } catch { /* renderer may still be settling */ }
 }
 
 /**
@@ -265,6 +356,7 @@ export function disposeTerminal(ptyId: string): void {
   const entry = pool.get(ptyId);
   if (!entry) return;
   entry.unsub.forEach((u) => { try { u(); } catch { /* noop */ } });
+  try { entry.webgl?.dispose(); } catch { /* noop */ }
   try { entry.term.dispose(); } catch { /* noop */ }
   entry.host.remove();
   pool.delete(ptyId);

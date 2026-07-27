@@ -1,8 +1,8 @@
 /**
  * Agent providers — the CLI a worker runs on. The app is no longer Claude-only:
- * a worker can run Claude Code, the OpenAI Codex CLI (`codex`), or the
- * Antigravity CLI (`agy`, Gemini models), or any custom command. Each provider
- * declares how to build its spawn command (model flag, auto-mode flag) and
+ * a worker can run Claude Code, the OpenAI Codex CLI (`codex`), Kimi Code
+ * (`kimi`), the Antigravity CLI (`agy`, Gemini models), or any custom command.
+ * Each provider declares how to build its spawn command (model/auto-mode flags) and
  * whether it accepts the hive's Claude-specific identity injection
  * (`--append-system-prompt` + `--settings`).
  *
@@ -15,7 +15,7 @@ import type { CmdGroup } from './claudeCommands';
 import { COMMAND_GROUPS as CLAUDE_COMMAND_GROUPS } from './claudeCommands';
 import { CODEX_COMMAND_GROUPS } from './codexCommands';
 
-export type AgentProvider = 'claude' | 'codex' | 'antigravity' | 'custom';
+export type AgentProvider = 'claude' | 'codex' | 'kimi' | 'antigravity' | 'custom';
 
 export interface AgentProviderPreset {
   id: AgentProvider;
@@ -69,6 +69,10 @@ export interface AgentProviderPreset {
    *  takes its initial prompt POSITIONALLY (Codex: `codex "<prompt>"`) and the
    *  injection branch appends it as a quoted trailing arg instead of a flag. */
   initialPromptFlag?: string;
+  /** This CLI accepts the initial hive prompt as a trailing positional argument.
+   *  Codex does; Kimi/custom do not, so they must spawn bare when no prompt flag
+   *  exists instead of receiving an invalid positional argument. */
+  positionalInitialPrompt?: boolean;
   /** Flag to resume a prior session on respawn, given the recorded session id
    *  (Claude `--resume <sid>`, Antigravity `--conversation <id>`). undefined = no
    *  resume support, spawn fresh. */
@@ -92,14 +96,14 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
   },
   {
     id: 'codex',
-    label: 'Codex',
+    label: 'Codex · GPT',
     defaultCommand: 'codex',
     commandGroups: CODEX_COMMAND_GROUPS,
-    // -a never: never prompt for approval; -s workspace-write: sandbox scoped to
-    // the workspace (no outbound network). Matches the non-interactive intent of
-    // Claude's bypassPermissions while retaining a safety boundary.
-    autoModeFlag: '-a never -s workspace-write',
-    autoFlag: '-a never -s workspace-write',
+    // Exact Codex equivalent of Claude's bypassPermissions: no approvals and no
+    // Codex sandbox. Munder Difflin's global AUTO MODE is intentionally explicit
+    // about this trust level; users can edit the per-agent command to remove it.
+    autoModeFlag: '--dangerously-bypass-approvals-and-sandbox',
+    autoFlag: '--dangerously-bypass-approvals-and-sandbox',
     // Suppresses first-run interactive prompts (directory-trust gate, installer).
     nonInteractiveEnv: { CODEX_NON_INTERACTIVE: '1' },
     supportsModel: true,
@@ -119,11 +123,29 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     // inbox-wake nudge remains as a harmless fallback for an idle worker).
     canReceiveInbox: true,
     initialPromptFlag: undefined,
+    positionalInitialPrompt: true,
     // Codex resumes via a SUBCOMMAND, not a flag: `codex resume [OPTIONS]
     // [SESSION_ID]`. A `--resume <id>` flag does not exist, which is why restarts
     // used to silently start a brand-new session instead of continuing.
     resumeFlag: undefined,
     resumeSubcommand: 'resume'
+  },
+  {
+    id: 'kimi',
+    label: 'Kimi Code',
+    defaultCommand: 'kimi',
+    commandGroups: [],
+    // Kimi --auto handles every approval and does not stop to ask questions,
+    // matching Munder Difflin's autonomous Claude/Codex default.
+    autoModeFlag: '--auto',
+    autoFlag: '--auto',
+    supportsModel: true,
+    modelFlag: '--model',
+    hiveAware: false,
+    // Kimi's interactive TUI has no positional initial-prompt form. It supports
+    // lifecycle hooks, but Munder Difflin does not yet install a Kimi hook bridge,
+    // so mail must bounce rather than being delivered with no drain path.
+    canReceiveInbox: false
   },
   {
     id: 'antigravity',
@@ -157,6 +179,7 @@ export function isAgentProvider(value: unknown): value is AgentProvider {
   return (
     value === 'claude' ||
     value === 'codex' ||
+    value === 'kimi' ||
     value === 'antigravity' ||
     value === 'custom'
   );
@@ -201,6 +224,7 @@ export function inferAgentProvider(command: string | undefined, explicit?: unkno
   if (normalized) return normalized;
   const bin = commandBinary(command);
   if (bin === 'codex') return 'codex';
+  if (bin === 'kimi') return 'kimi';
   if (bin === 'agy' || bin === 'antigravity') return 'antigravity';
   if (bin === 'claude' || !bin) return 'claude';
   return 'custom';

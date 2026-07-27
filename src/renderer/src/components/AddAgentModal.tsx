@@ -64,6 +64,11 @@ export function AddAgentModal({ onClose, config }: AddAgentModalProps) {
     setProvider(id);
     const nextModel = isClaudeProvider(id) ? config.defaultModel : undefined;
     setModel(nextModel);
+    const nextPreset = providerPreset(id);
+    if (!isClaudeProvider(id) && !nextPreset.resumeFlag && !nextPreset.resumeSubcommand) {
+      setResumeSessionId('');
+      setFolderNote(undefined);
+    }
     if (id === 'custom') {
       setCommand(command.trim() || config.defaultCommand || '');
       return;
@@ -255,7 +260,9 @@ export function AddAgentModal({ onClose, config }: AddAgentModalProps) {
                         p.id === 'antigravity'
                           ? 'Spawn the Antigravity CLI (agy) with a Gemini model'
                           : p.id === 'codex'
-                            ? 'Spawn the Codex CLI (codex) without Claude-only flags'
+                            ? 'Spawn Codex with GPT models and provider-native auto permissions'
+                            : p.id === 'kimi'
+                              ? 'Spawn Kimi Code with K3/K2.7 and provider-native auto permissions'
                             : p.id === 'custom'
                               ? 'Run any command — no Claude-only flags'
                               : p.label
@@ -312,6 +319,8 @@ export function AddAgentModal({ onClose, config }: AddAgentModalProps) {
                     ? 'agy'
                     : provider === 'codex'
                       ? 'codex'
+                      : provider === 'kimi'
+                        ? 'kimi'
                       : provider === 'custom'
                         ? 'your-agent-cli'
                         : 'claude'
@@ -339,7 +348,7 @@ export function AddAgentModal({ onClose, config }: AddAgentModalProps) {
               />
             </Row>
 
-            <Row label="Resume session ID (optional)">
+            {(isClaudeProvider(provider) || preset.resumeFlag || preset.resumeSubcommand) && <Row label="Resume session ID (optional)">
               <input
                 value={resumeSessionId}
                 onChange={(e) => { setResumeSessionId(e.target.value); setFolderNote(undefined); }}
@@ -357,7 +366,7 @@ export function AddAgentModal({ onClose, config }: AddAgentModalProps) {
                   Will resume this session in the chosen folder (git isolation disabled).
                 </span>
               )}
-            </Row>
+            </Row>}
 
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: resuming ? 'not-allowed' : 'pointer', opacity: resuming ? 0.5 : 1 }}>
               <input

@@ -20,6 +20,9 @@ interface PtySession {
    *  file) and the idle handshake that gates god's PTY nudge (never type into a
    *  PTY that produced output in the last few seconds = mid-stream). */
   lastOutputAt: number;
+  /** True after the child has emitted at least one frame. Automation waits for
+   *  this before typing, so startup prompts cannot outrun the TUI subscription. */
+  hasOutput: boolean;
 }
 
 export interface SpawnOptions {
@@ -113,7 +116,7 @@ export class PtyManager {
   /** Resolve a bare command (e.g. 'claude') against the user's PATH +
    *  common install locations. Needed because Electron's spawn env on
    *  macOS launches without the user's interactive shell PATH. */
-  private resolveCommand(command: string): string {
+  resolveCommand(command: string): string {
     // Already an absolute/relative path (Unix `/` or Windows `\`) — pass through.
     if (command.includes('/') || command.includes('\\')) return command;
     if (process.platform === 'win32') {
@@ -244,13 +247,22 @@ export class PtyManager {
       // final bytes into the new agent's fresh TUI frame — scattered/overlapping
       // text — and (b) on exit delete the replacement session and emit a false
       // `pty:exit`, killing input to the agent that just started.
-      const session: PtySession = { id: opts.id, proc, cwd: opts.cwd, command: resolved, lastOutputAt: Date.now(), owner };
+      const session: PtySession = {
+        id: opts.id,
+        proc,
+        cwd: opts.cwd,
+        command: resolved,
+        lastOutputAt: Date.now(),
+        hasOutput: false,
+        owner
+      };
       this.sessions.set(opts.id, session);
 
       proc.onData((data) => {
         // Drop trailing output from a process whose id was already reclaimed by
         // a respawn (or killed) — it would corrupt the new session's screen.
         if (this.sessions.get(opts.id) !== session) return;
+        session.hasOutput = true;
         session.lastOutputAt = Date.now();
         // Route to the session's owner window (multi-window owner routing).
         this.safeSend(`pty:data:${opts.id}`, data, session.owner);
@@ -294,6 +306,20 @@ export class PtyManager {
     }
   }
 
+  /** Ask the foreground TUI for a fresh frame without changing its geometry.
+   *  Startup output may predate the renderer subscription, and a same-sized
+   *  first fit otherwise emits no resize. */
+  redraw(id: string): { ok: boolean; error?: string } {
+    const s = this.sessions.get(id);
+    if (!s) return { ok: false, error: `no pty: ${id}` };
+    try {
+      s.proc.resize(s.proc.cols, s.proc.rows);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
   kill(id: string): { ok: boolean; error?: string } {
     const s = this.sessions.get(id);
     if (!s) return { ok: false, error: `no pty: ${id}` };
@@ -306,13 +332,14 @@ export class PtyManager {
     }
   }
 
-  list(): Array<{ id: string; cwd: string; command: string; pid: number; lastOutputAt: number }> {
+  list(): Array<{ id: string; cwd: string; command: string; pid: number; lastOutputAt: number; hasOutput: boolean }> {
     return Array.from(this.sessions.values()).map(s => ({
       id: s.id,
       cwd: s.cwd,
       command: s.command,
       pid: s.proc.pid,
-      lastOutputAt: s.lastOutputAt
+      lastOutputAt: s.lastOutputAt,
+      hasOutput: s.hasOutput
     }));
   }
 

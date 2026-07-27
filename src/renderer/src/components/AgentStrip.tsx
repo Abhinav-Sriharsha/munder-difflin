@@ -4,6 +4,7 @@ import { PixelButton } from './PixelButton';
 import { Icon } from './Icon';
 import { useStore, type Agent } from '@/store/store';
 import { buildSpawnCommand, inferAgentProvider, tokenizeCommand, type HarnessConfig } from '@/store/config';
+import { OFFICE_CAST, DEFAULT_CHARACTER } from '@/scene/office/cast';
 
 export interface AgentStripProps {
   /** Needed to rebuild a spawn command when a restorable agent predates the
@@ -46,6 +47,67 @@ export function AgentStrip({ config }: AgentStripProps) {
     void poll();
     const iv = setInterval(() => { void poll(); }, 5000);
     return () => { cancelled = true; clearInterval(iv); };
+  }, []);
+
+  // One-shot recovery: the previous session's team (dev1-mqf3kuw8 … dev9-mqfhlff5)
+  // was archived at closing time and survives ONLY in the hive registry — it was
+  // never written into this renderer's restore list, so the normal "restore team"
+  // can't see it. On first load, respawn exactly those 9 by their ORIGINAL id
+  // (same spawn recipe as restoreTeam) so each agent's Claude session, worktree and
+  // memory.md reattach by id. Guarded in localStorage so it fires at most once.
+  useEffect(() => {
+    const GUARD = 'cth.autoRestore.mqfh9';
+    if (localStorage.getItem(GUARD)) return;
+    const COHORT = [
+      'dev1-mqf3kuw8', 'dev2-mqf3li68', 'dev3-mqffie2v', 'dev4-mqfhcjwk', 'dev5-mqfhkaa4',
+      'dev6-mqfhkpku', 'dev7-mqfhkxwd', 'dev8-mqfhl7gl', 'dev9-mqfhlff5',
+    ];
+    const ACCENTS = ['coral', 'mint', 'sky', 'lemon', 'lilac', 'peach'] as const;
+    let cancelled = false;
+    (async () => {
+      try {
+        const cfg = await window.cth.getConfig();
+        const reg = await window.cth.hiveRegistry();
+        if (cancelled || !cfg || !reg?.agents) return;
+        localStorage.setItem(GUARD, '1'); // one-shot, regardless of per-agent outcome
+        const live = new Set(useStore.getState().agents.map((a) => a.id));
+        for (let i = 0; i < COHORT.length; i++) {
+          const m = reg.agents[COHORT[i]] as (undefined | (typeof reg.agents)[string] & { model?: string });
+          if (!m || live.has(m.id) || !m.cwd) continue;
+          const provider = inferAgentProvider(undefined, m.provider);
+          const command = buildSpawnCommand(cfg, m.model, provider);
+          if (!command) continue;
+          const [exe, ...args] = tokenizeCommand(command);
+          const ptyId = `pty-${m.id}`;
+          // The registry cwd for these workers IS their worktree; re-enter it if it
+          // still exists on disk (gitIsRepo false → pruned, but spawn still cd's there).
+          const worktreeOk = await window.cth.gitIsRepo(m.cwd);
+          const res = await window.cth.spawnPty({
+            id: ptyId, cwd: m.cwd, command: exe, provider, args, cols: 100, rows: 30,
+            isolate: false, resume: true,
+            hive: { id: m.id, name: m.name, provider, cwd: m.cwd, role: m.role },
+          });
+          if (res.ok) {
+            useStore.getState().addAgent({
+              id: m.id, name: m.name,
+              character: OFFICE_CAST[i % OFFICE_CAST.length]?.name ?? DEFAULT_CHARACTER,
+              accent: ACCENTS[i % ACCENTS.length],
+              description: m.role ?? 'a fresh harness',
+              project: '', tmuxTarget: '', cwd: m.cwd,
+              status: 'idle', action: worktreeOk ? 'starting up' : 'restored (worktree pruned)',
+              progress: 0, currentStation: 'desk', ptyId,
+              command, provider, model: m.model,
+              worktreePath: m.cwd, recentTextTs: Date.now(),
+            } as Agent);
+          } else {
+            console.error('[auto-restore] spawn failed for', m.id, res.error);
+          }
+        }
+      } catch (e) {
+        console.error('[auto-restore] failed', e);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   /** Respawn every worker from the previous session with its ORIGINAL agent id,

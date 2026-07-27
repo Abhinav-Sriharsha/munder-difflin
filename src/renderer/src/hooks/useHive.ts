@@ -4,24 +4,25 @@ import {
   buildSpawnCommand,
   ASSISTANT_MODEL,
   inferAgentProvider,
-  isClaudeProvider,
   type HarnessConfig
 } from '@/store/config';
+import { shouldAutoCompactContext } from '../../../shared/autoCompact';
+import {
+  compactionCommandForProvider,
+  remoteControlCommandForProvider,
+  terminalReadyToReceive
+} from '../../../shared/providerAutomation';
+import type { AgentProvider } from '../../../shared/agentProvider';
+import { isTerminalAutomationSafe } from '@/components/terminalPool';
+import { deliverWithAcknowledgement } from './queueDelivery';
 
 const GOD_ID = 'god';
 const GOD_PTY = `pty-${GOD_ID}`;
 
-// How long to let Claude Code's TUI finish booting before we type the first
-// thing into Michael's terminal, and how long to PAUSE after the /remote-control
-// command so the slash command lands + executes on its own line before the
-// orientation prompt follows (otherwise they jam into one line and the TUI shows
-// "Unknown command: /remote-control…").
-const GOD_BOOT_MS = 4000;
 const REMOTE_CONTROL_SETTLE_MS = 1500;
 // After a god/agent spawn, hold off the inbox-wake + queue-drain typers for this
-// long so they can't interleave with the boot sequence (remote-control +
-// orientation) and jam the input line.
-const BOOT_GRACE_MS = GOD_BOOT_MS + REMOTE_CONTROL_SETTLE_MS + 2500;
+// long while the readiness handshake + provider-specific boot sequence runs.
+const BOOT_GRACE_MS = 35_000;
 
 // The first thing Michael (god) is told on a fresh spawn — orient him and put
 // him to work running the floor. Kept terse and action-oriented.
@@ -34,27 +35,32 @@ const INITIAL_GOD_PROMPT = [
   'Then begin orchestrating: triage requests, delegate work to the team, and keep everyone unblocked. You are fully autonomous — there is no approval queue, so handle tool-permission prompts in this session yourself (the human can approve them remotely from their phone).'
 ].join('\n');
 
-// Scheduled auto-compact command (from the ops standup). Queued per agent and
-// delivered when idle, so it never interrupts a working agent. The focus
-// instructions make the agent record its current task + next step into the
-// summary, so it resumes from the same point after compacting.
-const COMPACT_CMD =
-  '/compact Summarise exactly what you are currently working on and the next step, ' +
-  'so you can resume from the same point — then continue that work after compacting.';
-
-// Auto-compact only fires once an agent's live context has filled to at least
-// this fraction of its model's window. It's a FRACTION of contextLimit (which is
-// per-agent/per-model), so a 200k session and a 1M session both compact at the
-// same 30% relative fill — not at a fixed token count. Agents below this, or with
-// no context telemetry yet, are left alone — so the hourly standup no longer
-// compacts every terminal unconditionally.
-const COMPACT_CONTEXT_THRESHOLD = 0.3;
-
 // Per-pty submission chain. Every submitToPty for a given pty is appended here so
 // two callers (e.g. the boot sequence's /remote-control and the inbox-wake nudge)
 // can NEVER interleave their text + Enter — which jammed them onto one line and
 // produced "Unknown command: /remote-control<next prompt>".
 const writeChains = new Map<string, Promise<void>>();
+const readyPids = new Map<string, number>();
+
+async function waitForTerminalReady(
+  ptyId: string,
+  provider: AgentProvider,
+  timeoutMs = 30_000
+): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const live = await window.cth.listPtys();
+    const pty = live.find((entry) => entry.id === ptyId);
+    if (!pty) throw new Error(`PTY exited before becoming ready: ${ptyId}`);
+    if (readyPids.get(ptyId) === pty.pid) return;
+    if (terminalReadyToReceive(pty.hasOutput, Date.now() - started, provider)) {
+      readyPids.set(ptyId, pty.pid);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`PTY did not become ready within ${timeoutMs}ms: ${ptyId}`);
+}
 
 /**
  * Type a line into an agent's Claude Code TUI and actually submit it.
@@ -74,17 +80,25 @@ const writeChains = new Map<string, Promise<void>>();
  * input box. Without them, every "\n" in a multi-line message acted as Enter —
  * the message submitted line-by-line in fragments (the agent saw only the last
  * chunk). The closing Enter, sent a tick later, submits the whole block. (#24) */
-function submitToPty(ptyId: string, text: string, settleMs = 250): Promise<void> {
+function submitToPty(
+  ptyId: string,
+  text: string,
+  provider: AgentProvider,
+  settleMs = 250
+): Promise<void> {
   const prev = writeChains.get(ptyId) ?? Promise.resolve();
   const next = prev.catch(() => { /* a failed prior write must not stall the chain */ }).then(async () => {
+    await waitForTerminalReady(ptyId, provider);
     // Bracketed paste (ESC[200~ … ESC[201~) only matters for MULTI-LINE text, so a
     // stray "\n" doesn't submit early (#24). Single-line text (nudges, slash
     // commands) is sent raw — some TUIs (Antigravity's agy) treat the paste
     // markers as literal input and never submit, so skipping them is more robust.
     const payload = text.includes('\n') ? `\x1b[200~${text}\x1b[201~` : text;
-    await window.cth.writePty(ptyId, payload);
+    const wrotePayload = await window.cth.writePty(ptyId, payload);
+    if (!wrotePayload.ok) throw new Error(wrotePayload.error ?? `PTY write failed: ${ptyId}`);
     await new Promise((r) => setTimeout(r, 140));
-    await window.cth.writePty(ptyId, '\r');
+    const wroteEnter = await window.cth.writePty(ptyId, '\r');
+    if (!wroteEnter.ok) throw new Error(wroteEnter.error ?? `PTY submit failed: ${ptyId}`);
     await new Promise((r) => setTimeout(r, settleMs));
   });
   writeChains.set(ptyId, next);
@@ -196,7 +210,6 @@ export function useHive(config: HarnessConfig | null): void {
   useEffect(() => {
     if (!config?.onboardingComplete || !config.harnessHome) return;
     let cancelled = false;
-    const timers: ReturnType<typeof setTimeout>[] = [];
     useStore.getState().setGodStatus('booting');
     const t = setTimeout(async () => {
       if (cancelled) return;
@@ -264,20 +277,20 @@ export function useHive(config: HarnessConfig | null): void {
       // Michael until he's settled. The live-PTY branch above skips this entirely.
       const resumedGod = res.resumed === true;
       bootGraceUntil.current[GOD_ID] = Date.now() + BOOT_GRACE_MS;
-      timers.push(setTimeout(() => {
-        if (cancelled) return;
-        // settleMs pauses the chain ~1.5s after /remote-control before the
-        // orientation prompt (fresh spawns only) is submitted next. Name the RC
-        // session "Michael" so it's identifiable in claude.ai / the mobile app
-        // rather than the opaque hostname default (matches the per-agent
-        // --remote-control-session-name-prefix set at spawn in the main process).
-        submitToPty(GOD_PTY, '/remote-control Michael', REMOTE_CONTROL_SETTLE_MS).catch(() => { /* best-effort */ });
-        if (!resumedGod) {
-          submitToPty(GOD_PTY, INITIAL_GOD_PROMPT).catch(() => { /* pty may have died */ });
-        }
-      }, GOD_BOOT_MS));
+      void (async () => {
+        try {
+          const remoteCommand = remoteControlCommandForProvider('claude', 'Michael');
+          if (remoteCommand) {
+            await submitToPty(GOD_PTY, remoteCommand, 'claude', REMOTE_CONTROL_SETTLE_MS);
+          }
+          if (!cancelled && !resumedGod) {
+            await submitToPty(GOD_PTY, INITIAL_GOD_PROMPT, 'claude');
+          }
+        } catch { /* PTY may have died during startup */ }
+        finally { bootGraceUntil.current[GOD_ID] = 0; }
+      })();
     }, 1200);
-    return () => { cancelled = true; clearTimeout(t); timers.forEach(clearTimeout); };
+    return () => { cancelled = true; clearTimeout(t); };
   }, [config?.onboardingComplete, config?.harnessHome]);
 
   // 2) Drive avatars from real hook events emitted by each agent's shim.
@@ -464,7 +477,8 @@ export function useHive(config: HarnessConfig | null): void {
             nudged.current[a.id] = newest;
             await submitToPty(
               a.ptyId!,
-              'You have new hive inbox message(s) — read your inbox, act on them now, and move handled ones to inbox/.done/. Act autonomously; only message god if you genuinely need a decision.'
+              'You have new hive inbox message(s) — read your inbox, act on them now, and move handled ones to inbox/.done/. Act autonomously; only message god if you genuinely need a decision.',
+              inferAgentProvider(a.command, a.provider)
             );
           } else if (!newest) {
             nudged.current[a.id] = '';
@@ -482,33 +496,53 @@ export function useHive(config: HarnessConfig | null): void {
   useEffect(() => {
     if (!config?.onboardingComplete) return;
     const FLUSH_COOLDOWN_MS = 4500;
+    const inFlight = new Set<string>();
 
     // Send the front of `srcId`'s queue into `target`'s pty (verbatim or wrapped),
-    // gated on the target being idle + off cooldown. Keyed cooldown per target so
-    // strict one-by-one delivery holds. Returns true if it dispatched.
-    const dispatch = (srcId: string, target: Agent | undefined, wrap?: (m: QueuedMessage) => string): boolean => {
+    // gated on the target being idle, free of interactive menus, and off
+    // cooldown. The queue item is acknowledged only after BOTH PTY writes
+    // succeed; failures stay visible and retry automatically.
+    const dispatch = async (
+      srcId: string,
+      target: Agent | undefined,
+      wrap?: (m: QueuedMessage) => string
+    ): Promise<{ sent: boolean; message?: QueuedMessage }> => {
       const { messageQueues, removeQueuedMessage } = useStore.getState();
       const next = messageQueues[srcId]?.[0];
-      if (!next || !target?.ptyId || target.status !== 'idle') return false;
+      if (!next || !target?.ptyId || target.status !== 'idle') return { sent: false };
       const now = Date.now();
       // Hold queued messages until the target finishes its boot sequence.
-      if ((bootGraceUntil.current[target.id] ?? 0) >= now) return false;
-      if (now - (lastFlush.current[target.id] ?? 0) < FLUSH_COOLDOWN_MS) return false;
+      if ((bootGraceUntil.current[target.id] ?? 0) >= now) return { sent: false };
+      if (!isTerminalAutomationSafe(target.ptyId, now)) return { sent: false };
+      if (now - (lastFlush.current[target.id] ?? 0) < FLUSH_COOLDOWN_MS) return { sent: false };
+      const flightKey = `${srcId}:${next.id}`;
+      if (inFlight.has(flightKey)) return { sent: false };
+      inFlight.add(flightKey);
       lastFlush.current[target.id] = now;
-      // Remove first so a burst of store updates can't double-send the same one.
-      removeQueuedMessage(srcId, next.id);
-      // Zero the gauge instantly on /clear — the new session's context isn't
-      // known until statusLine fires after the first post-clear response, so
-      // leaving it at the old value shows a stale-full bar during that window.
-      if (next.text.trim().toLowerCase() === '/clear') {
-        useStore.getState().updateAgent(target.id, { contextTokens: 0, contextLimit: undefined, progress: 0 });
+      try {
+        const sent = await deliverWithAcknowledgement(
+          // `instruction` (when present) is the authoritative text to type into
+          // the PTY; UI/card surfaces continue to show the readable `text`.
+          () => submitToPty(
+            target.ptyId!,
+            wrap ? wrap(next) : (next.instruction ?? next.text),
+            inferAgentProvider(target.command, target.provider)
+          ),
+          () => {
+            removeQueuedMessage(srcId, next.id);
+            if (next.text.trim().toLowerCase() === '/clear') {
+              useStore.getState().updateAgent(target.id, {
+                contextTokens: 0,
+                contextLimit: undefined,
+                progress: 0
+              });
+            }
+          }
+        );
+        return sent ? { sent: true, message: next } : { sent: false };
+      } finally {
+        inFlight.delete(flightKey);
       }
-      // `instruction` (when present) is the authoritative text to type into the
-      // PTY — e.g. Slack-origin work carries the autonomy preamble there while the
-      // kanban card keeps `text` (raw) as its readable title. UI/card surfaces
-      // never read `instruction`, so this stays invisible to the human board.
-      submitToPty(target.ptyId, wrap ? wrap(next) : (next.instruction ?? next.text)).catch(() => { /* pty may have died */ });
-      return true;
     };
 
     // Promote a genuine Slack-origin work item to a stamped kanban card the first
@@ -551,8 +585,9 @@ export function useHive(config: HarnessConfig | null): void {
       for (const a of agents) {
         if (!a.ptyId || a.status !== 'idle') continue;
         if (!messageQueues[a.id]?.length) continue;
-        const head = messageQueues[a.id][0];
-        if (dispatch(a.id, a) && head.slack) void ensureSlackCard(head);
+        void dispatch(a.id, a).then(({ sent, message }) => {
+          if (sent && message?.slack) void ensureSlackCard(message);
+        });
       }
     };
 
@@ -627,19 +662,19 @@ export function useHive(config: HarnessConfig | null): void {
       const { agents, messageQueues, enqueueMessage } = useStore.getState();
       for (const a of agents) {
         if (!a.ptyId) continue;
-        // /compact is a Claude Code slash command — non-Claude CLIs (agy, codex)
-        // would just receive it as literal prompt text. Skip them.
-        if (!isClaudeProvider(inferAgentProvider(a.command, a.provider))) continue;
+        const provider = inferAgentProvider(a.command, a.provider);
+        const compactCommand = compactionCommandForProvider(provider);
+        if (!compactCommand) continue;
         // Only compact agents whose context has actually filled past the
         // threshold. contextLimit is per-model (200k vs the 1M window), so this
         // gate scales to each agent's own window instead of a fixed token count.
         // Unknown telemetry (limit not polled yet) ⇒ skip — never compact blind.
         const limit = a.contextLimit ?? 0;
         const used = a.contextTokens ?? 0;
-        if (limit <= 0 || used / limit < COMPACT_CONTEXT_THRESHOLD) continue;
+        if (!shouldAutoCompactContext(used, limit)) continue;
         const queued = messageQueues[a.id] ?? [];
         if (queued.some((m) => m.text.trimStart().startsWith('/compact'))) continue;
-        enqueueMessage(a.id, COMPACT_CMD);
+        enqueueMessage(a.id, compactCommand);
       }
     });
   }, [config?.onboardingComplete]);
