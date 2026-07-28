@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
 import { SpritePortrait } from './SpritePortrait';
@@ -86,6 +86,19 @@ export function AddAgentModal({ onClose, config }: AddAgentModalProps) {
   const [folderNote, setFolderNote] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+
+  // Close only the modal on Esc. Capture prevents the fullscreen terminal's
+  // window-level handler from also closing the view underneath.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
 
   // Zero-step resume: when a session id is entered, look up the cwd it originally
   // ran in (from the transcript) and pre-fill the Folder so the user doesn't have
@@ -188,7 +201,9 @@ export function AddAgentModal({ onClose, config }: AddAgentModalProps) {
         position: 'fixed', inset: 0,
         background: 'rgba(26, 19, 32, 0.6)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 100
+        // Must sit above fullscreen terminal/file overlays (250/280) and their
+        // hover popovers. The fullscreen Add Agent button uses this same modal.
+        zIndex: 500
       }}
     >
       <div onClick={(e) => e.stopPropagation()} style={{ width: 600, maxWidth: '92vw' }}>
