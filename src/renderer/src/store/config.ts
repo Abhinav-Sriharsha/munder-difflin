@@ -136,6 +136,12 @@ export const CODEX_MODELS: ModelOption[] = [
   { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' }
 ];
 
+/** Models reported by the installed Grok CLI (`grok models`). */
+export const GROK_MODELS: ModelOption[] = [
+  { id: undefined, label: 'default' },
+  { id: 'grok-4.5', label: 'Grok 4.5' }
+];
+
 /** Managed Kimi Code aliases accepted by `kimi --model <alias>`. */
 export const KIMI_MODELS: ModelOption[] = [
   { id: undefined, label: 'default' },
@@ -159,6 +165,7 @@ export function tokenizeCommand(command: string): string[] {
 export function modelsForProvider(provider: AgentProvider): ModelOption[] {
   switch (provider) {
     case 'codex': return CODEX_MODELS;
+    case 'grok': return GROK_MODELS;
     case 'kimi': return KIMI_MODELS;
     case 'antigravity': return ANTIGRAVITY_MODELS;
     case 'claude': return AGENT_MODELS;
@@ -208,7 +215,7 @@ export function buildSpawnCommand(
 ): string {
   const preset = providerPreset(provider);
   // Claude keeps the user's configured defaultCommand; custom falls back to it
-  // too; every other provider (codex, kimi, agy) uses its preset binary so the app
+  // too; every other provider (codex, grok, kimi, agy) uses its preset binary so the app
   // works even without Claude installed.
   const base =
     provider === 'claude'
@@ -224,7 +231,8 @@ export function buildSpawnCommand(
     cmd = `${cmd} ${preset.modelFlag} ${m}`;
   }
   // Auto (skip-permissions) mode appends each provider's own flag — Claude's
-  // bypassPermissions, Codex's dangerous bypass, Kimi's auto, or agy's skip flag.
+  // bypassPermissions, Codex's dangerous bypass, Grok's always-approve, Kimi's
+  // auto, or agy's skip flag.
   if (config.autoMode && preset.autoFlag) cmd = `${cmd} ${preset.autoFlag}`;
   return cmd;
 }

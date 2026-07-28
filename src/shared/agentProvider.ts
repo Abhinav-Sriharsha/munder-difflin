@@ -1,7 +1,8 @@
 /**
  * Agent providers — the CLI a worker runs on. The app is no longer Claude-only:
  * a worker can run Claude Code, the OpenAI Codex CLI (`codex`), Kimi Code
- * (`kimi`), the Antigravity CLI (`agy`, Gemini models), or any custom command.
+ * (`kimi`), xAI Grok (`grok`), the Antigravity CLI (`agy`, Gemini models), or
+ * any custom command.
  * Each provider declares how to build its spawn command (model/auto-mode flags) and
  * whether it accepts the hive's Claude-specific identity injection
  * (`--append-system-prompt` + `--settings`).
@@ -14,8 +15,9 @@
 import type { CmdGroup } from './claudeCommands';
 import { COMMAND_GROUPS as CLAUDE_COMMAND_GROUPS } from './claudeCommands';
 import { CODEX_COMMAND_GROUPS } from './codexCommands';
+import { GROK_COMMAND_GROUPS } from './grokCommands';
 
-export type AgentProvider = 'claude' | 'codex' | 'kimi' | 'antigravity' | 'custom';
+export type AgentProvider = 'claude' | 'codex' | 'grok' | 'kimi' | 'antigravity' | 'custom';
 
 export interface AgentProviderPreset {
   id: AgentProvider;
@@ -48,18 +50,20 @@ export interface AgentProviderPreset {
    *  the same live status that Claude gets from `--settings`:
    *    - 'agy'   → installAgyHooks() writes ~/.gemini/.../hooks.json (translating
    *                shim, because agy's stdin/stdout shape differs from Claude's).
-   *    - 'codex' → installCodexHooks() writes a per-agent CODEX_HOME/hooks.json and
+   *    - 'codex' → installCodexHooks() writes a per-agent CODEX_HOME config and
    *                reuses the Claude `cth-hook` shim verbatim (Codex's hook payload
    *                + response contract are already Claude-shaped).
+   *    - 'grok'  → installGrokHooks() installs an AGENT_ID-scoped adapter for
+   *                Grok's camelCase lifecycle payloads.
    *  Claude leaves this undefined (it uses its native `--settings` path, gated by
    *  hiveAware); `custom` leaves it undefined (no bridge → no hooks). This is the
    *  single switch hive.ensureAgent dispatches on to wire the bridge. */
-  hookBridge?: 'agy' | 'codex';
+  hookBridge?: 'agy' | 'codex' | 'grok';
   /** Whether the router may DELIVER inbox mail to this provider (vs bouncing it
    *  to the god). Requires lifecycle status so the renderer can deliver only at a
-   *  safe idle prompt: Claude natively, Antigravity/Codex via their hookBridge.
+   *  safe idle prompt: Claude natively, Antigravity/Codex/Grok via hook bridges.
    *  A hookless custom provider cannot expose safe-idle state, so mail bounces.
-   *  Distinct from hiveAware: agy/codex are NOT hiveAware (no Claude injection)
+   *  Distinct from hiveAware: agy/codex/grok are NOT hiveAware (no Claude injection)
    *  but CAN receive inbox via their bridge. */
   canReceiveInbox: boolean;
   /** For non-hive-aware CLIs that still take an INITIAL prompt to orient the
@@ -131,6 +135,27 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     resumeSubcommand: 'resume'
   },
   {
+    id: 'grok',
+    label: 'Grok · xAI',
+    defaultCommand: 'grok',
+    commandGroups: GROK_COMMAND_GROUPS,
+    // Grok documents bypassPermissions as the CLI/config spelling of its
+    // always-approve mode. Deny rules and lifecycle gates still take precedence.
+    autoModeFlag: '--permission-mode bypassPermissions',
+    autoFlag: '--permission-mode bypassPermissions',
+    supportsModel: true,
+    modelFlag: '--model',
+    hiveAware: false,
+    // Grok supports Claude-compatible lifecycle events but sends camelCase
+    // payloads. The bridge normalizes them before forwarding to HookServer.
+    hookBridge: 'grok',
+    canReceiveInbox: true,
+    // `grok [PROMPT]` accepts the initial hive protocol as a positional prompt.
+    positionalInitialPrompt: true,
+    // Grok resumes interactively with `grok --resume <session-id-or-title>`.
+    resumeFlag: '--resume'
+  },
+  {
     id: 'kimi',
     label: 'Kimi Code',
     defaultCommand: 'kimi',
@@ -179,6 +204,7 @@ export function isAgentProvider(value: unknown): value is AgentProvider {
   return (
     value === 'claude' ||
     value === 'codex' ||
+    value === 'grok' ||
     value === 'kimi' ||
     value === 'antigravity' ||
     value === 'custom'
@@ -223,6 +249,7 @@ export function inferAgentProvider(command: string | undefined, explicit?: unkno
   if (normalized) return normalized;
   const bin = commandBinary(command);
   if (bin === 'codex') return 'codex';
+  if (bin === 'grok') return 'grok';
   if (bin === 'kimi') return 'kimi';
   if (bin === 'agy' || bin === 'antigravity') return 'antigravity';
   if (bin === 'claude' || !bin) return 'claude';

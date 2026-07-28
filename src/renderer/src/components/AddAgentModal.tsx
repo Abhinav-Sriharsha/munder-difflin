@@ -261,11 +261,13 @@ export function AddAgentModal({ onClose, config }: AddAgentModalProps) {
                           ? 'Spawn the Antigravity CLI (agy) with a Gemini model'
                           : p.id === 'codex'
                             ? 'Spawn Codex with GPT models and provider-native auto permissions'
-                            : p.id === 'kimi'
-                              ? 'Spawn Kimi Code with K3/K2.7 and provider-native auto permissions'
-                            : p.id === 'custom'
-                              ? 'Run any command — no Claude-only flags'
-                              : p.label
+                            : p.id === 'grok'
+                              ? 'Spawn Grok with Grok 4.5 and provider-native auto permissions'
+                              : p.id === 'kimi'
+                                ? 'Spawn Kimi Code with K3/K2.7 and provider-native auto permissions'
+                                : p.id === 'custom'
+                                  ? 'Run any command — no Claude-only flags'
+                                  : p.label
                       }
                       style={{
                         padding: '3px 8px 1px',
@@ -319,11 +321,13 @@ export function AddAgentModal({ onClose, config }: AddAgentModalProps) {
                     ? 'agy'
                     : provider === 'codex'
                       ? 'codex'
-                      : provider === 'kimi'
-                        ? 'kimi'
-                      : provider === 'custom'
-                        ? 'your-agent-cli'
-                        : 'claude'
+                      : provider === 'grok'
+                        ? 'grok'
+                        : provider === 'kimi'
+                          ? 'kimi'
+                          : provider === 'custom'
+                            ? 'your-agent-cli'
+                            : 'claude'
                 }
                 style={{ ...inputStyle, fontFamily: 'var(--cth-font-mono)' }}
               />

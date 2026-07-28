@@ -13,6 +13,9 @@ export function compactionCommandForProvider(provider: AgentProvider): string | 
       // Codex treats trailing text differently across CLI releases. Its stable
       // automation form is the bare slash command.
       return '/compact';
+    case 'grok':
+      // Grok supports `/compact [context]`, including a focus instruction.
+      return `/compact ${COMPACTION_FOCUS}`;
     case 'kimi':
       // Kimi Code documents `/compact [<instruction>]`, so preserve the task
       // focus in its supported optional instruction.
@@ -45,6 +48,7 @@ export function remoteControlCommandForProvider(
 export function terminalReadySettleMs(provider: AgentProvider): number {
   switch (provider) {
     case 'kimi': return 650;
+    case 'grok': return 500;
     case 'codex': return 500;
     default: return 400;
   }

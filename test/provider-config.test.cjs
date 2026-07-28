@@ -30,6 +30,19 @@ test('Kimi is a first-class inferred provider with autonomous defaults', () => {
   assert.equal(preset.positionalInitialPrompt, undefined);
 });
 
+test('Grok is a first-class inferred provider with hooks, resume, and always-approve', () => {
+  assert.equal(isAgentProvider('grok'), true);
+  assert.equal(inferAgentProvider('/Users/test/.local/bin/grok --model grok-4.5'), 'grok');
+  const preset = providerPreset('grok');
+  assert.equal(preset.defaultCommand, 'grok');
+  assert.equal(preset.autoFlag, '--permission-mode bypassPermissions');
+  assert.equal(preset.supportsModel, true);
+  assert.equal(preset.canReceiveInbox, true);
+  assert.equal(preset.hookBridge, 'grok');
+  assert.equal(preset.positionalInitialPrompt, true);
+  assert.equal(preset.resumeFlag, '--resume');
+});
+
 test('provider commands use matching models and equivalent bypass modes', () => {
   assert.equal(
     buildSpawnCommand(autoConfig, 'claude-sonnet-5', 'claude'),
@@ -38,6 +51,10 @@ test('provider commands use matching models and equivalent bypass modes', () => 
   assert.equal(
     buildSpawnCommand(autoConfig, 'gpt-5.6-sol', 'codex'),
     'codex --model gpt-5.6-sol --dangerously-bypass-approvals-and-sandbox'
+  );
+  assert.equal(
+    buildSpawnCommand(autoConfig, 'grok-4.5', 'grok'),
+    'grok --model grok-4.5 --permission-mode bypassPermissions'
   );
   assert.equal(
     buildSpawnCommand(autoConfig, 'kimi-code/k3', 'kimi'),
@@ -53,6 +70,10 @@ test('model picker options stay provider-specific', () => {
   assert.deepEqual(
     modelsForProvider('codex').map((model) => model.id),
     [undefined, 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']
+  );
+  assert.deepEqual(
+    modelsForProvider('grok').map((model) => model.id),
+    [undefined, 'grok-4.5']
   );
   assert.deepEqual(
     modelsForProvider('kimi').map((model) => model.id),
@@ -82,10 +103,10 @@ test('Command Center model choices round-trip provider and model', () => {
 test('God only sees providers that can drain hive inbox messages', () => {
   assert.deepEqual(
     modelProvidersForAgent(true).map((preset) => preset.id),
-    ['claude', 'codex', 'antigravity']
+    ['claude', 'codex', 'grok', 'antigravity']
   );
   assert.deepEqual(
     modelProvidersForAgent(false).map((preset) => preset.id),
-    ['claude', 'codex', 'kimi', 'antigravity']
+    ['claude', 'codex', 'grok', 'kimi', 'antigravity']
   );
 });

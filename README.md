@@ -94,8 +94,8 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 
 | Area | What works today |
 |---|---|
-| **Real terminals** | Spawn Claude Code, Antigravity (`agy` / Gemini), OpenAI Codex (GPT), Kimi Code, or a custom command in a `node-pty` PTY. Full read/write/resize/kill, live streaming over IPC, multi-agent. |
-| **Multi-provider hive** | Claude Code, Antigravity, and Codex workers can all participate in the same hive. Claude uses native hooks; Antigravity gets a native `agy-hook` bridge; Codex receives the protocol as its initial prompt and participates through inbox/outbox routing. |
+| **Real terminals** | Spawn Claude Code, Antigravity (`agy` / Gemini), OpenAI Codex (GPT), xAI Grok, Kimi Code, or a custom command in a `node-pty` PTY. Full read/write/resize/kill, live streaming over IPC, multi-agent. |
+| **Multi-provider hive** | Claude Code, Antigravity, Codex, and Grok workers can all participate in the same hive. Claude uses native hooks; the other first-class providers receive protocol injection plus lifecycle-hook bridges for safe routing. |
 | **The hive** | On-disk multi-agent layer: per-agent identity + long-term memory, atomic-file mailboxes, a shared blackboard, append-only event log, single-committer git. |
 | **GOD orchestrator** | An always-on supervisor agent that adjudicates traffic, routes tasks, scribes the blackboard, and escalates only critical items to you. |
 | **Memory layer** | Markdown-first long-term memory per agent, mined into a shared semantic palace for instant recall; searchable from the UI. Degrades gracefully when the index isn't installed. |
@@ -129,7 +129,7 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 | **Avatar states** | Avatars reflect real work — including new v0.2.0 states for *compacting* (context compaction) and *looping* (circuit-breaker intervention), on top of crisper HiDPI floor text and high-contrast speech bubbles. |
 
 > [!NOTE]
-> **Status: v0.2.7 — voice, memory, floors & polish.** Building on the multi-provider floor — Claude Code, Antigravity (Gemini via `agy`), and OpenAI Codex all work as first-class hive participants (Antigravity via a native `agy-hook` bridge, Codex via lifecycle-hook parity plus protocol injection and provider-agnostic inbox/outbox routing) — v0.2.4→v0.2.7 add: **Free Flow voice dictation** (hold Option to talk; Groq Whisper transcribes straight into the composer), an opt-in **enterprise Knowledge Graph** agents query for ranked passages from your own documents/policies/context, **multi-window "floors"** (isolated offices with per-PTY routing), a **richer message composer** with file & image attachments, **agent session resume** across restarts (with a per-agent *Restart & Continue* button), **drag-a-file-onto-the-terminal** path injection, and **Slack/webhook triggers** that pipe a channel straight into Michael's queue. Everything from v0.2.0–v0.2.3 — observability, circuit breaker, durable persistence, context gauges, Command Center, task kanban, GitHub/CI integration, threaded conversations, desktop notifications, agent archival, and the dedicated Schedules tab — remains functional and shipping. macOS (signed), Windows, and Linux builds are available on the releases page.
+> **Status: v0.2.7 — voice, memory, floors & polish.** Building on the multi-provider floor — Claude Code, Antigravity (Gemini via `agy`), OpenAI Codex, and xAI Grok all work as first-class hive participants through native or provider-specific lifecycle hooks, protocol injection, and provider-agnostic inbox/outbox routing — v0.2.4→v0.2.7 add: **Free Flow voice dictation** (hold Option to talk; Groq Whisper transcribes straight into the composer), an opt-in **enterprise Knowledge Graph** agents query for ranked passages from your own documents/policies/context, **multi-window "floors"** (isolated offices with per-PTY routing), a **richer message composer** with file & image attachments, **agent session resume** across restarts (with a per-agent *Restart & Continue* button), **drag-a-file-onto-the-terminal** path injection, and **Slack/webhook triggers** that pipe a channel straight into Michael's queue. Everything from v0.2.0–v0.2.3 — observability, circuit breaker, durable persistence, context gauges, Command Center, task kanban, GitHub/CI integration, threaded conversations, desktop notifications, agent archival, and the dedicated Schedules tab — remains functional and shipping. macOS (signed), Windows, and Linux builds are available on the releases page.
 
 ## Getting started
 
@@ -143,7 +143,7 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
   ```
 - At least one supported terminal-agent CLI on your `PATH`: **[Claude Code](https://claude.com/claude-code)**
   (`claude`, the default command), **Antigravity** (`agy`, Gemini), **OpenAI Codex** (`codex`),
-  or **Kimi Code** (`kimi`).
+  **xAI Grok** (`grok`), or **Kimi Code** (`kimi`).
   Claude uses native hooks, Antigravity uses the `agy-hook` bridge, and Codex participates through
   initial-prompt protocol injection plus inbox/outbox routing.
 - *Optional:* the semantic memory index for instant cross-session recall (the app works without it —
@@ -261,7 +261,7 @@ Shipped in **v0.2.0–v0.2.7**:
 - [x] **Memory reflection** — the MemoryReflector summarizes and bounds per-agent memory over time to prevent unbounded growth.
 - [x] **Persistence** — SQLite-backed durable store for window bounds + history across restarts, plus a durable cost ledger and persisted session IDs.
 - [x] **Hook-driven avatars** — broadened hook→station coverage and caged the synthetic demo loop, with new *compacting* and *looping* avatar states.
-- [x] **Multi-provider floor** — Claude Code, Antigravity (`agy` / Gemini), and OpenAI Codex can participate in the same hive (Codex reaches full hive parity via a native lifecycle-hook bridge).
+- [x] **Multi-provider floor** — Claude Code, Antigravity (`agy` / Gemini), OpenAI Codex, and xAI Grok can participate in the same hive through native or provider-specific lifecycle-hook bridges.
 - [x] **Dedicated Schedules tab** — recurring missions and the adaptive heartbeat have their own Command Center tab.
 - [x] **Tunnelmole ingress** — Slack and generic webhook public URLs use tunnelmole instead of localtunnel.
 - [x] **Voice dictation (Free Flow)** — hold Option to talk; Groq Whisper transcribes speech straight into the message composer (gated on a Groq key, encrypted at rest).
@@ -274,7 +274,7 @@ Shipped in **v0.2.0–v0.2.7**:
 Next up:
 
 - [ ] **More chat integrations** — Telegram and richer chat bridges that pipe a channel straight into Michael's queue (and route his replies back out), so you can run the floor from your phone.
-- [ ] **More provider CLIs** — extend the provider layer beyond Claude Code, Antigravity, and Codex.
+- [ ] **More provider CLIs** — extend the provider layer beyond Claude Code, Antigravity, Codex, and Grok.
 - [ ] **Realtime Michael** — a low-latency realtime LLM channel for quick, snappy back-and-forth with the orchestrator, alongside the async terminal.
 - [ ] **Fuller avatar coverage** — push the remaining station visits and tool-bubbles to be driven 100% by real Claude Code hook events.
 - [ ] **Durable layout & command history** — extend persistence to agent layout and per-session command history.

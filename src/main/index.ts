@@ -1546,7 +1546,7 @@ ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & {
     return { ok: false, error: 'invalid SpawnOptions' };
   }
   // Which CLI is this? Explicit wins; else inferred from the binary
-  // (claude/codex/agy). Non-Claude providers skip every Claude-only spawn step
+  // (claude/codex/grok/agy). Non-Claude providers skip every Claude-only spawn step
   // below. Persist the resolved provider onto opts (+ hive meta) so the registry
   // record and downstream provider-aware steps agree on one value.
   const provider = inferAgentProvider(opts.command, opts.provider ?? opts.hive?.provider);
@@ -1671,8 +1671,8 @@ ipcMain.handle('pty:spawn', async (evt, opts: SpawnOptions & {
     opts.args = args;
   }
   // Idempotent session resume on respawn (#6.6a) — provider-aware: Claude
-  // `--resume <sid>`, Antigravity `--conversation <id>`. The recorded session id
-  // comes from hook payloads (agy's conversationId flows through the bridge), so
+  // `--resume <sid>`, Grok `--resume <sid>`, Antigravity `--conversation <id>`.
+  // The recorded session id comes from hook payloads, so
   // a restored worker continues its prior CLI session. Only when requested AND a
   // prior id exists for this agent.
   // Claude resume — incl. transcript seeding + only-attach-when-present — is

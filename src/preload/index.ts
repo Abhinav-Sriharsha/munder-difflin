@@ -7,7 +7,7 @@ declare const __APP_VERSION__: string;
 export interface HiveAgentMeta {
   id: string;
   name: string;
-  /** Which CLI this agent runs on (claude/codex/antigravity/custom); defaults claude. */
+  /** Which CLI this agent runs on (claude/codex/grok/antigravity/custom); defaults claude. */
   provider?: AgentProvider;
   role?: string;
   capabilities?: string[];
@@ -115,7 +115,7 @@ export interface SpawnPtyOptions {
   /** When true (and cwd is a git repo), spawn the agent in its own git worktree. */
   isolate?: boolean;
   /** When true, continue the agent's prior CLI session if one was recorded
-   *  (provider-aware: Claude `--resume`, Antigravity `--conversation`). For
+   *  (provider-aware: Claude/Grok `--resume`, Antigravity `--conversation`). For
    *  Claude the main process looks up the session id from the hive registry and
    *  seeds its transcript into the cwd's project dir (#1 — restore on restart). */
   resume?: boolean;
