@@ -10,15 +10,27 @@ const {
   opensInteractiveTerminalUi,
   shouldFollowTerminalOutput,
   terminalAutomationBlock,
-  STALE_INPUT_MS
+  isStaleTerminalPicker,
+  STALE_INPUT_MS,
+  STALE_PICKER_MS
 } = loadTs('src/renderer/src/components/terminalAutomation.ts');
 
 test('interactive provider commands pause queue automation', () => {
   assert.equal(opensInteractiveTerminalUi('/model'), true);
   assert.equal(opensInteractiveTerminalUi(' /provider '), true);
-  assert.equal(opensInteractiveTerminalUi('/permissions allow'), true);
   assert.equal(opensInteractiveTerminalUi('/compact'), false);
   assert.equal(opensInteractiveTerminalUi('implement this'), false);
+});
+
+test('a command with an argument opens no picker to wait for', () => {
+  // Only the BARE command opens a picker. `/model sonnet` applies the argument
+  // and returns to the prompt, leaving no UI to close — but the picker latch is
+  // cleared only by an Enter/Escape/Ctrl-C in that terminal, so latching here
+  // wedged the agent's message queue permanently. Matching on the first token
+  // alone is what caused it.
+  assert.equal(opensInteractiveTerminalUi('/model sonnet'), false);
+  assert.equal(opensInteractiveTerminalUi('/permissions allow'), false);
+  assert.equal(opensInteractiveTerminalUi(' /provider anthropic '), false);
 });
 
 test('terminal automation waits for user drafts and interactive states', () => {
@@ -44,6 +56,26 @@ test('an abandoned draft stops blocking delivery once it goes stale', () => {
   assert.equal(canAutomateTerminal(draft, typedAt + STALE_INPUT_MS), true);
   // A draft with no timestamp keeps the old never-expires behavior.
   assert.equal(canAutomateTerminal({ ...draft, inputDirtyAt: undefined }, typedAt + 1e9), false);
+});
+
+test('an abandoned picker stops blocking delivery once it goes stale', () => {
+  const openedAt = 1_000_000;
+  const picker = {
+    exited: false, pickerOpen: true, inputDirty: false,
+    settleUntil: 0, pickerOpenedAt: openedAt
+  };
+  // While it is plausibly still open, automation must not type into the menu.
+  assert.equal(canAutomateTerminal(picker, openedAt + 1), false);
+  assert.equal(isStaleTerminalPicker(picker, openedAt + 1), false);
+  // The latch is cleared only by Enter/Escape/Ctrl-C typed into that terminal.
+  // A picker closed any other way left it set forever and the agent's queue
+  // never drained again, so the block HAS to expire.
+  assert.equal(isStaleTerminalPicker(picker, openedAt + STALE_PICKER_MS), true);
+  assert.equal(canAutomateTerminal(picker, openedAt + STALE_PICKER_MS), true);
+  assert.equal(terminalAutomationBlock(picker, openedAt + STALE_PICKER_MS), null);
+  // No timestamp ⇒ the old never-expires behavior, so nothing silently changes
+  // for a state recorded before this field existed.
+  assert.equal(canAutomateTerminal({ ...picker, pickerOpenedAt: undefined }, openedAt + 1e9), false);
 });
 
 test('automation block reports why delivery is held', () => {

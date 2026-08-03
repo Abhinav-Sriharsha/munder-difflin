@@ -19,8 +19,14 @@ const INTERACTIVE_COMMANDS = new Set([
 ]);
 
 export function opensInteractiveTerminalUi(input: string): boolean {
-  const command = input.trim().toLowerCase().split(/\s+/, 1)[0];
-  return INTERACTIVE_COMMANDS.has(command);
+  // Only a BARE command opens a picker. `/model` prompts you to choose;
+  // `/model sonnet` applies the argument and returns to the prompt with no UI
+  // to close. Matching on the first token alone latched the block on the second
+  // form too, and nothing could ever clear it — the agent's message queue then
+  // silently stopped delivering for the rest of the session.
+  const trimmed = input.trim().toLowerCase();
+  if (/\s/.test(trimmed)) return false;
+  return INTERACTIVE_COMMANDS.has(trimmed);
 }
 
 /** Follow output only if the user was already at (or one line from) the bottom.
@@ -37,12 +43,33 @@ export function shouldFollowTerminalOutput(viewportY: number, baseY: number): bo
  * agent's queue permanently with the composer still claiming it was sending. */
 export const STALE_INPUT_MS = 60_000;
 
+/** How long an untouched picker keeps blocking queue delivery.
+ * Like the draft block, this MUST expire. The picker latch is set when the user
+ * submits a bare `/model`-style command and is only cleared by an Enter, Escape
+ * or Ctrl-C typed into that same terminal — so a picker the AGENT closes, or one
+ * dismissed any other way, left the flag set with no path back. That wedged the
+ * agent's queue permanently, which is exactly the failure this expiry ends.
+ * Longer than the draft window: a human picking from a menu is slower than a
+ * human typing, and re-latching costs nothing. */
+export const STALE_PICKER_MS = 180_000;
+
 export interface TerminalAutomationState {
   exited: boolean;
   pickerOpen: boolean;
   inputDirty: boolean;
   settleUntil: number;
   inputDirtyAt?: number; // last keystroke that left a draft; absent ⇒ never expires
+  pickerOpenedAt?: number; // when the picker latched; absent ⇒ never expires
+}
+
+/** A picker nobody has interacted with for STALE_PICKER_MS is treated as gone. */
+export function isStaleTerminalPicker(
+  state: TerminalAutomationState,
+  now = Date.now()
+): boolean {
+  return state.pickerOpen
+    && state.pickerOpenedAt !== undefined
+    && now - state.pickerOpenedAt >= STALE_PICKER_MS;
 }
 
 /** Why automation may not own the prompt right now, or null when it may. */
@@ -63,7 +90,7 @@ export function terminalAutomationBlock(
   now = Date.now()
 ): TerminalAutomationBlock {
   if (state.exited) return 'exited';
-  if (state.pickerOpen) return 'picker';
+  if (state.pickerOpen && !isStaleTerminalPicker(state, now)) return 'picker';
   if (state.inputDirty && !isStaleTerminalDraft(state, now)) return 'draft';
   if (now < state.settleUntil) return 'settling';
   return null;

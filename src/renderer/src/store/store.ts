@@ -149,6 +149,10 @@ interface State {
   select: (id: string) => void;
   updateAgent: (id: string, patch: Partial<Agent>) => void;
   setAgentNote: (id: string, note: string) => void;
+  /** Rename an agent everywhere it is shown, and in the hive registry so its
+   *  siblings and its own identity card agree. The agent id never changes — it
+   *  is what the workspace, inbox, memory and task assignees are keyed on. */
+  renameAgent: (id: string, name: string) => void;
   pushFeed: (id: string, line: string) => void;
   addAgent: (agent: Agent) => void;
   removeAgent: (id: string) => void;
@@ -407,6 +411,21 @@ export const useStore = create<State>((set) => ({
       persistAgents(agents, s.selectedId);
       return { agents };
     }),
+  renameAgent: (id, name) => {
+    const next = name.trim();
+    if (!next) return;
+    set((s) => {
+      const agents = s.agents.map((a) => a.id === id ? { ...a, name: next } : a);
+      // Restorable entries carry their own copy of the roster; rename there too
+      // or a restart would resurrect the agent under its old name.
+      const restorable = s.restorableAgents.map((a) => a.id === id ? { ...a, name: next } : a);
+      persistAgents(agents, s.selectedId);
+      persistRestorable(restorable);
+      return { agents, restorableAgents: restorable };
+    });
+    // Best-effort: the registry is what other agents read the roster from.
+    void window.cth.hiveRename(id, next).catch(() => { /* local rename stands */ });
+  },
   pushFeed: (id, line) =>
     set((s) => ({ feeds: { ...s.feeds, [id]: [...(s.feeds[id] ?? []), line] } })),
   addAgent: (agent) =>

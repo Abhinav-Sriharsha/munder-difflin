@@ -45,33 +45,57 @@ function basename(path: string): string {
  *  so naming the group after that path buckets each such agent under its own id
  *  instead of the repository the user actually picked. `git:mainRepo` follows a
  *  linked worktree back to its main checkout. */
-const repoNameByCwd = new Map<string, string>();
+const repoRootByCwd = new Map<string, string | null>();
+/** cwds with a lookup in flight, so a re-render can't start a second one. */
+const repoLookupsInFlight = new Set<string>();
 
-/** Which repository an agent belongs to. Falls back to `project` (the basename
- *  of the cwd chosen in Add Agent) until the async resolution lands, and for
- *  agents whose directory isn't a git repo at all. */
-function repoOf(agent: Agent): string {
-  const resolved = repoNameByCwd.get(agent.cwd);
-  if (resolved) return resolved;
+/** Which repository an agent belongs to — the ABSOLUTE root, so it is a real
+ *  identity. Two unrelated checkouts can share a basename (`~/client-a/app` and
+ *  `~/client-b/app`); keying groups on the name merged them into one section and
+ *  let agents be dragged between two different repositories.
+ *
+ *  Falls back to the cwd itself until the async resolution lands, and for
+ *  directories that aren't git repos at all. */
+function repoKeyOf(agent: Agent): string {
+  return repoRootByCwd.get(agent.cwd) || agent.cwd || 'unknown';
+}
+
+/** What that group is CALLED — the basename, or the project the user picked. */
+function repoLabelOf(agent: Agent): string {
+  const root = repoRootByCwd.get(agent.cwd);
+  if (root) return basename(root);
   const project = agent.project?.trim();
   if (project) return project;
   return basename(agent.cwd) || 'unknown';
 }
 
-/** Resolve every distinct cwd's repository name, then re-render. Cheap: one git
- *  call per NEW path, and results are cached for the process lifetime. */
+/** Resolve every distinct cwd's repository root, then re-render. Exactly one git
+ *  call per distinct path, ever. */
 function useResolvedRepoNames(agents: Agent[]): number {
   const [version, setVersion] = useState(0);
   useEffect(() => {
     let cancelled = false;
     const pending = [...new Set(agents.map(a => a.cwd).filter(Boolean))]
-      .filter(cwd => !repoNameByCwd.has(cwd));
+      // `has` (not a truthiness check) so a resolved-to-null path — a cwd that
+      // is not a git repo — counts as answered. Caching only successes meant
+      // every agent outside a repo re-asked on each pass, and this effect
+      // depends on `agents`, which the pty parser replaces on every chunk of
+      // terminal output: one such agent spawned `git rev-parse` continuously
+      // for as long as it was talking. In-flight paths are skipped too, so a
+      // re-render mid-lookup doesn't stack a second round of subprocesses.
+      .filter(cwd => !repoRootByCwd.has(cwd) && !repoLookupsInFlight.has(cwd));
     if (pending.length === 0) return;
+    pending.forEach(cwd => repoLookupsInFlight.add(cwd));
     void Promise.all(pending.map(async (cwd) => {
       try {
-        const root = await window.cth.gitMainRepo(cwd);
-        if (root) repoNameByCwd.set(cwd, basename(root));
-      } catch { /* leave unresolved — the `project` fallback still names it */ }
+        repoRootByCwd.set(cwd, (await window.cth.gitMainRepo(cwd)) || null);
+      } catch {
+        // Record the failure as answered as well — retrying a path that throws
+        // is what the unbounded-subprocess bug was made of.
+        repoRootByCwd.set(cwd, null);
+      } finally {
+        repoLookupsInFlight.delete(cwd);
+      }
     })).then(() => { if (!cancelled) setVersion(v => v + 1); });
     return () => { cancelled = true; };
   }, [agents]);
@@ -81,7 +105,7 @@ function useResolvedRepoNames(agents: Agent[]): number {
 /** The roster section an agent lives in — god agents share one ungrouped
  *  section, everyone else groups by repository. */
 function groupKey(agent: Agent): string {
-  return agent.isGod ? '__god__' : repoOf(agent);
+  return agent.isGod ? '__god__' : repoKeyOf(agent);
 }
 
 /** Drag-reorder wiring handed down to each row. */
@@ -110,6 +134,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
   const setAddAgentOpen = useStore(s => s.setAddAgentOpen);
   const addAgentOpen = useStore(s => s.addAgentOpen);
   const setAgentNote = useStore(s => s.setAgentNote);
+  const renameAgent = useStore(s => s.renameAgent);
   const updateAgent = useStore(s => s.updateAgent);
   // The floor strip (and with it the restore button) is hidden behind the
   // overlay, so the roster carries restore too.
@@ -153,13 +178,15 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
   // so the list doesn't reshuffle as statuses change.
   const { gods, groups } = useMemo(() => {
     const godList: Agent[] = [];
-    const byRepo = new Map<string, Agent[]>();
+    // Keyed by absolute repo root (identity); the label is carried alongside so
+    // two same-named repos stay two groups but still read by name.
+    const byRepo = new Map<string, { label: string; members: Agent[] }>();
     for (const a of agents) {
       if (a.isGod) { godList.push(a); continue; }
-      const repo = repoOf(a);
-      const bucket = byRepo.get(repo);
-      if (bucket) bucket.push(a);
-      else byRepo.set(repo, [a]);
+      const key = repoKeyOf(a);
+      const bucket = byRepo.get(key);
+      if (bucket) bucket.members.push(a);
+      else byRepo.set(key, { label: repoLabelOf(a), members: [a] });
     }
     return { gods: godList, groups: [...byRepo.entries()] };
     // repoVersion: rebucket once the async main-repo lookups land.
@@ -259,16 +286,17 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                 active={a.id === agent.id}
                 onClick={() => { select(a.id); setFullscreen(a.id); }}
                 onNoteChange={(note) => setAgentNote(a.id, note)}
+                onRename={(name) => renameAgent(a.id, name)}
                 drag={drag}
                 scale={scale}
               />
             ))}
-            {groups.map(([repo, members]) => (
+            {groups.map(([repoKey, { label, members }]) => (
               // Repos are the roster's real structure, so they get real
               // separation — a hairline plus air above, not just a label.
-              <div key={repo} style={{ marginTop: 16, paddingTop: 10, borderTop: '1px solid var(--cth-ink-300)' }}>
+              <div key={repoKey} style={{ marginTop: 16, paddingTop: 10, borderTop: '1px solid var(--cth-ink-300)' }}>
                 <div
-                  title={repo}
+                  title={repoKey}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     padding: '0 10px 6px',
@@ -286,7 +314,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                   <span style={{
                     minWidth: 0,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                  }}>{repo.toUpperCase()}</span>
+                  }}>{label.toUpperCase()}</span>
                 </div>
                 {members.map(a => (
                   <SidebarRow
@@ -295,6 +323,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                     active={a.id === agent.id}
                     onClick={() => { select(a.id); setFullscreen(a.id); }}
                     onNoteChange={(note) => setAgentNote(a.id, note)}
+                    onRename={(name) => renameAgent(a.id, name)}
                     drag={drag}
                     scale={scale}
                   />
@@ -423,6 +452,7 @@ function SidebarRow({
   active,
   onClick,
   onNoteChange,
+  onRename,
   drag,
   scale
 }: {
@@ -430,6 +460,7 @@ function SidebarRow({
   active: boolean;
   onClick: () => void;
   onNoteChange: (note: string) => void;
+  onRename: (name: string) => void;
   drag: RowDrag;
   scale: ReturnType<typeof rosterScale>;
 }) {
@@ -445,9 +476,22 @@ function SidebarRow({
   const noteLabelSize = Math.max(8, Math.round(noteFontSize * 0.6));
   const noteWidth = Math.min(300, Math.round(noteFontSize * 20));
   const noteHeight = Math.round(noteFontSize * 9);
+  // Total popover height, used only to keep it on screen near the bottom edge:
+  // the note textarea plus the name field, two labels, the hint and the padding.
+  const popoverHeight = noteHeight + Math.round(noteFontSize * 1.9) + noteLabelSize * 3 + 48;
 
   // One line of the note = one bullet on the row.
   const bullets = (agent.note ?? '').split('\n').map(s => s.trim()).filter(Boolean);
+
+  // Rename is local-until-committed: typing straight into the store would rename
+  // the agent on every keystroke and write the registry each time.
+  const [draftName, setDraftName] = useState(agent.name);
+  useEffect(() => { setDraftName(agent.name); }, [agent.name]);
+  const commitName = () => {
+    const next = draftName.trim();
+    if (!next || next === agent.name) { setDraftName(agent.name); return; }
+    onRename(next);
+  };
 
   useEffect(() => () => {
     if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
@@ -465,7 +509,7 @@ function SidebarRow({
     // Clamp so rows near an edge stay fully on screen.
     setNotePosition({
       left: Math.min(rect.right + 6, window.innerWidth - noteWidth - 8),
-      top: Math.max(8, Math.min(rect.top, window.innerHeight - noteHeight - 8))
+      top: Math.max(8, Math.min(rect.top, window.innerHeight - popoverHeight - 8))
     });
   };
 
@@ -590,15 +634,52 @@ function SidebarRow({
             boxSizing: 'border-box'
           }}
         >
+          {/* Rename lives here rather than on the row: the row is a <button>,
+              and an input nested inside one swallows its own clicks. */}
+          <div style={{
+            marginBottom: 3,
+            fontFamily: 'var(--cth-font-display)',
+            fontSize: noteLabelSize,
+            lineHeight: `${Math.round(noteLabelSize * 1.5)}px`,
+            color: 'var(--cth-ink-700)'
+          }}>NAME</div>
+          <input
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            onFocus={() => {
+              if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
+            }}
+            // Commit on blur as well as Enter — a rename typed and then clicked
+            // away from should not be silently discarded.
+            onBlur={() => { commitName(); scheduleClose(); }}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') { e.preventDefault(); commitName(); }
+              // Escape abandons the edit and restores the current name.
+              if (e.key === 'Escape') { setDraftName(agent.name); setNotePosition(null); }
+            }}
+            aria-label={`Rename ${agent.name}`}
+            maxLength={40}
+            style={{
+              width: '100%',
+              height: Math.round(noteFontSize * 1.9),
+              marginBottom: 8,
+              padding: '2px 8px',
+              border: 'none', outline: 'none', boxSizing: 'border-box',
+              background: 'var(--cth-cream-100)',
+              boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+              fontFamily: 'var(--cth-font-mono)',
+              fontSize: noteFontSize,
+              color: 'var(--cth-ink-900)'
+            }}
+          />
           <div style={{
             marginBottom: 6,
             fontFamily: 'var(--cth-font-display)',
             fontSize: noteLabelSize,
             lineHeight: `${Math.round(noteLabelSize * 1.5)}px`,
             color: 'var(--cth-ink-700)'
-          }}>
-            {agent.name.toUpperCase()} · PRIVATE NOTE
-          </div>
+          }}>PRIVATE NOTE</div>
           {/* A textarea, not an input: the note is a bullet list, so Enter has
               to make a new line rather than doing nothing. */}
           {/* No autoFocus — the editor opens on hover, and stealing focus every

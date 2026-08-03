@@ -523,8 +523,17 @@ export function useHive(config: HarnessConfig | null): void {
       if (!isTerminalAutomationSafe(target.ptyId, now)) return { sent: false };
       if (now - (lastFlush.current[target.id] ?? 0) < FLUSH_COOLDOWN_MS) return { sent: false };
       // The gate above lets an ABANDONED draft through. Wipe the prompt first so
-      // the leftover half-line can't fuse with the message we're about to type.
-      clearStaleTerminalDraft(target.ptyId, now);
+      // the leftover half-line can't fuse with the message we're about to type —
+      // but "abandoned" is only a guess (a minute of no keystrokes), and it is
+      // wrong whenever the user paused to think or switched windows. Park the
+      // text in that agent's composer draft so it is recoverable instead of
+      // destroyed by a Ctrl-U they never asked for.
+      const discarded = clearStaleTerminalDraft(target.ptyId, now);
+      if (discarded && discarded.trim()) {
+        const { drafts, setDraft } = useStore.getState();
+        const existing = drafts[target.id] ?? '';
+        setDraft(target.id, existing ? `${existing}\n${discarded}` : discarded);
+      }
       const flightKey = `${srcId}:${next.id}`;
       if (inFlight.has(flightKey)) return { sent: false };
       inFlight.add(flightKey);

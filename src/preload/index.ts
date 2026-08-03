@@ -719,6 +719,10 @@ const api = {
    *  archives it automatically via pty:kill; this is the explicit primitive. */
   hiveSetArchived: (id: string, archived: boolean): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('hive:setArchived', id, archived),
+  /** Rename an agent in the hive registry. The agent id is unchanged, so its
+   *  workspace, inbox, memory and task assignments all follow the rename. */
+  hiveRename: (id: string, name: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('hive:rename', id, name),
 
   // ─── Slack integration (Slack message → Michael's queue) ─────────────────────
   /** Register a listener for inbound Slack messages; returns an unsubscribe fn.

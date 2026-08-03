@@ -1987,6 +1987,20 @@ ipcMain.handle('hive:setArchived', (_evt, id: unknown, archived: unknown) => {
   return { ok: true };
 });
 
+// Rename an agent. Cosmetic only — the agent id stays put, so its workspace,
+// inbox, memory and any task assigned to it are untouched.
+ipcMain.handle('hive:rename', (_evt, id: unknown, name: unknown) => {
+  if (typeof id !== 'string' || typeof name !== 'string') {
+    return { ok: false, error: 'invalid id or name' };
+  }
+  const next = name.trim();
+  if (!next) return { ok: false, error: 'name cannot be empty' };
+  if (next.length > 40) return { ok: false, error: 'name is too long (max 40)' };
+  if (!hive.enabled()) return { ok: false, error: 'hive disabled (no harnessHome)' };
+  hive.rename(id, next);
+  return { ok: true };
+});
+
 // ─── IPC: semantic memory (MemPalace CLI) ───────────────────────────────────
 ipcMain.handle('hive:memoryStatus', () => { memory.resetBinCache(); return memory.status(); });
 ipcMain.handle('hive:searchMemory', (_evt, query: unknown, wing: unknown) => {

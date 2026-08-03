@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import '@xterm/xterm/css/xterm.css';
 import { Icon } from './Icon';
-import { acquireTerminal, attachTerminal, reflowTerminal } from './terminalPool';
+import { acquireTerminal, attachTerminal, detachTerminal, reflowTerminal } from './terminalPool';
 import {
   DEFAULT_TERMINAL_FONT_SIZE,
   MAX_TERMINAL_FONT_SIZE,
@@ -265,9 +265,11 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
       document.removeEventListener('visibilitychange', onWake);
       window.removeEventListener('focus', onWake);
       // Detach (but DON'T dispose) the terminal — it keeps running in the pool.
+      // detachTerminal also releases the WebGL lease, so a terminal nobody is
+      // looking at stops holding a GPU context that an on-screen one needs.
       entry.onData = undefined;
       entry.onPrompt = undefined;
-      if (entry.host.parentElement === container) container.removeChild(entry.host);
+      detachTerminal(entry, container);
     };
   }, [ptyId]);
 

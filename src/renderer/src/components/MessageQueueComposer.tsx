@@ -2,7 +2,7 @@ import { ClipboardEvent, DragEvent, KeyboardEvent, useEffect, useLayoutEffect, u
 import { PixelButton } from './PixelButton';
 import { Icon } from './Icon';
 import { useStore, type Agent, type QueuedMessage } from '@/store/store';
-import { clearTerminalDraft, terminalAutomationBlockFor } from './terminalPool';
+import { clearTerminalDraft, dismissTerminalPicker, terminalAutomationBlockFor } from './terminalPool';
 import type { TerminalAutomationBlock } from './terminalAutomation';
 import { freeflowRecorder, useFreeflow } from '@/freeflow/recorder';
 import { useTerminalFontSize } from './terminalFontSize';
@@ -214,14 +214,27 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
         )}
         {(block === 'draft' || block === 'picker') && agent.ptyId && (
           <button
-            onClick={() => clearTerminalDraft(agent.ptyId!)}
-            title="Clear the leftover text on this agent's terminal prompt so queued messages can be delivered"
+            onClick={() => {
+              // A picker and a draft are unblocked by different keys: Escape
+              // closes the picker, Ctrl-U kills the input line. Sending Ctrl-U
+              // at a picker leaves it open while telling automation the prompt
+              // is free, which is how a queued message ends up typed into a
+              // menu and marked delivered.
+              if (block === 'picker') { dismissTerminalPicker(agent.ptyId!); return; }
+              // Keep whatever was on the prompt — it lands in this composer so
+              // the user can send it properly instead of losing it to Ctrl-U.
+              const discarded = clearTerminalDraft(agent.ptyId!);
+              if (discarded.trim()) setText(text ? `${text}\n${discarded}` : discarded);
+            }}
+            title={block === 'picker'
+              ? "Close the picker this agent has open so queued messages can be delivered"
+              : "Move the leftover text on this agent's prompt into this box so queued messages can be delivered"}
             style={{
               border: 'none', background: 'transparent', cursor: 'pointer', padding: 0,
               fontFamily: 'var(--cth-font-ui)', fontSize: 12,
               color: 'var(--cth-ink-900)', textDecoration: 'underline'
             }}
-          >clear prompt</button>
+          >{block === 'picker' ? 'close picker' : 'recover prompt'}</button>
         )}
         {queue.length > 1 && (
           <button

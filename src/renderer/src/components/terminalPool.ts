@@ -54,10 +54,21 @@ export interface TerminalEntry {
   /** A user-opened slash-command picker (for example Codex `/model`) owns the
    * input line. Queue automation waits until the picker closes. */
   automationBlocked: boolean;
+  /** When the picker latch was set — the block expires, see PICKER_BLOCK_MS. */
+  automationBlockedAt: number;
   /** True while the user has unsubmitted text in the live TUI prompt. */
   inputDirty: boolean;
   inputDirtyAt: number; // when the draft was last typed into; drives staleness expiry
   automationSettleUntil: number;
+  /** Our model of the text on the live prompt line. On the ENTRY, not a closure
+   * variable: `inputDirty` is derived from it, so anything that clears the
+   * prompt (Ctrl-U, a respawn reset) has to clear both or the next keystroke
+   * resurrects the deleted text as a phantom draft. */
+  lineBuf: string;
+  /** Bumped every time this pty is respawned under the same id. Late events from
+   * the OLD process carry the generation they were registered under, so they can
+   * be recognised and dropped instead of corrupting the replacement. */
+  generation: number;
   webgl?: WebglAddon;
 }
 
@@ -116,9 +127,12 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
     recovery: createTerminalRecoveryState(),
     needsRendererRepaint: false,
     automationBlocked: false,
+    automationBlockedAt: 0,
     inputDirty: false,
     inputDirtyAt: 0,
-    automationSettleUntil: 0
+    automationSettleUntil: 0,
+    lineBuf: '',
+    generation: 0
   };
 
   // Subscribe to the pty stream ONCE for the terminal's whole lifetime, so the
@@ -135,6 +149,12 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
     });
     entry.onData?.(chunk);
   }));
+  // A restart does killPty() then spawnPty() under the SAME pty id, so a stale
+  // exit from the killed process could in principle latch `exited` on its
+  // replacement (which would silently drop every keystroke). It can't: kill()
+  // removes the session from the map synchronously (main/pty.ts kill), and the
+  // process's own onExit checks it still owns that id before emitting — so the
+  // stale event is suppressed in the main process and never reaches here.
   entry.unsub.push(window.cth.onPtyExit(ptyId, ({ exitCode, signal }) => {
     entry.exited = true;
     term.writeln(`\r\n\x1b[2m─ process exited (code ${exitCode}${signal ? `, signal ${signal}` : ''}) ─\x1b[0m`);
@@ -181,42 +201,50 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
   });
 
   // Keystrokes → pty. A small line buffer surfaces the last submitted prompt.
-  let lineBuf = '';
+  // It lives on the entry (see TerminalEntry.lineBuf) so every prompt-clearing
+  // path resets it too.
   term.onData((data) => {
     if (entry.exited) return;
     window.cth.writePty(ptyId, data);
     // A lone Escape or Ctrl-C closes interactive pickers. Arrow-key escape
     // sequences must NOT clear the block while the user navigates a picker.
     if (data === '\x1b' || data === '\x03') {
-      entry.automationBlocked = false;
-      entry.automationSettleUntil = Date.now() + 500;
-      lineBuf = '';
+      releasePickerBlock(entry);
+      entry.lineBuf = '';
     }
+    // The user's own Ctrl-U (kill-line) clears the prompt exactly like ours does.
+    if (data === '\x15') entry.lineBuf = '';
     // Bracketed paste is still user-owned draft text; remove only its wrapper so
     // pasted content marks the prompt dirty instead of looking automation-safe.
     const input = data.replace(/\x1b\[200~/g, '').replace(/\x1b\[201~/g, '');
     for (let i = 0; i < input.length; i++) {
       const ch = input[i];
       if (ch === '\r' || ch === '\n') {
-        const t = lineBuf.trim();
-        lineBuf = '';
+        const t = entry.lineBuf.trim();
+        entry.lineBuf = '';
         if (entry.automationBlocked) {
           // Enter chooses an item and closes the current picker.
-          entry.automationBlocked = false;
-          entry.automationSettleUntil = Date.now() + 500;
-        } else if (opensInteractiveTerminalUi(t)) {
+          releasePickerBlock(entry);
+        }
+        // NOT an `else`: this Enter is the one that SUBMITTED the command, so it
+        // must both close any picker that was already open and latch a new one
+        // for the command it just submitted. As an `else if`, a line like
+        // `/model sonnet` latched the block and then had no later Enter to clear
+        // it — every queued message to that agent was skipped forever.
+        if (opensInteractiveTerminalUi(t)) {
           entry.automationBlocked = true;
+          entry.automationBlockedAt = Date.now();
         }
         if (t.length >= 2) entry.onPrompt?.(t);
       } else if (ch === '\x7f' || ch === '\b') {
-        lineBuf = lineBuf.slice(0, -1);
+        entry.lineBuf = entry.lineBuf.slice(0, -1);
       } else if (ch === '\x1b') {
         break; // skip escape sequences (arrow keys, etc.)
       } else if (ch >= ' ') {
-        lineBuf += ch;
+        entry.lineBuf += ch;
       }
     }
-    entry.inputDirty = lineBuf.length > 0;
+    entry.inputDirty = entry.lineBuf.length > 0;
     // Re-stamped on every keystroke, so the staleness clock measures time since
     // the user last touched the draft — not since they started it.
     if (entry.inputDirty) entry.inputDirtyAt = Date.now();
@@ -238,10 +266,18 @@ function automationStateOf(entry: TerminalEntry) {
   return {
     exited: entry.exited,
     pickerOpen: entry.automationBlocked,
+    pickerOpenedAt: entry.automationBlocked ? entry.automationBlockedAt : undefined,
     inputDirty: entry.inputDirty,
     inputDirtyAt: entry.inputDirty ? entry.inputDirtyAt : undefined,
     settleUntil: entry.automationSettleUntil
   };
+}
+
+/** Drop the picker latch and give the TUI a moment to repaint the freed line. */
+function releasePickerBlock(entry: TerminalEntry): void {
+  entry.automationBlocked = false;
+  entry.automationBlockedAt = 0;
+  entry.automationSettleUntil = Date.now() + 500;
 }
 
 /** Why queue delivery is currently held back for this pty, or null if it isn't.
@@ -258,81 +294,148 @@ export function terminalAutomationBlockFor(
 
 /** Wipe the TUI prompt's current line and re-arm automation. Ctrl-U is the
  * readline kill-to-start binding every supported CLI's input honors. */
-export function clearTerminalDraft(ptyId: string): void {
+export function clearTerminalDraft(ptyId: string): string {
   const entry = pool.get(ptyId);
-  if (!entry) return;
+  if (!entry) return '';
+  // Hand the text back so the caller can park it somewhere the user can find it
+  // again. Ctrl-U is not undoable in a TUI, so silently discarding it was data
+  // loss every time an abandoned-looking draft turned out to be a real one.
+  const discarded = entry.lineBuf;
   void window.cth.writePty(ptyId, '\x15');
   entry.inputDirty = false;
   entry.inputDirtyAt = 0;
-  entry.automationBlocked = false;
+  // Reset our model of the line too. Leaving it set made the very next keystroke
+  // recompute `inputDirty` from the text we just deleted, so the draft block
+  // came straight back and the deleted text corrupted the next parsed command.
+  entry.lineBuf = '';
+  // NOT cleared: `automationBlocked`. Ctrl-U kills the input line; it does not
+  // close an open picker. Clearing the latch here told automation the prompt was
+  // free while a picker still owned it, so the queued message was typed into the
+  // picker and acknowledged as delivered — the message was lost and the picker
+  // got garbage. The latch is released by a real Enter/Esc/Ctrl-C, or it expires.
   // Let the TUI repaint the cleared line before automation types into it.
   entry.automationSettleUntil = Date.now() + 300;
+  return discarded;
 }
 
 /** Drop a draft nobody has touched for STALE_INPUT_MS so it cannot fuse with the
  * text automation is about to type. No-op while the draft is still fresh. */
-export function clearStaleTerminalDraft(ptyId: string, now = Date.now()): boolean {
+/** Close an open picker by sending the key that actually closes one.
+ * The Escape round-trips through xterm's own onData handler, so the latch is
+ * released by the same path a user pressing Escape would take — we never just
+ * assert the picker is gone without telling the TUI to close it. */
+export function dismissTerminalPicker(ptyId: string): void {
   const entry = pool.get(ptyId);
-  if (!entry || !isStaleTerminalDraft(automationStateOf(entry), now)) return false;
-  clearTerminalDraft(ptyId);
-  return true;
+  if (!entry || entry.exited) return;
+  void window.cth.writePty(ptyId, '\x1b');
+  releasePickerBlock(entry);
+}
+
+export function clearStaleTerminalDraft(ptyId: string, now = Date.now()): string | null {
+  const entry = pool.get(ptyId);
+  if (!entry || !isStaleTerminalDraft(automationStateOf(entry), now)) return null;
+  // Returns the discarded text so the caller can preserve it; '' when the draft
+  // turned out to be empty.
+  return clearTerminalDraft(ptyId);
+}
+
+/** Give this terminal a WebGL renderer for as long as it is on screen.
+ *
+ *  The DOM renderer assumes a perfectly monospace font, but VT323 is missing
+ *  glyphs (↔, arrows, some box-drawing) and has no real bold — the browser
+ *  substitutes fallback glyphs with different advance widths, so box-drawing
+ *  tables shear apart and the cursor drifts. WebGL draws every glyph into its
+ *  own fixed cell, keeping the grid aligned. NOT the deprecated canvas addon
+ *  (its dirty-region tracking garbles scrollback).
+ *
+ *  It is a LEASE, taken on attach and released on detach (see detachTerminal),
+ *  because a browser allows only a limited number of live WebGL contexts —
+ *  around 16 in Chromium — and silently discards the oldest when a new one
+ *  pushes past the cap. Terminals used to hold their context for the whole
+ *  session even while detached, so restoring a team (which opens one terminal
+ *  per agent in quick succession) blew the cap and the browser killed a
+ *  background terminal's context. Its pty, buffer and subscription all stayed
+ *  healthy — only the renderer was dead — which is exactly the reported
+ *  "terminal is black and typing does nothing": the keystrokes were delivered
+ *  and the replies arrived, with nothing left alive to paint them.
+ *
+ *  Best-effort: on init failure or context loss, fall back to the DOM renderer
+ *  rather than leave a black terminal. */
+function leaseWebglRenderer(entry: TerminalEntry): void {
+  if (entry.webgl) return;
+  try {
+    const webgl = new WebglAddon();
+    webgl.onContextLoss(() => {
+      if (entry.webgl !== webgl) return;
+      console.warn('[terminal] webgl context lost — falling back to DOM renderer');
+      entry.webgl = undefined;
+      entry.needsRendererRepaint = true;
+      try { webgl.dispose(); } catch { /* noop */ }
+      // Laptop sleep == GPU sleep == WebGL context loss: the likely PRIMARY
+      // trigger for the post-wake "can't scroll past a recent point" bug. The
+      // renderer swap leaves xterm's cached cell-height (and the viewport
+      // scroll-area derived from it) stale, so only part of the intact buffer
+      // is scrollable until something forces a re-measure. Heal it here, on the
+      // next frame so the (waking) layout has settled. Guarded + idempotent, so
+      // it composes safely with the visibilitychange/focus path in the view.
+      scheduleWebglRecovery(entry.recovery, requestAnimationFrame, () =>
+        repaintTerminalAfterRendererLoss(entry));
+    });
+    // Set before loadAddon: an immediately-lost context may call the handler
+    // during initialization, and it must be recognized as the active renderer.
+    entry.webgl = webgl;
+    entry.term.loadAddon(webgl);
+  } catch (e) {
+    try { entry.webgl?.dispose(); } catch { /* noop */ }
+    entry.webgl = undefined;
+    console.warn('[terminal] webgl renderer unavailable, using DOM renderer:', e);
+  }
+}
+
+/** Release the WebGL lease so an off-screen terminal isn't holding a GPU context
+ *  that an on-screen one needs. xterm falls back to the DOM renderer, which is
+ *  fine for a terminal nobody is looking at; the next attach takes a fresh
+ *  lease. The buffer and pty subscription are untouched. */
+function releaseWebglRenderer(entry: TerminalEntry): void {
+  const webgl = entry.webgl;
+  if (!webgl) return;
+  entry.webgl = undefined;
+  try { webgl.dispose(); } catch { /* noop */ }
+  // The DOM renderer that takes over inherits xterm's cached cell metrics, which
+  // may be stale by the time this terminal is shown again.
+  entry.needsRendererRepaint = true;
 }
 
 /** Re-parent a pty's terminal into `container`, opening xterm on first attach. */
 export function attachTerminal(entry: TerminalEntry, container: HTMLElement): void {
   container.appendChild(entry.host);
   if (!entry.opened) {
+    // open() must come first — the WebGL addon can only load onto an opened
+    // terminal, and xterm needs its host in the document to measure the cell.
     entry.term.open(entry.host);
     entry.opened = true;
-    // Switch from the DOM renderer to WebGL (must load after open()). The DOM
-    // renderer assumes a perfectly monospace font, but VT323 is missing glyphs
-    // (↔, arrows, some box-drawing) and has no real bold — the browser
-    // substitutes fallback glyphs with different advance widths, so box-drawing
-    // tables shear apart and the cursor drifts. WebGL draws every glyph into its
-    // own fixed cell, keeping the grid aligned. NOT the deprecated canvas addon
-    // (its dirty-region tracking garbles scrollback). Best-effort: on init
-    // failure or GPU context loss, dispose → fall back to the DOM renderer
-    // rather than leave a black terminal.
-    try {
-      const webgl = new WebglAddon();
-      webgl.onContextLoss(() => {
-        if (entry.webgl !== webgl) return;
-        console.warn('[terminal] webgl context lost — falling back to DOM renderer');
-        entry.webgl = undefined;
-        entry.needsRendererRepaint = true;
-        try { webgl.dispose(); } catch { /* noop */ }
-        // Laptop sleep == GPU sleep == WebGL context loss: the likely PRIMARY
-        // trigger for the post-wake "can't scroll past a recent point" bug. The
-        // renderer swap leaves xterm's cached cell-height (and the viewport
-        // scroll-area derived from it) stale, so only part of the intact buffer
-        // is scrollable until something forces a re-measure. Heal it here, on the
-        // next frame so the (waking) layout has settled. Guarded + idempotent, so
-        // it composes safely with the visibilitychange/focus path in the view.
-        scheduleWebglRecovery(entry.recovery, requestAnimationFrame, () => {
-          repaintTerminalAfterRendererLoss(entry);
-        });
-      });
-      // Set before loadAddon: an immediately-lost context may call the handler
-      // during initialization, and it must be recognized as the active renderer.
-      entry.webgl = webgl;
-      entry.term.loadAddon(webgl);
-    } catch (e) {
-      try { entry.webgl?.dispose(); } catch { /* noop */ }
-      entry.webgl = undefined;
-      console.warn('[terminal] webgl renderer unavailable, using DOM renderer:', e);
-    }
-    // PTY startup output can arrive before this pooled terminal subscribes.
-    // Request one same-size redraw after open/subscription even when fit() later
-    // sees unchanged dimensions and therefore emits no resize of its own.
-    requestInitialPtyRedraw(entry.recovery, () => {
-      void window.cth.redrawPty(entry.ptyId);
-    });
   }
+  leaseWebglRenderer(entry);
+  // PTY startup output can arrive before this pooled terminal subscribes.
+  // Request one same-size redraw after open/subscription even when fit() later
+  // sees unchanged dimensions and therefore emits no resize of its own.
+  requestInitialPtyRedraw(entry.recovery, () => window.cth.redrawPty(entry.ptyId));
   if (entry.needsRendererRepaint) {
-    scheduleWebglRecovery(entry.recovery, requestAnimationFrame, () => {
-      repaintTerminalAfterRendererLoss(entry);
-    });
+    scheduleWebglRecovery(entry.recovery, requestAnimationFrame, () =>
+      repaintTerminalAfterRendererLoss(entry));
   }
+}
+
+/** Take the terminal off screen: drop the WebGL lease and unparent the host.
+ *  Everything that makes the terminal a terminal — buffer, scrollback, pty
+ *  subscription — stays in the pool, so re-attaching shows it fully rendered. */
+export function detachTerminal(entry: TerminalEntry, container: HTMLElement): void {
+  // Guard: another view may have already taken the host (React can mount the new
+  // owner before the old one's cleanup runs). Releasing the renderer then would
+  // blank the terminal that just legitimately claimed it.
+  if (entry.host.parentElement !== container) return;
+  releaseWebglRenderer(entry);
+  container.removeChild(entry.host);
 }
 
 function repaintTerminalAfterRendererLoss(entry: TerminalEntry): void {
@@ -341,11 +444,18 @@ function repaintTerminalAfterRendererLoss(entry: TerminalEntry): void {
     entry.needsRendererRepaint = true;
     return;
   }
-  entry.needsRendererRepaint = false;
   reflowTerminal(entry.ptyId);
   try {
     entry.term.refresh(0, Math.max(0, entry.term.rows - 1));
-  } catch { /* renderer may still be settling */ }
+    // Only NOW is the repaint confirmed. Clearing the marker before the refresh
+    // meant a throw here (the renderer still settling) discarded the last record
+    // that this terminal needed repainting — so it stayed black until something
+    // unrelated happened to resize it, which is why Cmd +/- fixed it only some
+    // of the time.
+    entry.needsRendererRepaint = false;
+  } catch {
+    entry.needsRendererRepaint = true;
+  }
 }
 
 /**
@@ -414,6 +524,12 @@ export function resetTerminal(
   entry.exited = false;
   entry.inputDirty = false;
   entry.inputDirtyAt = 0;
+  // The old process's prompt is gone with it — drop our model of that line and
+  // any picker it had open, or the replacement inherits a phantom draft and a
+  // block that nothing can clear.
+  entry.lineBuf = '';
+  entry.automationBlocked = false;
+  entry.automationBlockedAt = 0;
   try {
     if (opts.preserveScrollback) {
       entry.term.writeln('\r\n\x1b[2m─ resuming existing session ─\x1b[0m');

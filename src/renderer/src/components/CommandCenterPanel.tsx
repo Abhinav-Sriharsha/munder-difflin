@@ -256,7 +256,16 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
   const restartWithModel = async (
     a: Agent,
     model: string | undefined,
-    opts: { resume?: boolean; provider?: AgentProvider } = {}
+    opts: {
+      resume?: boolean;
+      provider?: AgentProvider;
+      /** Resume if we can, start fresh if we can't, instead of refusing.
+       *  "Restart & Continue" wants the hard failure — continuing is the entire
+       *  point, so silently starting a blank session would be worse than an
+       *  error. A model change wants the soft one: the user asked to change
+       *  model, and an agent with no recorded session still has to get one. */
+      resumeOptional?: boolean;
+    } = {}
   ) => {
     if (!a.ptyId) return;
     setRestarting(a.id);
@@ -265,19 +274,25 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
       const cfg = await window.cth.getConfig();
       const previousProvider = inferAgentProvider(a.command, a.provider);
       const provider = opts.provider ?? previousProvider;
-      const resume = opts.resume === true && provider === previousProvider;
-      if (opts.resume && !resume) {
+      let resume = opts.resume === true && provider === previousProvider;
+      if (opts.resume && !resume && !opts.resumeOptional) {
         throw new Error('Cannot resume a session through a different provider.');
       }
       let resumeSessionId: string | undefined;
       if (resume) {
+        // A precondition miss is fatal for an explicit "continue", and merely
+        // means "start fresh" for an opportunistic one (see resumeOptional).
+        const giveUpOnResume = (reason: string) => {
+          if (!opts.resumeOptional) throw new Error(reason);
+          resume = false;
+          resumeSessionId = undefined;
+        };
         const registry = await window.cth.hiveRegistry();
         resumeSessionId = registry.agents[a.id]?.sessionId;
         if (!resumeSessionId) {
-          throw new Error('No recorded session ID; current process was left running.');
-        }
-        if (provider === 'claude' && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
-          throw new Error('Session transcript not found; current process was left running.');
+          giveUpOnResume('No recorded session ID; current process was left running.');
+        } else if (provider === 'claude' && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
+          giveUpOnResume('Session transcript not found; current process was left running.');
         }
       }
       // Capture the live grid before replacing anything. Restart & Continue
@@ -574,7 +589,19 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
                 disabled={restarting === a.id}
                 onChange={(value) => {
                   const choice = decodeProviderModel(value);
-                  if (choice) void restartWithModel(a, choice.model, { provider: choice.provider });
+                  if (!choice) return;
+                  // Switching model within the SAME provider continues the
+                  // conversation — that's the whole point of switching mid-task
+                  // ("this got hard, go up a tier"), and starting fresh threw
+                  // away the context that made the switch necessary.
+                  // `resume` is best-effort: restartWithModel already refuses it
+                  // across providers, and falls back to a fresh session when no
+                  // session id or transcript is recorded.
+                  void restartWithModel(a, choice.model, {
+                    provider: choice.provider,
+                    resume: choice.provider === agentProvider,
+                    resumeOptional: true
+                  });
                 }}
               >
                 {(!agentPreset.supportsModel || !currentModelKnown) && (

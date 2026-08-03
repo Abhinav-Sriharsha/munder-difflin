@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { useStore } from '@/store/store';
+import { useStore, type Agent } from '@/store/store';
 import { buildSpawnCommand, inferAgentProvider, tokenizeCommand, type HarnessConfig } from '@/store/config';
 
 /** "Restore team" — respawn every worker from the previous session.
@@ -66,7 +66,12 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
       // synchronously between awaits, so concurrent handlers can't interleave
       // mid-update. Serially this cost the sum of every agent's git probe + spawn;
       // a 6-agent team took ~6× one agent for no reason.
-      await Promise.all([...restorableAgents].map(async (a) => {
+      // Spawns run concurrently but agents are ADDED in roster order afterwards.
+      // Calling addAgent from inside each spawn made completion timing decide
+      // the roster order — and that order is persisted, so a slow provider or a
+      // slow git probe silently overwrote the sequence the user had dragged the
+      // cards into.
+      const restoredInOrder = await Promise.all([...restorableAgents].map(async (a): Promise<Agent | null> => {
         // Per-agent guard: one agent's failure (or a rejected IPC call) must NEVER
         // abort the others — an unhandled rejection here used to make the
         // entire restore a silent no-op after the first bad agent.
@@ -78,7 +83,7 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
             // config to rebuild one). Keep it restorable and SAY why rather than
             // silently dropping it — silent removal read as "nothing happened".
             failures.push(`${a.name}: no saved command`);
-            return;
+            return null;
           }
           const [exe, ...args] = tokenizeCommand(command);
           const ptyId = a.ptyId ?? `pty-${a.id}`;
@@ -123,22 +128,22 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
           });
           if (res.ok) {
             restored++;
-            useStore.getState().addAgent({
-              ...a,
-              provider,
-              ptyId,
-              archived: false,
-              status: 'idle',
-              // Surface the worktree fallback on the floor card; otherwise normal.
-              action: worktreeGone ? 'worktree gone — using base repo' : 'starting up',
-              // The worktree is no longer on disk — drop it so this agent is treated
-              // as a plain base-cwd agent going forward (a future restore won't keep
-              // re-probing a dead path).
-              worktreePath: worktreeGone ? undefined : a.worktreePath,
-              carrying: undefined,
-              currentStation: 'desk',
-              recentTextTs: Date.now()
-            });
+            return {
+                ...a,
+                provider,
+                ptyId,
+                archived: false,
+                status: 'idle',
+                // Surface the worktree fallback on the floor card; otherwise normal.
+                action: worktreeGone ? 'worktree gone — using base repo' : 'starting up',
+                // The worktree is no longer on disk — drop it so this agent is treated
+                // as a plain base-cwd agent going forward (a future restore won't keep
+                // re-probing a dead path).
+                worktreePath: worktreeGone ? undefined : a.worktreePath,
+                carrying: undefined,
+                currentStation: 'desk',
+                recentTextTs: Date.now()
+            };
           } else if ((res.error ?? '').includes('already exists')) {
             // A live PTY with this id is already running (e.g. respawned at boot or
             // by another path) — the agent isn't actually missing, so retire it from
@@ -155,7 +160,12 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
           failures.push(`${a.name}: ${e instanceof Error ? e.message : String(e)}`);
           console.error('[restore] error for', a.id, e);
         }
+        return null;
       }));
+      // Add in the ORIGINAL roster order, not completion order.
+      for (const restoredAgent of restoredInOrder) {
+        if (restoredAgent) useStore.getState().addAgent(restoredAgent);
+      }
     } finally {
       // addAgent auto-selects each spawn; put the user back where they were.
       const sel = useStore.getState();

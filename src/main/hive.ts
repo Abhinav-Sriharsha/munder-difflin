@@ -437,6 +437,42 @@ export class HiveManager {
   }
 
   /**
+   * Rename an agent, keeping its id. The id is the identity everything else is
+   * keyed on — workspace directory, inbox, memory.md, task assignees — so a
+   * rename is purely cosmetic and nothing has to be migrated. Only the registry
+   * (which feeds the roster other agents read) needs updating, plus the identity
+   * card so the agent itself knows what it is now called. Best-effort; returns
+   * whether anything changed.
+   */
+  rename(id: string, name: string): boolean {
+    const root = this.root();
+    if (!root) return false;
+    const next = name.trim();
+    if (!next) return false;
+    try {
+      const reg = this.registry();
+      const agent = reg.agents[id];
+      if (!agent || agent.name === next) return false;
+      const previous = agent.name;
+      agent.name = next;
+      agent.lastSeen = Date.now();
+      this.writeJson(join(root, 'registry.json'), reg);
+      // Refresh the identity card so the agent's own prompt stops calling it by
+      // the old name. Written on every spawn anyway, but a rename shouldn't have
+      // to wait for a restart to take effect.
+      try {
+        const dir = join(root, 'agents', id);
+        if (existsSync(dir)) writeFileSync(join(dir, 'identity.md'), this.identityText(agent), 'utf8');
+      } catch { /* identity refresh is best-effort */ }
+      this.appendLog({ kind: 'rename', agentId: id, name: next, previous });
+      this.commit(`hive: rename ${id} → ${next}`);
+      return true;
+    } catch {
+      return false; // best-effort — never crash a lifecycle handler
+    }
+  }
+
+  /**
    * Persist the agent's Claude Code session_id (Lane A #6.6a). Captured from hook
    * payloads; written only when it actually changes (a new session), so this is a
    * no-op on the vast majority of hook events. The id is the `--resume` key for
