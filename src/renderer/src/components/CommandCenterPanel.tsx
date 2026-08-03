@@ -64,7 +64,11 @@ const TABS: { key: CCTab; label: string; icon: Parameters<typeof Icon>[0]['name'
   { key: 'handbook', label: 'commands', icon: 'code' }
 ];
 
-export function CommandCenterPanel({ agent }: { agent: Agent }) {
+/** @param fullscreen this instance IS the fullscreen overlay, so it owns the pty
+ *  and renders the real terminal. The docked instance renders the "open in
+ *  fullscreen" placeholder instead — two live xterms on one pty fight over its
+ *  cols/rows and corrupt the display. */
+export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent; fullscreen?: boolean }) {
   const [tab, setTab] = useState<CCTab>('terminal');
   // External tab requests (the office task board → 'tasks', the boss-room
   // calendar → 'schedules'). seq-keyed so clicking again re-opens the tab even
@@ -90,7 +94,8 @@ export function CommandCenterPanel({ agent }: { agent: Agent }) {
   const setFullscreen = useStore((s) => s.setFullscreen);
   const fullscreenAgentId = useStore((s) => s.fullscreenAgentId);
   const onPtyStream = usePtyParser(agent.id);
-  const isFullscreenedHere = fullscreenAgentId === agent.id;
+  // True only for the DOCKED panel while the overlay holds this agent.
+  const isFullscreenedHere = fullscreenAgentId === agent.id && !fullscreen;
 
   return (
     <PixelPanel
@@ -169,9 +174,9 @@ export function CommandCenterPanel({ agent }: { agent: Agent }) {
                     }
                     void window.cth.historyAdd({ agentId: agent.id, cwd: agent.cwd, text: t });
                   }}
-                  onToggleFullscreen={() => setFullscreen(agent.id)}
-                  fullscreen={false}
-                  embedded
+                  onToggleFullscreen={() => setFullscreen(fullscreen ? null : agent.id)}
+                  fullscreen={fullscreen}
+                  embedded={!fullscreen}
                 />
               </div>
               <MessageQueueComposer agent={agent} />

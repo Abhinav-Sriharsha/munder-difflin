@@ -3,23 +3,24 @@ import type { CSSProperties } from 'react';
 import '@xterm/xterm/css/xterm.css';
 import { Icon } from './Icon';
 import { acquireTerminal, attachTerminal, reflowTerminal } from './terminalPool';
+import {
+  DEFAULT_TERMINAL_FONT_SIZE,
+  MAX_TERMINAL_FONT_SIZE,
+  MIN_TERMINAL_FONT_SIZE,
+  getTerminalFontSize,
+  setTerminalFontSize,
+  useTerminalFontSize
+} from './terminalFontSize';
 
-const DEFAULT_FONT_SIZE = 14;
-const MIN_FONT_SIZE = 8;
-const MAX_FONT_SIZE = 40;
+// Zoom lives in ./terminalFontSize so anything outside the terminal (the message
+// composer) can scale with it too; these aliases keep the call sites below short.
+const DEFAULT_FONT_SIZE = DEFAULT_TERMINAL_FONT_SIZE;
+const MIN_FONT_SIZE = MIN_TERMINAL_FONT_SIZE;
+const MAX_FONT_SIZE = MAX_TERMINAL_FONT_SIZE;
 
-const LS_FONT_SIZE = 'cth.ptyFontSize';
 const LS_THEME = 'cth.ptyTheme';
 
 type PtyTheme = 'light' | 'dark';
-
-function loadFontSize(): number {
-  try {
-    const n = parseInt(window.localStorage.getItem(LS_FONT_SIZE) ?? '', 10);
-    if (!Number.isNaN(n) && n >= MIN_FONT_SIZE && n <= MAX_FONT_SIZE) return n;
-  } catch { /* noop */ }
-  return DEFAULT_FONT_SIZE;
-}
 
 function loadTheme(): PtyTheme {
   try {
@@ -131,7 +132,7 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
   onStreamDataRef.current = onStreamData;
   const onUserPromptRef = useRef(onUserPrompt);
   onUserPromptRef.current = onUserPrompt;
-  const [fontSize, setFontSize] = useState(loadFontSize);
+  const fontSize = useTerminalFontSize();
   const fontSizeRef = useRef(fontSize);
   const [ptyTheme, setPtyTheme] = useState<PtyTheme>(loadTheme);
   const ptyThemeRef = useRef(ptyTheme);
@@ -279,7 +280,6 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
   // Apply font-size (zoom) changes to the pooled terminal and re-fit cols/rows.
   useEffect(() => {
     fontSizeRef.current = fontSize;
-    try { window.localStorage.setItem(LS_FONT_SIZE, String(fontSize)); } catch { /* noop */ }
     const entry = acquireTerminal(ptyId, THEMES[ptyThemeRef.current], fontSize);
     entry.term.options.fontSize = fontSize;
     try {
@@ -334,9 +334,8 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
     void window.cth.writePty(ptyId, paths.join(' ') + ' ');
   };
 
-  const zoom = (delta: number) =>
-    setFontSize((s) => Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, s + delta)));
-  const resetZoom = () => setFontSize(DEFAULT_FONT_SIZE);
+  const zoom = (delta: number) => setTerminalFontSize(getTerminalFontSize() + delta);
+  const resetZoom = () => setTerminalFontSize(DEFAULT_FONT_SIZE);
 
   // Keyboard zoom: Cmd/Ctrl + '=' / '-' / '0'
   useEffect(() => {

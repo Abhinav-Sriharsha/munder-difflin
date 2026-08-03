@@ -303,7 +303,7 @@ export function App() {
         />
       )}
 
-      {fullscreenAgentId && <FullscreenTerminal />}
+      {fullscreenAgentId && <FullscreenTerminal config={config} />}
       {fullscreenFilePath && <FullscreenFileEditor />}
       <TaskDetailOverlay />
     </div>

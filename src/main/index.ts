@@ -7,7 +7,6 @@ import {
 } from 'node:fs';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { join, resolve, sep, basename, dirname } from 'node:path';
-import { tmpdir } from 'node:os';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
 import { enableOpsStandupAutoCompact } from '../shared/autoCompact';
@@ -17,7 +16,7 @@ import {
 } from './config';
 import { listDir, readFileText, writeFileText } from './fs';
 import {
-  getBranch, getStatus, getLog, getBranches, getAheadBehind, isRepo,
+  getBranch, getStatus, getLog, getBranches, getAheadBehind, isRepo, mainRepoRoot,
   addWorktree, removeWorktree
 } from './git';
 import { HiveManager, type AgentMeta, type HiveMessage, type HiveTask } from './hive';
@@ -47,6 +46,7 @@ import {
   CODEX_REMOTE_SOCKET_RELATIVE,
   codexRemoteAliasPath,
   codexRemoteEndpoint,
+  codexRemoteSocketFits,
   withCodexRemoteArgs
 } from '../shared/codexRemote';
 
@@ -120,7 +120,14 @@ async function enableCodexRemoteForSpawn(
   const realHome = opts.env?.CODEX_HOME;
   if (!realHome) return false;
   try {
-    const alias = codexRemoteAliasPath(realHome, agentId, tmpdir());
+    const alias = codexRemoteAliasPath(realHome, agentId);
+    // Bail before touching the filesystem if even the short alias would exceed
+    // sun_path — the daemon would start and then die on bind, and the warning
+    // below names the real reason instead of a generic readiness timeout.
+    if (!codexRemoteSocketFits(alias)) {
+      console.warn('[codex-remote] socket path exceeds sun_path; starting local TUI:', alias);
+      return false;
+    }
     const aliasRoot = dirname(alias);
     mkdirSync(aliasRoot, { recursive: true });
     if (existsSync(alias)) {
@@ -1925,6 +1932,13 @@ ipcMain.handle('fs:writeFile', (_evt, root: unknown, rel: unknown, content: unkn
 ipcMain.handle('git:isRepo', (_evt, cwd: unknown) => {
   if (typeof cwd !== 'string') return false;
   return isRepo(cwd);
+});
+
+// The repo a cwd belongs to, following a linked worktree back to its main
+// checkout — the renderer groups the agent roster by this.
+ipcMain.handle('git:mainRepo', (_evt, cwd: unknown) => {
+  if (typeof cwd !== 'string' || !cwd) return null;
+  return mainRepoRoot(cwd);
 });
 ipcMain.handle('git:branch', (_evt, cwd: unknown) => {
   if (typeof cwd !== 'string') return { error: 'invalid cwd' };
