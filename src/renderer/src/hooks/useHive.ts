@@ -13,7 +13,7 @@ import {
   terminalReadyToReceive
 } from '../../../shared/providerAutomation';
 import type { AgentProvider } from '../../../shared/agentProvider';
-import { isTerminalAutomationSafe } from '@/components/terminalPool';
+import { clearStaleTerminalDraft, isTerminalAutomationSafe } from '@/components/terminalPool';
 import { deliverWithAcknowledgement } from './queueDelivery';
 
 const GOD_ID = 'god';
@@ -522,6 +522,9 @@ export function useHive(config: HarnessConfig | null): void {
       if ((bootGraceUntil.current[target.id] ?? 0) >= now) return { sent: false };
       if (!isTerminalAutomationSafe(target.ptyId, now)) return { sent: false };
       if (now - (lastFlush.current[target.id] ?? 0) < FLUSH_COOLDOWN_MS) return { sent: false };
+      // The gate above lets an ABANDONED draft through. Wipe the prompt first so
+      // the leftover half-line can't fuse with the message we're about to type.
+      clearStaleTerminalDraft(target.ptyId, now);
       const flightKey = `${srcId}:${next.id}`;
       if (inFlight.has(flightKey)) return { sent: false };
       inFlight.add(flightKey);

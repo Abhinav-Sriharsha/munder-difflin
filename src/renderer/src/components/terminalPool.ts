@@ -26,8 +26,11 @@ import {
 } from './terminalRecovery';
 import {
   canAutomateTerminal,
+  isStaleTerminalDraft,
   opensInteractiveTerminalUi,
-  shouldFollowTerminalOutput
+  shouldFollowTerminalOutput,
+  terminalAutomationBlock,
+  type TerminalAutomationBlock
 } from './terminalAutomation';
 import '@xterm/xterm/css/xterm.css';
 
@@ -53,6 +56,7 @@ export interface TerminalEntry {
   automationBlocked: boolean;
   /** True while the user has unsubmitted text in the live TUI prompt. */
   inputDirty: boolean;
+  inputDirtyAt: number; // when the draft was last typed into; drives staleness expiry
   automationSettleUntil: number;
   webgl?: WebglAddon;
 }
@@ -113,6 +117,7 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
     needsRendererRepaint: false,
     automationBlocked: false,
     inputDirty: false,
+    inputDirtyAt: 0,
     automationSettleUntil: 0
   };
 
@@ -212,6 +217,9 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
       }
     }
     entry.inputDirty = lineBuf.length > 0;
+    // Re-stamped on every keystroke, so the staleness clock measures time since
+    // the user last touched the draft — not since they started it.
+    if (entry.inputDirty) entry.inputDirtyAt = Date.now();
   });
 
   pool.set(ptyId, entry);
@@ -223,12 +231,51 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
 export function isTerminalAutomationSafe(ptyId: string, now = Date.now()): boolean {
   const entry = pool.get(ptyId);
   if (!entry) return true;
-  return canAutomateTerminal({
+  return canAutomateTerminal(automationStateOf(entry), now);
+}
+
+function automationStateOf(entry: TerminalEntry) {
+  return {
     exited: entry.exited,
     pickerOpen: entry.automationBlocked,
     inputDirty: entry.inputDirty,
+    inputDirtyAt: entry.inputDirty ? entry.inputDirtyAt : undefined,
     settleUntil: entry.automationSettleUntil
-  }, now);
+  };
+}
+
+/** Why queue delivery is currently held back for this pty, or null if it isn't.
+ * The composer shows this instead of claiming it is sending. */
+export function terminalAutomationBlockFor(
+  ptyId: string | undefined,
+  now = Date.now()
+): TerminalAutomationBlock {
+  if (!ptyId) return null;
+  const entry = pool.get(ptyId);
+  if (!entry) return null;
+  return terminalAutomationBlock(automationStateOf(entry), now);
+}
+
+/** Wipe the TUI prompt's current line and re-arm automation. Ctrl-U is the
+ * readline kill-to-start binding every supported CLI's input honors. */
+export function clearTerminalDraft(ptyId: string): void {
+  const entry = pool.get(ptyId);
+  if (!entry) return;
+  void window.cth.writePty(ptyId, '\x15');
+  entry.inputDirty = false;
+  entry.inputDirtyAt = 0;
+  entry.automationBlocked = false;
+  // Let the TUI repaint the cleared line before automation types into it.
+  entry.automationSettleUntil = Date.now() + 300;
+}
+
+/** Drop a draft nobody has touched for STALE_INPUT_MS so it cannot fuse with the
+ * text automation is about to type. No-op while the draft is still fresh. */
+export function clearStaleTerminalDraft(ptyId: string, now = Date.now()): boolean {
+  const entry = pool.get(ptyId);
+  if (!entry || !isStaleTerminalDraft(automationStateOf(entry), now)) return false;
+  clearTerminalDraft(ptyId);
+  return true;
 }
 
 /** Re-parent a pty's terminal into `container`, opening xterm on first attach. */
@@ -366,6 +413,7 @@ export function resetTerminal(
   // latched `exited`, which otherwise makes onData drop keystrokes silently.
   entry.exited = false;
   entry.inputDirty = false;
+  entry.inputDirtyAt = 0;
   try {
     if (opts.preserveScrollback) {
       entry.term.writeln('\r\n\x1b[2m─ resuming existing session ─\x1b[0m');
