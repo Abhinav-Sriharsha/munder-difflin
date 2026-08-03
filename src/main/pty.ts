@@ -71,6 +71,8 @@ export class PtyManager {
    *  (archive, worktree removal, map cleanup) that the explicit kill() path
    *  runs. Best-effort — set once by the main process. */
   private exitHandler: ((id: string) => void) | null = null;
+  /** script → captured output, from captureFromLoginShell. See the memo note there. */
+  private shellCapture = new Map<string, string>();
 
   /** The default/fallback output sink — set to the PRIMARY window. Used only for
    *  sessions with no recorded owner; owned sessions route to their owner. */
@@ -111,6 +113,54 @@ export class PtyManager {
     const wc = target ?? this.webContents;
     if (!wc || wc.isDestroyed()) return;
     try { wc.send(channel, payload); } catch { /* window tore down mid-send */ }
+  }
+
+  /** Run `script` in the user's INTERACTIVE login shell and return only what the
+   *  script itself printed.
+   *
+   *  An interactive shell is required to pick up nvm/asdf/brew PATH edits, but it
+   *  also runs the user's rc files, which are free to print. This machine's zsh
+   *  emits `Restored session: <date>` from its session-save plugin BEFORE the
+   *  script's own output, which silently poisoned every value we read back:
+   *  a plain `.trim()` on `echo "$PATH"` yielded
+   *  `"Restored session: …\n/opt/homebrew/bin:…"` and that whole string was
+   *  handed to every agent as its PATH. Fencing the output between two markers
+   *  makes rc-file chatter (before, after, or both) impossible to mistake for a
+   *  result. Returns null when the shell fails or the fence never appears. */
+  private captureFromLoginShell(script: string): string | null {
+    // Memoised for the process lifetime, keyed by script. Every spawn runs this
+    // TWICE (resolveCommand's `which`, then the PATH capture) and each call boots
+    // a full interactive login shell (rc files and all) — hundreds of ms of
+    // BLOCKING spawnSync on the main process. Restoring a team of N agents paid
+    // that 2N times and no amount of renderer-side concurrency could hide it,
+    // because spawnSync stalls the whole event loop. The user's shell PATH and
+    // binary locations don't change mid-session, so one capture per script is
+    // enough; a PATH edit made while the app is running needs a restart to be
+    // seen. Only successful captures are cached — a null (shell failed / fence
+    // missing) stays retryable.
+    const cached = this.shellCapture.get(script);
+    if (cached !== undefined) return cached;
+    const value = this.captureFromLoginShellUncached(script);
+    if (value !== null) this.shellCapture.set(script, value);
+    return value;
+  }
+
+  private captureFromLoginShellUncached(script: string): string | null {
+    const mark = '__MD_SHELL_FENCE__';
+    try {
+      const res = spawnSync(
+        process.env.SHELL ?? '/bin/zsh',
+        ['-ilc', `printf %s ${mark}; ${script}; printf %s ${mark}`],
+        { encoding: 'utf8', timeout: 3000 }
+      );
+      const out = res.stdout ?? '';
+      const start = out.indexOf(mark);
+      const end = out.lastIndexOf(mark);
+      if (start < 0 || end <= start) return null;
+      return out.slice(start + mark.length, end);
+    } catch {
+      return null;
+    }
   }
 
   /** Resolve a bare command (e.g. 'claude') against the user's PATH +
@@ -156,14 +206,11 @@ export class PtyManager {
       return command;
     }
     // macOS / Linux — `which` against an interactive shell so we pick up nvm/asdf/brew paths.
-    try {
-      const res = spawnSync(process.env.SHELL ?? '/bin/zsh', ['-ilc', `which ${command}`], {
-        encoding: 'utf8',
-        timeout: 3000
-      });
-      const path = res.stdout.trim().split('\n').pop();
+    const which = this.captureFromLoginShell(`which ${command}`);
+    if (which) {
+      const path = which.trim().split('\n').map((l) => l.trim()).filter(Boolean).pop();
       if (path && existsSync(path)) return path;
-    } catch { /* fall through */ }
+    }
     // Common explicit locations
     const candidates = [
       `/opt/homebrew/bin/${command}`,
@@ -190,15 +237,12 @@ export class PtyManager {
       const userPath = (() => {
         // Windows has no interactive login-shell PATH problem — use the process PATH directly.
         if (process.platform === 'win32') return process.env.PATH || '';
-        try {
-          const res = spawnSync(process.env.SHELL ?? '/bin/zsh', ['-ilc', 'echo -n "$PATH"'], {
-            encoding: 'utf8',
-            timeout: 3000
-          });
-          return res.stdout.trim() || process.env.PATH || '';
-        } catch {
-          return process.env.PATH || '';
-        }
+        const shellPath = this.captureFromLoginShell('printf %s "$PATH"')?.trim();
+        // A PATH is a single colon-joined line. Anything multi-line is rc-file
+        // noise that slipped the fence — fall back rather than hand the agent a
+        // corrupt PATH it would carry into every subprocess it spawns.
+        if (shellPath && !shellPath.includes('\n')) return shellPath;
+        return process.env.PATH || '';
       })();
 
       // On Windows, .cmd/.bat files (and extensionless shims) cannot be executed

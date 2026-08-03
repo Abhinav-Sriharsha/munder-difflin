@@ -127,9 +127,15 @@ export function AgentStrip({ config }: AgentStripProps) {
     let alreadyLive = 0;
     const failures: string[] = [];
     try {
-      for (const a of [...restorableAgents]) {
+      // Restore every agent CONCURRENTLY. Each spawn is keyed by its own ptyId and
+      // touches no cross-agent state in the renderer, and in the main process the
+      // whole `pty:spawn` handler (hive registry read-modify-write included) runs
+      // synchronously between awaits, so concurrent handlers can't interleave
+      // mid-update. Serially this cost the sum of every agent's git probe + spawn;
+      // a 6-agent team took ~6× one agent for no reason.
+      await Promise.all([...restorableAgents].map(async (a) => {
         // Per-agent guard: one agent's failure (or a rejected IPC call) must NEVER
-        // abort the whole loop — an unhandled rejection here used to make the
+        // abort the others — an unhandled rejection here used to make the
         // entire restore a silent no-op after the first bad agent.
         try {
           const provider = inferAgentProvider(a.command, a.provider);
@@ -139,7 +145,7 @@ export function AgentStrip({ config }: AgentStripProps) {
             // config to rebuild one). Keep it restorable and SAY why rather than
             // silently dropping it — silent removal read as "nothing happened".
             failures.push(`${a.name}: no saved command`);
-            continue;
+            return;
           }
           const [exe, ...args] = tokenizeCommand(command);
           const ptyId = a.ptyId ?? `pty-${a.id}`;
@@ -216,7 +222,7 @@ export function AgentStrip({ config }: AgentStripProps) {
           failures.push(`${a.name}: ${e instanceof Error ? e.message : String(e)}`);
           console.error('[restore] error for', a.id, e);
         }
-      }
+      }));
     } finally {
       // addAgent auto-selects each spawn; put the user back where they were.
       const sel = useStore.getState();
