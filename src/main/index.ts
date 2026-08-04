@@ -33,6 +33,7 @@ import { SlackWebhookServer, SlackReplyServer, postSlackReply, type SlackEventFi
 import { WebhookServer, type WebhookInbound, type WebhookTaskStatus } from './webhook';
 import { transcribeWithGroq, DEFAULT_GROQ_MODEL } from './freeflow';
 import { TelemetryCollector } from './telemetry';
+import { RosterStore } from './roster';
 import { ControlRegistry } from './control';
 import { ClosingTimeController } from './closingTime';
 import {
@@ -1883,7 +1884,11 @@ ipcMain.handle('config:changeHome', async (_evt, payload: unknown) => {
 
   if (mode === 'move' && oldHome) {
     try {
-      for (const sub of ['hive', 'palace']) {
+      // roster.json + its backups ride along with hive/palace: the roster is the
+      // renderer's half of the same state, and leaving it behind would move the
+      // agents' sessions and memory to the new home while their names, notes and
+      // worktree paths stayed at the old one.
+      for (const sub of ['hive', 'palace', 'roster.json', 'roster-backups']) {
         const src = join(oldHome, sub);
         if (!existsSync(src)) continue;
         // cpSync copies the whole tree incl. .git and is cross-device safe (unlike
@@ -1961,6 +1966,16 @@ ipcMain.handle('git:aheadBehind', (_evt, cwd: unknown) => {
   if (typeof cwd !== 'string') return { error: 'invalid cwd' };
   return getAheadBehind(cwd);
 });
+
+// ─── IPC: roster mirror (shared between dev and a packaged build) ───────────
+// The renderer's store is built synchronously at module load, before any async
+// IPC could resolve, so the read is `ipcMain.on` + `returnValue` — one blocking
+// round trip at boot, in exchange for the roster being correct on first paint
+// instead of flashing an empty floor and then filling in.
+const roster = new RosterStore(() => readConfig().harnessHome);
+ipcMain.on('roster:readSync', (evt) => { evt.returnValue = roster.read(); });
+ipcMain.handle('roster:read', () => roster.read());
+ipcMain.handle('roster:write', (_evt, snap: unknown) => roster.write(snap));
 
 // ─── IPC: hive (multi-agent coordination) ───────────────────────────────────
 ipcMain.handle('hive:registry', () => hive.registry());
@@ -2177,6 +2192,12 @@ ipcMain.handle('app:resetAll', () => {
     try { rmSync(dir, { recursive: true, force: true }); }
     catch (e) { console.error('[reset] rm', dir, e); }
   }
+  // The roster is the renderer's half of the same state, so it retires with the
+  // hive — archived into roster-backups/ rather than deleted, and cleared as the
+  // active file so re-selecting this folder later doesn't resurrect agents whose
+  // sessions and memory are gone.
+  try { roster.archive(); }
+  catch (e) { console.error('[reset] roster.archive:', e); }
   // Back to first-run defaults, then relaunch clean so all in-memory services
   // re-bootstrap from scratch and the renderer lands on onboarding.
   resetConfig();

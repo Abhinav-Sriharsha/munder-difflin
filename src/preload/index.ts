@@ -4,6 +4,20 @@ import type { AgentProvider } from '../shared/agentProvider';
 // Injected at build time from package.json (see electron.vite.config.ts).
 declare const __APP_VERSION__: string;
 
+/** The renderer's roster as mirrored to `<harnessHome>/roster.json`. The agent
+ *  entries stay `unknown` here for the same reason main leaves them opaque: the
+ *  store owns that shape, and repeating it in the bridge would mean editing two
+ *  files every time an agent gains a field. */
+export interface RosterSnapshot {
+  version: 1;
+  savedAt: string;
+  agents: unknown[];
+  archived: unknown[];
+  restorable: unknown[];
+  queues: Record<string, unknown[]>;
+  selectedId: string | null;
+}
+
 export interface HiveAgentMeta {
   id: string;
   name: string;
@@ -785,7 +799,20 @@ const api = {
   freeflowTranscribe: (arg: {
     audio: ArrayBuffer | Uint8Array; mimeType?: string; filename?: string; language?: string;
   }): Promise<{ ok: boolean; text?: string; error?: string }> =>
-    ipcRenderer.invoke('freeflow:transcribe', arg)
+    ipcRenderer.invoke('freeflow:transcribe', arg),
+
+  // ─── Roster mirror (agents + notes + queues, shared dev ↔ packaged) ─────────
+  /** Read the roster file beside the hive. SYNCHRONOUS on purpose: the zustand
+   *  store is created at module load, so an async read would arrive after the
+   *  first render and the floor would flash empty. One blocking round trip at
+   *  boot. `null` = no file (or unreadable) — the caller then uses localStorage. */
+  rosterReadSync: (): RosterSnapshot | null => {
+    try { return ipcRenderer.sendSync('roster:readSync') ?? null; } catch { return null; }
+  },
+  /** Mirror the roster to disk. Debounced by the caller; main keeps the previous
+   *  contents as a backup and refuses a first write that would empty a full file. */
+  rosterWrite: (snap: RosterSnapshot): Promise<{ ok: boolean; skipped?: string; error?: string }> =>
+    ipcRenderer.invoke('roster:write', snap)
 };
 
 contextBridge.exposeInMainWorld('cth', api);
