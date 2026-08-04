@@ -1997,7 +1997,12 @@ ipcMain.handle('hive:rename', (_evt, id: unknown, name: unknown) => {
   if (!next) return { ok: false, error: 'name cannot be empty' };
   if (next.length > 40) return { ok: false, error: 'name is too long (max 40)' };
   if (!hive.enabled()) return { ok: false, error: 'hive disabled (no harnessHome)' };
-  hive.rename(id, next);
+  // Propagate the outcome. Swallowing a false here let the UI keep a name the
+  // registry had rejected, so the roster every SIBLING agent reads still had the
+  // old one — two names for one agent, with nothing on screen to say so.
+  if (!hive.rename(id, next)) {
+    return { ok: false, error: 'no such agent in the hive registry, or the registry could not be written' };
+  }
   return { ok: true };
 });
 

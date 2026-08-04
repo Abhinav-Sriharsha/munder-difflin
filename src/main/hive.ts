@@ -452,7 +452,11 @@ export class HiveManager {
     try {
       const reg = this.registry();
       const agent = reg.agents[id];
-      if (!agent || agent.name === next) return false;
+      if (!agent) return false;
+      // Already called that ⇒ nothing to do, but the CALLER asked for a state,
+      // not an edit, and that state holds. Reporting false here made a no-op
+      // rename indistinguishable from a failed one at the IPC boundary.
+      if (agent.name === next) return true;
       const previous = agent.name;
       agent.name = next;
       agent.lastSeen = Date.now();
@@ -466,6 +470,23 @@ export class HiveManager {
       } catch { /* identity refresh is best-effort */ }
       this.appendLog({ kind: 'rename', agentId: id, name: next, previous });
       this.commit(`hive: rename ${id} → ${next}`);
+      // A RUNNING agent was told its name in the system prompt injected at spawn,
+      // and in AGENT_NAME — neither of which can be rewritten under a live
+      // process. Rewriting identity.md alone leaves it introducing itself by the
+      // old name until it restarts, and nothing would ever tell it to reread the
+      // file. Mail is the one channel a running agent already drains, so use it.
+      try {
+        this.send({
+          to: id,
+          act: 'inform',
+          subject: `You are now called ${next}`,
+          body: [
+            `You have been renamed from "${previous}" to "${next}".`,
+            'Your agent id is unchanged, so your workspace, inbox, memory and task assignments all stay exactly as they are — nothing to migrate.',
+            'Use the new name from now on. Your identity.md has been updated; the name in your original system prompt is stale.'
+          ].join(' ')
+        }, 'system');
+      } catch { /* the rename itself succeeded; the courtesy note is best-effort */ }
       return true;
     } catch {
       return false; // best-effort — never crash a lifecycle handler

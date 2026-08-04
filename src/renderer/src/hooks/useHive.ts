@@ -13,7 +13,7 @@ import {
   terminalReadyToReceive
 } from '../../../shared/providerAutomation';
 import type { AgentProvider } from '../../../shared/agentProvider';
-import { clearStaleTerminalDraft, isTerminalAutomationSafe } from '@/components/terminalPool';
+import { prepareTerminalForAutomation } from '@/components/terminalPool';
 import { deliverWithAcknowledgement } from './queueDelivery';
 
 const GOD_ID = 'god';
@@ -34,6 +34,17 @@ const INITIAL_GOD_PROMPT = [
   '4. Skim COMMANDS.md (hive root) for the Claude Code commands you can use — and run `mempalace wake-up` for a memory digest if the CLI is available.',
   'Then begin orchestrating: triage requests, delegate work to the team, and keep everyone unblocked. You are fully autonomous — there is no approval queue, so handle tool-permission prompts in this session yourself (the human can approve them remotely from their phone).'
 ].join('\n');
+
+/** Park text automation took off an agent's prompt into that agent's composer
+ *  draft. A draft is only ever cleared on a GUESS that it was abandoned, so the
+ *  text has to land somewhere the user can get it back from — a Ctrl-U in a TUI
+ *  is not undoable, and every automatic writer shares this hazard. */
+function parkDiscardedDraft(agentId: string, discarded: string | null): void {
+  if (!discarded || !discarded.trim()) return;
+  const { drafts, setDraft } = useStore.getState();
+  const existing = drafts[agentId] ?? '';
+  setDraft(agentId, existing ? `${existing}\n${discarded}` : discarded);
+}
 
 // Per-pty submission chain. Every submitToPty for a given pty is appended here so
 // two callers (e.g. the boot sequence's /remote-control and the inbox-wake nudge)
@@ -471,7 +482,14 @@ export function useHive(config: HarnessConfig | null): void {
         try {
           const control = await window.cth.controlSnapshot(a.id);
           if (control?.autoDeliveryPaused) continue;
-          if (!isTerminalAutomationSafe(a.ptyId!, now)) continue;
+          // Same gate as the queue drain, and for the same reason: this loop
+          // types a nudge into the prompt. It used to check only "is it safe?",
+          // which goes true the moment an abandoned draft expires — so the nudge
+          // fused onto the user's half-typed line and submitted both as one
+          // corrupted prompt. Preparing (and parking the draft) is the fix.
+          const prep = prepareTerminalForAutomation(a.ptyId!, now);
+          parkDiscardedDraft(a.id, prep.discardedDraft);
+          if (!prep.ready) continue;
           const inbox = await window.cth.hiveInbox(a.id);
           // Dedup by the newest message id, not the count — a count can oscillate
           // as messages drain and re-arrive, which would re-nudge for the same set.
@@ -520,20 +538,13 @@ export function useHive(config: HarnessConfig | null): void {
       if (control?.autoDeliveryPaused) return { sent: false };
       // Hold queued messages until the target finishes its boot sequence.
       if ((bootGraceUntil.current[target.id] ?? 0) >= now) return { sent: false };
-      if (!isTerminalAutomationSafe(target.ptyId, now)) return { sent: false };
+      // Clears an abandoned draft / closes an expired picker and parks anything
+      // it took off the prompt. Not ready yet means the TUI was just sent the
+      // key that frees the line; we come back for it on the next tick.
+      const prep = prepareTerminalForAutomation(target.ptyId, now);
+      parkDiscardedDraft(target.id, prep.discardedDraft);
+      if (!prep.ready) return { sent: false };
       if (now - (lastFlush.current[target.id] ?? 0) < FLUSH_COOLDOWN_MS) return { sent: false };
-      // The gate above lets an ABANDONED draft through. Wipe the prompt first so
-      // the leftover half-line can't fuse with the message we're about to type —
-      // but "abandoned" is only a guess (a minute of no keystrokes), and it is
-      // wrong whenever the user paused to think or switched windows. Park the
-      // text in that agent's composer draft so it is recoverable instead of
-      // destroyed by a Ctrl-U they never asked for.
-      const discarded = clearStaleTerminalDraft(target.ptyId, now);
-      if (discarded && discarded.trim()) {
-        const { drafts, setDraft } = useStore.getState();
-        const existing = drafts[target.id] ?? '';
-        setDraft(target.id, existing ? `${existing}\n${discarded}` : discarded);
-      }
       const flightKey = `${srcId}:${next.id}`;
       if (inFlight.has(flightKey)) return { sent: false };
       inFlight.add(flightKey);

@@ -26,7 +26,7 @@ import {
 } from './terminalRecovery';
 import {
   canAutomateTerminal,
-  isStaleTerminalDraft,
+  nextTerminalAutomationAction,
   opensInteractiveTerminalUi,
   shouldFollowTerminalOutput,
   terminalAutomationBlock,
@@ -318,8 +318,6 @@ export function clearTerminalDraft(ptyId: string): string {
   return discarded;
 }
 
-/** Drop a draft nobody has touched for STALE_INPUT_MS so it cannot fuse with the
- * text automation is about to type. No-op while the draft is still fresh. */
 /** Close an open picker by sending the key that actually closes one.
  * The Escape round-trips through xterm's own onData handler, so the latch is
  * released by the same path a user pressing Escape would take — we never just
@@ -331,12 +329,47 @@ export function dismissTerminalPicker(ptyId: string): void {
   releasePickerBlock(entry);
 }
 
-export function clearStaleTerminalDraft(ptyId: string, now = Date.now()): string | null {
+export interface AutomationPreparation {
+  /** True only when the prompt is free RIGHT NOW and safe to type into. */
+  ready: boolean;
+  /** Draft text taken off the prompt, so the caller can park it somewhere the
+   *  user can find it again. Null when nothing was discarded. */
+  discardedDraft: string | null;
+}
+
+/** Make this terminal's prompt safe for automation, and say whether it now is.
+ *
+ *  EVERY automatic writer must go through this — not just the queue drain. A
+ *  block that has expired is only a GUESS that the UI it was guarding is gone:
+ *  the picker latch is cleared by an Enter/Escape/Ctrl-C in that terminal, and a
+ *  picker closed any other way (or still genuinely open) leaves it set. Acting
+ *  on that guess by typing is how a queued message got typed into a live menu
+ *  and acknowledged as delivered — lost, with the queue reporting success.
+ *
+ *  So an expired block is acted on by CLOSING the thing it described and
+ *  reporting not-ready. The caller retries on its next tick, by which time the
+ *  Escape (or Ctrl-U) has landed and the TUI has repainted the freed line. */
+export function prepareTerminalForAutomation(
+  ptyId: string,
+  now = Date.now()
+): AutomationPreparation {
   const entry = pool.get(ptyId);
-  if (!entry || !isStaleTerminalDraft(automationStateOf(entry), now)) return null;
-  // Returns the discarded text so the caller can preserve it; '' when the draft
-  // turned out to be empty.
-  return clearTerminalDraft(ptyId);
+  // No pooled terminal ⇒ no local picker and no draft we could be fusing with.
+  if (!entry) return { ready: true, discardedDraft: null };
+  switch (nextTerminalAutomationAction(automationStateOf(entry), now)) {
+    case 'go':
+      return { ready: true, discardedDraft: null };
+    case 'dismiss-picker':
+      dismissTerminalPicker(ptyId);
+      return { ready: false, discardedDraft: null };
+    case 'clear-draft':
+      // "Abandoned" is only a guess (a minute of no keystrokes), and it is wrong
+      // whenever the user paused to think or switched windows — so hand the text
+      // back instead of destroying it with a Ctrl-U they never asked for.
+      return { ready: false, discardedDraft: clearTerminalDraft(ptyId) };
+    default:
+      return { ready: false, discardedDraft: null };
+  }
 }
 
 /** Give this terminal a WebGL renderer for as long as it is on screen.

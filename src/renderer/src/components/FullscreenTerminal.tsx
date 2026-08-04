@@ -37,7 +37,10 @@ function rosterScale(zoom: number) {
 }
 
 function basename(path: string): string {
-  return path.split('/').filter(Boolean).pop() ?? path;
+  // Split on BOTH separators: `git:mainRepo` hands back whatever the platform
+  // uses, and a Windows `C:\work\repo` contains no '/' at all — so a '/'-only
+  // split returned the whole absolute path as the group's "name".
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 
 /** cwd → main-repo basename, resolved once per path and shared by every mount.

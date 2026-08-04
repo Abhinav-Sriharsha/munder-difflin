@@ -96,6 +96,32 @@ export function terminalAutomationBlock(
   return null;
 }
 
+/** What an automatic writer must DO before it may type into this terminal.
+ *
+ *  `terminalAutomationBlock` answers "may I type?", and reports an EXPIRED block
+ *  as no block at all. That answer is a guess: an expiry only means nobody has
+ *  touched the picker/draft for a while, not that it is gone. Every caller that
+ *  acted on the guess by typing was a bug — a queued message typed into a live
+ *  menu and acknowledged as delivered, or an inbox nudge fused onto the user's
+ *  half-written line. So expiries resolve to an ACTION that frees the prompt
+ *  ('dismiss-picker' ⇒ send Escape, 'clear-draft' ⇒ send Ctrl-U and keep the
+ *  text), after which the caller retries once the TUI has repainted. */
+export type TerminalAutomationAction = 'go' | 'dismiss-picker' | 'clear-draft' | 'wait';
+
+export function nextTerminalAutomationAction(
+  state: TerminalAutomationState,
+  now = Date.now()
+): TerminalAutomationAction {
+  // A dead pty cannot be freed by typing into it.
+  if (state.exited) return 'wait';
+  // Picker outranks draft: both flags are set while a slash menu is open, and
+  // Ctrl-U into a menu edits the menu's filter rather than freeing the prompt.
+  if (state.pickerOpen) return isStaleTerminalPicker(state, now) ? 'dismiss-picker' : 'wait';
+  if (state.inputDirty) return isStaleTerminalDraft(state, now) ? 'clear-draft' : 'wait';
+  if (now < state.settleUntil) return 'wait';
+  return 'go';
+}
+
 /** Automatic writes may own the prompt only when no user draft or picker does. */
 export function canAutomateTerminal(
   state: TerminalAutomationState,

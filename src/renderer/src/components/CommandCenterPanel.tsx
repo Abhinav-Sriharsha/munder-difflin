@@ -349,9 +349,21 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
         throw new Error('Resume was refused; no replacement session was accepted.');
       }
       if (res.ok) {
-        // On a pure resume the model is unchanged — don't overwrite it.
+        // Record the model even on a resume. A same-provider model change now
+        // RESUMES the session (that is the point — you keep the conversation and
+        // just swap the model), so "resume ⇒ the model is unchanged" stopped
+        // being true. Skipping the patch left the live process on the new model
+        // while the selector and the persisted agent kept the old one, and the
+        // next restore relaunched the old command. `command` is rebuilt from the
+        // selected model above, so on a genuine no-change restart this is a no-op.
         const patch = resume
-          ? { status: 'idle' as const, action: 'continuing…' }
+          ? {
+              command: command.trim(),
+              provider,
+              model,
+              status: 'idle' as const,
+              action: 'continuing…'
+            }
           : {
               command: command.trim(),
               provider,
