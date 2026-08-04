@@ -98,11 +98,12 @@ export interface ModelOption {
 
 /** The models offered in the "add agent" picker and the per-agent selector.
  *  `[1m]` selects the 1M-token context window variant. */
+// Deliberately has NO "pass no --model flag" entry. Every option here names a
+// real model, because the whole reason to open this picker is to know which
+// model an agent is on — and a no-flag option resolves to whatever Claude Code
+// happens to choose, which the UI cannot show and the user cannot predict. The
+// harness default is marked ` · default` instead, and it names a real model.
 export const AGENT_MODELS: ModelOption[] = [
-  // No `--model` flag at all — whatever the CLI itself defaults to. NOT the
-  // harness's `config.defaultModel`; the pickers mark that one separately, and
-  // labelling both "default" is what made the two impossible to tell apart.
-  { id: undefined, label: 'CLI default' },
   { id: 'claude-fable-5', label: 'Fable 5' },
   { id: 'claude-opus-5', label: 'Opus 5 · 1M' },
   { id: 'claude-opus-4-8', label: 'Opus 4.8' },
