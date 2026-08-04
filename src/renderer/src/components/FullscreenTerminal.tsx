@@ -141,7 +141,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
   const updateAgent = useStore(s => s.updateAgent);
   // The floor strip (and with it the restore button) is hidden behind the
   // overlay, so the roster carries restore too.
-  const { restoring, restoreNote, restoreTeam } = useRestoreTeam(config);
+  const { restoring, autoRestoring, restoreNote, restoreTeam } = useRestoreTeam(config);
 
   const agent = agents.find(a => a.id === fullscreenAgentId);
   const parser = usePtyParser(agent?.id ?? '__none__');
@@ -335,11 +335,25 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
 
           {/* Last session's team, same as the floor strip — pinned to the bottom
               so it can't be scrolled out of reach behind a long roster. */}
-          {(restorableAgents.length > 0 || restoreNote) && (
+          {(restorableAgents.length > 0 || restoreNote || autoRestoring) && (
             <div style={{
               flexShrink: 0, padding: 8, display: 'flex', flexDirection: 'column', gap: 6,
               borderTop: '1px solid var(--cth-ink-300)'
             }}>
+              {autoRestoring && (
+                // Same banner as the floor strip: terminals that open by
+                // themselves need to say why.
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '4px 8px',
+                  fontFamily: 'var(--cth-font-ui)', fontSize: 11,
+                  color: 'var(--cth-ink-900)',
+                  background: 'var(--cth-status-working)',
+                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
+                }}>
+                  <Icon name="play" /> restoring your team…
+                </div>
+              )}
               {restorableAgents.length > 0 && (
                 <PixelButton
                   variant="primary"
