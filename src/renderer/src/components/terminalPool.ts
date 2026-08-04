@@ -259,12 +259,22 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
 export function isTerminalAutomationSafe(ptyId: string, now = Date.now()): boolean {
   const entry = pool.get(ptyId);
   if (!entry) return true;
-  return canAutomateTerminal(automationStateOf(entry), now);
+  return canAutomateTerminal(automationStateOf(entry, now), now);
 }
 
 /** Characters a TUI paints around its input line that are not the user's text:
  *  the box the prompt sits in and the prompt marker itself. */
 const PROMPT_CHROME = /[─-╿\s>❯$#|]/g;
+
+/** How long after a keystroke the rendered screen is not yet evidence of anything.
+ *
+ *  `inputDirty` is set the instant a key is pressed, but the character only
+ *  reaches xterm's buffer once the PTY echoes it back — a round trip through the
+ *  child process. Inside that gap the buffer still shows the OLD line, so a read
+ *  of a freshly started draft returns "empty" and would hand the prompt to
+ *  automation while the user is mid-word. The screen is only allowed to overrule
+ *  the keystroke count once it has had time to catch up. */
+const ECHO_GRACE_MS = 1000;
 
 /** Does the terminal's rendered prompt line actually hold text right now?
  *
@@ -275,13 +285,19 @@ const PROMPT_CHROME = /[─-╿\s>❯$#|]/g;
  *  arrive" bug. xterm already holds the rendered screen, so read it instead of
  *  trusting the count.
  *
- *  Returns null when the screen cannot be read (the terminal has not been opened
- *  yet, or the row is missing). Deliberately only ever used to CLEAR a phantom,
- *  never to invent a draft: if this says "empty" we believe it, and if it says
- *  "has text" or "don't know" we fall back to the keystroke model. Being wrong
- *  the other way would type over something the user really did write. */
-function promptLineHasText(entry: TerminalEntry): boolean | null {
+ *  Returns null when the screen is not evidence of anything: the terminal has not
+ *  been opened, the row is missing, or the last keystroke is too recent for the
+ *  echo to have landed. Deliberately only ever used to CLEAR a phantom, never to
+ *  invent a draft: "empty" drops the block, while "has text" or "don't know"
+ *  falls back to the keystroke model and keeps it. The asymmetry matters because
+ *  the two mistakes do not cost the same — a wrong "empty" hands the prompt to
+ *  automation and fuses a message onto what the user is writing, where a wrong
+ *  "has text" only parks a queued message until the draft expires. */
+function promptLineHasText(entry: TerminalEntry, now = Date.now()): boolean | null {
   if (!entry.opened || entry.exited) return null;
+  // Too soon after the last keystroke for the echo to have landed — the buffer
+  // is showing us the past, so it cannot clear anything.
+  if (entry.inputDirtyAt && now - entry.inputDirtyAt < ECHO_GRACE_MS) return null;
   try {
     const buf = entry.term.buffer.active;
     const line = buf.getLine(buf.baseY + buf.cursorY);
@@ -294,13 +310,16 @@ function promptLineHasText(entry: TerminalEntry): boolean | null {
 }
 
 /** Whether the user has unsubmitted text sitting on this terminal's prompt.
- *  Drives both the automation gate and the roster's "typing" badge, so the badge
- *  can never disagree with the reason delivery is being held. */
-export function hasTerminalDraft(ptyId: string | undefined): boolean {
+ *  Shares its draft detection with the automation gate, so the "typing" badge
+ *  reports the same draft the gate is holding delivery for. It does NOT apply the
+ *  staleness expiry the gate does: past STALE_INPUT_MS the gate starts delivering
+ *  while this still reports the draft — which is the honest reading, because the
+ *  text really is still on the prompt. */
+export function hasTerminalDraft(ptyId: string | undefined, now = Date.now()): boolean {
   if (!ptyId) return false;
   const entry = pool.get(ptyId);
   if (!entry) return false;
-  return entry.inputDirty && promptLineHasText(entry) !== false;
+  return entry.inputDirty && promptLineHasText(entry, now) !== false;
 }
 
 /** `hasTerminalDraft` as React state. The flag lives on a mutable pool entry
@@ -320,9 +339,9 @@ export function useHasTerminalDraft(ptyId: string | undefined): boolean {
   return dirty;
 }
 
-function automationStateOf(entry: TerminalEntry) {
+function automationStateOf(entry: TerminalEntry, now = Date.now()) {
   // The screen wins over the keystroke count, but only when it says "empty".
-  const inputDirty = entry.inputDirty && promptLineHasText(entry) !== false;
+  const inputDirty = entry.inputDirty && promptLineHasText(entry, now) !== false;
   return {
     exited: entry.exited,
     pickerOpen: entry.automationBlocked,
@@ -349,7 +368,7 @@ export function terminalAutomationBlockFor(
   if (!ptyId) return null;
   const entry = pool.get(ptyId);
   if (!entry) return null;
-  return terminalAutomationBlock(automationStateOf(entry), now);
+  return terminalAutomationBlock(automationStateOf(entry, now), now);
 }
 
 /** Wipe the TUI prompt's current line and re-arm automation. Ctrl-U is the

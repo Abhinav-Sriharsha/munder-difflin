@@ -19,9 +19,14 @@ and never reasons about it.
 
 ## 1. One gate
 
-There is exactly one place that types an automatic message into a PTY: the **drain
-loop**, `useHive.ts` effect #4. Everything that wants to reach an agent enqueues
-into the MD queue and lets the drain decide when.
+One place types automatic messages into a live agent's PTY: the **drain loop**,
+`useHive.ts` effect #4. Everything that wants to reach a running agent enqueues into
+the MD queue and lets the drain decide when.
+
+(The single exception is the god agent's boot sequence, `useHive.ts:284`, which
+writes its remote-control command and orientation prompt directly. That PTY was
+spawned milliseconds earlier and is covered by the boot-grace window, so there is no
+user draft it could land on.)
 
 ```
 composer / Slack ingress ─┐
@@ -102,8 +107,17 @@ never invent one.
 - screen says empty ⇒ believe it, drop the block
 - screen says text, or cannot be read ⇒ fall back to the keystroke count
 
-Wrong in the clearing direction costs a fused prompt. Wrong the other way would type
-over something you really wrote.
+The asymmetry is the point, because the two mistakes don't cost the same. A wrong
+"empty" opens the gate and fuses a queued message onto what you're writing. A wrong
+"has text" only parks that message until the draft expires. So the cheap mistake is
+the one we allow to happen.
+
+One case where the screen is not evidence at all: `inputDirty` is set the moment you
+press a key, but the character only reaches xterm's buffer after the PTY echoes it
+back. Inside that gap the buffer is still showing the previous state, so a read of a
+freshly started draft would return "empty" — the expensive direction. A read within
+`ECHO_GRACE_MS` (1 s) of the last keystroke therefore returns "don't know" and clears
+nothing.
 
 ## 5. Seeing why nothing is being delivered
 
@@ -113,8 +127,13 @@ on agent cards and in the fullscreen roster whenever `hasTerminalDraft(ptyId)` i
 true.
 
 It is not an agent status and is never stored on the agent — the PTY parser owns
-that field and would overwrite it. It is derived at render from the same function
-the gate uses, so the badge can never disagree with the reason delivery is held.
+that field and would overwrite it. It is derived at render from the same draft
+detection the gate uses, so the badge is reporting the same draft the gate sees.
+
+It does **not** apply the 30-minute expiry the gate applies. Past that window the
+gate starts delivering while the badge still reads "your draft" — which is honest:
+your text really is still sitting on the prompt. The badge answers "is my text
+there", not "is the queue blocked".
 
 ## 6. Where the code lives
 
