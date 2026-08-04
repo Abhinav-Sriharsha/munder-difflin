@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Terminal reliability: the blank pane and the message queue that silently stopped
+delivering are both fixed, and fullscreen gets a proper agent roster.
+
+### Added
+- **Fullscreen agent roster rail.** The horizontal tab bar ran out of room past a handful of agents and hid the operator controls; it's replaced by a left rail — `+ agent` pinned at the top, god agents ungrouped above everything, workers bucketed under repository headers, restore-team and its dismiss chips pinned at the bottom. An isolated agent's cwd is its own git worktree, so a new `mainRepoRoot` helper follows a linked worktree back to its main checkout (cached per cwd) and groups key on the absolute repo root, so two checkouts with the same name stay separate. Notes render on the row (one line per bullet) instead of behind a hover popover, the note editor becomes a textarea so Enter makes a new bullet instead of dropping every bullet but the first, pause/halt/steer come back in fullscreen, god agents render the full Command Center, and drag-to-reorder carries over (confined to an agent's own repository group). The destructive kill button is gone.
+- **`typing` badge — see why a queue is held.** A message queue held by your own unsent text on an agent's prompt used to look identical to an idle agent with nothing to do. Agent cards and the fullscreen roster now show a **"your draft"** badge whenever you have unsubmitted text on that agent's prompt. It's derived at render from the same check the delivery gate uses, so the badge can never disagree with the reason nothing is being delivered.
+- **[`docs/message-queue.md`](./docs/message-queue.md)** — the delivery contract: who may type into an agent's terminal, when, and what automation is never allowed to do to your text.
+
+### Changed
+- **One gate for every automatic writer.** The queue kept breaking because two loops each decided for themselves when it was safe to type into a terminal. The inbox-wake nudge now enqueues like scheduled `/compact` already did, so a single drain loop owns every "is this terminal free?" decision — idle, off cooldown, past boot grace, delivery not paused, no user draft in the way.
+- **Automation never destroys or closes what you own.** A draft or picker block lasts half an hour rather than a minute, and when it expires delivery simply types *after* whatever is on the line (the two fuse into one prompt). Wiping the line first, and sending Escape at an open picker, are both gone — deleting text is worse than garbling one prompt, and we can't verify that Escape closed anything. Both keys remain on the composer's own button, where you asked for them.
+- **Terminal zoom scales the whole pane.** Cmd +/- moved out of `PtyTerminalView` into a shared subscribable module, so it now scales the message composer and the roster along with the terminal instead of leaving them pinned at sizes tuned for a 14" display.
+- **Changing an agent's model within the same provider resumes its session** instead of starting fresh (best-effort — an agent with no recorded session still gets its model changed).
+- **Restore team runs in parallel** and the login-shell capture is memoised, so rebuilding a roster no longer serialises one shell probe per agent. Agents are added in roster order rather than completion order.
+
+### Fixed
+- **Blank terminal pane where typing does nothing.** Three causes, which is why every single-cause fix only half-worked. (a) WebGL is now a lease taken on attach and released on detach — a browser allows only ~16 live contexts and silently discards the oldest past that cap, so restoring a team blew the cap and Chromium killed a background terminal's renderer while its pty, buffer and subscription stayed healthy. (b) `requestInitialPtyRedraw` latches only once the redraw actually succeeds, instead of burning the terminal's one chance on a failed fire-and-forget IPC. (c) The needs-repaint marker is cleared only after the refresh returns, so a throw no longer discards the last record that the terminal needed repainting.
+- **Message queue silently stopped delivering to an agent.** (a) Only a *bare* command opens a picker — `/model` prompts you to choose, `/model sonnet` applies the argument and returns to the prompt; first-token matching latched the block on both and the submitting Enter couldn't clear it. (b) The picker block now expires like the draft block does, so a picker closed in a way we can't observe no longer wedges the queue for the rest of the session. (c) `lineBuf` moved onto the pool entry and is reset everywhere `inputDirty` is — as a closure variable it survived a draft clear, so the next keystroke recomputed the block from text that had just been deleted.
+- **Phantom drafts blocked delivery against text that didn't exist.** `inputDirty` is inferred by counting keystrokes, and a TUI that swallows keys for its own UI leaves it set while the prompt is visibly empty. The prompt is now read from xterm's rendered buffer (cursor row, prompt chrome stripped) — deliberately one-directional: the screen can only *clear* a phantom draft, never invent one, because being wrong the other way would type over something you really wrote.
+- **A queued message could be typed into an open picker and acked as delivered.** Clearing the input line no longer clears the picker latch — Ctrl-U kills the input line, it does not close a menu — so automation is no longer told the prompt is free while a picker still owns it.
+- **A model or command change died on reload.** `updateAgent` now persists when a durable field changes (volatile run-state fields — status, action, progress, context counters — still skip the write, so a burst of terminal output doesn't rewrite storage).
+- **The roster stopped spawning `git rev-parse` on every chunk of terminal output** — failed and in-flight repo lookups are cached, so an agent outside a repo is looked up once.
+
 ## [0.2.7] — 2026-06-13
 
 A feature release: talk to your agents with your voice, an opt-in enterprise Knowledge

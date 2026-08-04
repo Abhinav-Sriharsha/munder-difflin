@@ -120,6 +120,7 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 | **Task kanban** | Dependency-aware kanban board in the Command Center Tasks tab — assign tasks to agents, track status across todo/doing/blocked/done, wire dependencies so work starts in order. |
 | **Scheduled missions & heartbeat** | Recurring auto-dispatch missions with label, interval, target agent, and body — plus a scheduler heartbeat that re-engages the floor when it goes quiet. Missions now live in their own Schedules tab with last/next-fired times. |
 | **Terminal work-order handoff** | Providers without an inbox-drain hook receive hive mail as a `WORK ORDER FROM HIVE` typed into their terminal; if the renderer is unavailable, the message bounces to the GOD agent instead of disappearing. |
+| **Message queue that respects your prompt** | Park messages for a busy agent; one drain loop delivers them the moment it goes idle. Every automatic writer — queued messages, inbox wake-ups, scheduled `/compact` — goes through that one gate, so nothing ever lands on top of a line you're mid-way through writing. Unsent text of yours badges the agent **"your draft"** so a held queue never looks like an idle agent. See [`docs/message-queue.md`](./docs/message-queue.md). |
 | **Slack/webhook ingress** | Slack and generic webhook ingress expose local endpoints through tunnelmole, so POSTs pass straight through and failed tunnels surface a real error instead of a silent broken URL. |
 | **GitHub ingestion** | Pull open issues from any registered repo via the `gh` CLI and assign them to agents with one click from the Command Center. |
 | **CI status watcher** | Live pass/fail/in-progress status for GitHub Actions runs, visible in the Activity tab for every registered repo. |
@@ -244,6 +245,7 @@ docs/                        `logo.png`, `banner.png`, landing page (GitHub Page
 docs/media/                  `og.png` (social previews) + rendered Remotion clips
 landing-remotion/            Remotion project that renders the landing page's "how it works" clips
 HIVE.md · SPEC.md · DESIGN.md   multi-agent · terminal/event · visual design
+docs/message-queue.md        who may type into an agent's terminal, and when
 ```
 
 ## Design system
