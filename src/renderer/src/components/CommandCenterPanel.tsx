@@ -223,6 +223,10 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
   const [agentTokenCaps, setAgentTokenCaps] = useState<Record<string, number>>({});
   const [restarting, setRestarting] = useState<string | null>(null);
   const [restartErrors, setRestartErrors] = useState<Record<string, string>>({});
+  // The harness's own default model (Settings → default model). Michael and every
+  // new agent spawn on this, so the picker marks it — otherwise the only entry
+  // reading "default" was the CLI's, which is a different thing entirely.
+  const [defaultModel, setDefaultModel] = useState<string | undefined>(undefined);
   const [dispatchTo, setDispatchTo] = useState<string>(''); // '' = Michael decides
   const [dispatchText, setDispatchText] = useState('');
   const [dispatchMsg, setDispatchMsg] = useState<string | null>(null);
@@ -237,6 +241,7 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
       setRepos(c.registeredRepos ?? []);
       setTokenCap(c.costCapTokens);
       setAgentTokenCaps(c.agentTokenCaps ?? {});
+      setDefaultModel(c.defaultModel);
     }).catch(() => { /* noop */ });
   }, []);
 
@@ -623,14 +628,20 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
                 )}
                 {modelProvidersForAgent(a.isGod).map((preset) => (
                   <optgroup key={preset.id} label={preset.label}>
-                    {modelsForProvider(preset.id).map((model) => (
-                      <option
-                        key={`${preset.id}:${model.id ?? 'default'}`}
-                        value={encodeProviderModel(preset.id, model.id)}
-                      >
-                        {model.label}
-                      </option>
-                    ))}
+                    {modelsForProvider(preset.id).map((model) => {
+                      // `defaultModel` is a Claude model id, so it can only mark
+                      // an entry in the Claude group.
+                      const isHarnessDefault = preset.id === 'claude'
+                        && !!defaultModel && model.id === defaultModel;
+                      return (
+                        <option
+                          key={`${preset.id}:${model.id ?? 'cli-default'}`}
+                          value={encodeProviderModel(preset.id, model.id)}
+                        >
+                          {model.label}{isHarnessDefault ? ' · default' : ''}
+                        </option>
+                      );
+                    })}
                   </optgroup>
                 ))}
               </Select>

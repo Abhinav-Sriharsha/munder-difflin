@@ -99,7 +99,10 @@ export interface ModelOption {
 /** The models offered in the "add agent" picker and the per-agent selector.
  *  `[1m]` selects the 1M-token context window variant. */
 export const AGENT_MODELS: ModelOption[] = [
-  { id: undefined, label: 'default' },
+  // No `--model` flag at all — whatever the CLI itself defaults to. NOT the
+  // harness's `config.defaultModel`; the pickers mark that one separately, and
+  // labelling both "default" is what made the two impossible to tell apart.
+  { id: undefined, label: 'CLI default' },
   { id: 'claude-fable-5', label: 'Fable 5' },
   { id: 'claude-opus-5', label: 'Opus 5 · 1M' },
   { id: 'claude-opus-4-8', label: 'Opus 4.8' },
@@ -117,7 +120,10 @@ export const AGENT_MODELS: ModelOption[] = [
  *  quotes them and the command tokenizer keeps them whole). The command field
  *  stays editable; `agy models` is the source of truth for the live list. */
 export const ANTIGRAVITY_MODELS: ModelOption[] = [
-  { id: undefined, label: 'default' },
+  // No `--model` flag at all — whatever the CLI itself defaults to. NOT the
+  // harness's `config.defaultModel`; the pickers mark that one separately, and
+  // labelling both "default" is what made the two impossible to tell apart.
+  { id: undefined, label: 'CLI default' },
   { id: 'Gemini 3.1 Pro (High)', label: 'Gemini 3.1 Pro · High' },
   { id: 'Gemini 3.1 Pro (Low)', label: 'Gemini 3.1 Pro · Low' },
   { id: 'Gemini 3.5 Flash (High)', label: 'Gemini 3.5 Flash · High' },
@@ -130,7 +136,10 @@ export const ANTIGRAVITY_MODELS: ModelOption[] = [
 
 /** Current OpenAI models offered by Codex for coding agents. */
 export const CODEX_MODELS: ModelOption[] = [
-  { id: undefined, label: 'default' },
+  // No `--model` flag at all — whatever the CLI itself defaults to. NOT the
+  // harness's `config.defaultModel`; the pickers mark that one separately, and
+  // labelling both "default" is what made the two impossible to tell apart.
+  { id: undefined, label: 'CLI default' },
   { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
   { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
   { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' }
@@ -138,13 +147,19 @@ export const CODEX_MODELS: ModelOption[] = [
 
 /** Models reported by the installed Grok CLI (`grok models`). */
 export const GROK_MODELS: ModelOption[] = [
-  { id: undefined, label: 'default' },
+  // No `--model` flag at all — whatever the CLI itself defaults to. NOT the
+  // harness's `config.defaultModel`; the pickers mark that one separately, and
+  // labelling both "default" is what made the two impossible to tell apart.
+  { id: undefined, label: 'CLI default' },
   { id: 'grok-4.5', label: 'Grok 4.5' }
 ];
 
 /** Managed Kimi Code aliases accepted by `kimi --model <alias>`. */
 export const KIMI_MODELS: ModelOption[] = [
-  { id: undefined, label: 'default' },
+  // No `--model` flag at all — whatever the CLI itself defaults to. NOT the
+  // harness's `config.defaultModel`; the pickers mark that one separately, and
+  // labelling both "default" is what made the two impossible to tell apart.
+  { id: undefined, label: 'CLI default' },
   { id: 'kimi-code/k3', label: 'Kimi K3' },
   { id: 'kimi-code/kimi-for-coding', label: 'Kimi K2.7 Code' },
   { id: 'kimi-code/kimi-for-coding-highspeed', label: 'Kimi K2.7 · HighSpeed' }

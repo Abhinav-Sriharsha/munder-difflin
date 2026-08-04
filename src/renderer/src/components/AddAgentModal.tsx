@@ -305,11 +305,18 @@ export function AddAgentModal({ onClose, config }: AddAgentModalProps) {
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {modelsForProvider(provider).map((m) => {
                   const active = (model ?? '') === (m.id ?? '');
+                  // Which one the harness would pick on its own (Settings →
+                  // default model). Only meaningful for Claude — defaultModel is
+                  // a Claude model id, and the other providers ignore it.
+                  const isHarnessDefault = isClaudeProvider(provider)
+                    && !!config.defaultModel && m.id === config.defaultModel;
                   return (
                     <button
                       key={m.label}
                       onClick={() => pickModel(m.id)}
-                      title={m.id ?? 'CLI default model'}
+                      title={isHarnessDefault
+                        ? `${m.id} — the harness default (Settings → default model)`
+                        : (m.id ?? 'whatever the CLI defaults to')}
                       style={{
                         padding: '3px 8px 1px',
                         background: active ? `var(--cth-${accent}-light)` : 'var(--cth-cream-100)',
@@ -320,7 +327,7 @@ export function AddAgentModal({ onClose, config }: AddAgentModalProps) {
                         color: 'var(--cth-ink-900)', cursor: 'pointer', border: 'none'
                       }}
                     >
-                      {m.label}
+                      {m.label}{isHarnessDefault ? ' · default' : ''}
                     </button>
                   );
                 })}
