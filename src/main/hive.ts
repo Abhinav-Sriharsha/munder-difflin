@@ -437,63 +437,6 @@ export class HiveManager {
   }
 
   /**
-   * Rename an agent, keeping its id. The id is the identity everything else is
-   * keyed on — workspace directory, inbox, memory.md, task assignees — so a
-   * rename is purely cosmetic and nothing has to be migrated. Only the registry
-   * (which feeds the roster other agents read) needs updating, plus the identity
-   * card so the agent itself knows what it is now called. Best-effort; returns
-   * whether anything changed.
-   */
-  rename(id: string, name: string): boolean {
-    const root = this.root();
-    if (!root) return false;
-    const next = name.trim();
-    if (!next) return false;
-    try {
-      const reg = this.registry();
-      const agent = reg.agents[id];
-      if (!agent) return false;
-      // Already called that ⇒ nothing to do, but the CALLER asked for a state,
-      // not an edit, and that state holds. Reporting false here made a no-op
-      // rename indistinguishable from a failed one at the IPC boundary.
-      if (agent.name === next) return true;
-      const previous = agent.name;
-      agent.name = next;
-      agent.lastSeen = Date.now();
-      this.writeJson(join(root, 'registry.json'), reg);
-      // Refresh the identity card so the agent's own prompt stops calling it by
-      // the old name. Written on every spawn anyway, but a rename shouldn't have
-      // to wait for a restart to take effect.
-      try {
-        const dir = join(root, 'agents', id);
-        if (existsSync(dir)) writeFileSync(join(dir, 'identity.md'), this.identityText(agent), 'utf8');
-      } catch { /* identity refresh is best-effort */ }
-      this.appendLog({ kind: 'rename', agentId: id, name: next, previous });
-      this.commit(`hive: rename ${id} → ${next}`);
-      // A RUNNING agent was told its name in the system prompt injected at spawn,
-      // and in AGENT_NAME — neither of which can be rewritten under a live
-      // process. Rewriting identity.md alone leaves it introducing itself by the
-      // old name until it restarts, and nothing would ever tell it to reread the
-      // file. Mail is the one channel a running agent already drains, so use it.
-      try {
-        this.send({
-          to: id,
-          act: 'inform',
-          subject: `You are now called ${next}`,
-          body: [
-            `You have been renamed from "${previous}" to "${next}".`,
-            'Your agent id is unchanged, so your workspace, inbox, memory and task assignments all stay exactly as they are — nothing to migrate.',
-            'Use the new name from now on. Your identity.md has been updated; the name in your original system prompt is stale.'
-          ].join(' ')
-        }, 'system');
-      } catch { /* the rename itself succeeded; the courtesy note is best-effort */ }
-      return true;
-    } catch {
-      return false; // best-effort — never crash a lifecycle handler
-    }
-  }
-
-  /**
    * Persist the agent's Claude Code session_id (Lane A #6.6a). Captured from hook
    * payloads; written only when it actually changes (a new session), so this is a
    * no-op on the vast majority of hook events. The id is the `--resume` key for

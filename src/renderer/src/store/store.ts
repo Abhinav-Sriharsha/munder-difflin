@@ -149,10 +149,6 @@ interface State {
   select: (id: string) => void;
   updateAgent: (id: string, patch: Partial<Agent>) => void;
   setAgentNote: (id: string, note: string) => void;
-  /** Rename an agent everywhere it is shown, and in the hive registry so its
-   *  siblings and its own identity card agree. The agent id never changes — it
-   *  is what the workspace, inbox, memory and task assignees are keyed on. */
-  renameAgent: (id: string, name: string) => void;
   pushFeed: (id: string, line: string) => void;
   addAgent: (agent: Agent) => void;
   removeAgent: (id: string) => void;
@@ -382,7 +378,7 @@ function newQueuedId(): string {
   return `q-${Date.now()}-${queuedSeq}`;
 }
 
-export const useStore = create<State>((set, get) => ({
+export const useStore = create<State>((set) => ({
   agents: initialAgents,
   archivedAgents: initialArchivedAgents,
   restorableAgents: initialRestorableAgents,
@@ -411,32 +407,6 @@ export const useStore = create<State>((set, get) => ({
       persistAgents(agents, s.selectedId);
       return { agents };
     }),
-  renameAgent: (id, name) => {
-    const next = name.trim();
-    if (!next) return;
-    const applyName = (value: string): void => {
-      set((s) => {
-        const agents = s.agents.map((a) => a.id === id ? { ...a, name: value } : a);
-        // Restorable entries carry their own copy of the roster; rename there too
-        // or a restart would resurrect the agent under its old name.
-        const restorable = s.restorableAgents.map((a) => a.id === id ? { ...a, name: value } : a);
-        persistAgents(agents, s.selectedId);
-        persistRestorable(restorable);
-        return { agents, restorableAgents: restorable };
-      });
-    };
-    const previous = get().agents.find((a) => a.id === id)?.name
-      ?? get().restorableAgents.find((a) => a.id === id)?.name;
-    applyName(next);
-    // The registry is the roster every OTHER agent reads. If it refuses the
-    // rename there is no such thing as a local-only success — keeping the new
-    // name here would mean this agent answers to two different names depending
-    // on who is asking. Put it back and let the user see the rename didn't take.
-    const rollBack = (): void => { if (previous !== undefined) applyName(previous); };
-    void window.cth.hiveRename(id, next)
-      .then((res) => { if (!res?.ok) rollBack(); })
-      .catch(rollBack);
-  },
   pushFeed: (id, line) =>
     set((s) => ({ feeds: { ...s.feeds, [id]: [...(s.feeds[id] ?? []), line] } })),
   addAgent: (agent) =>

@@ -137,7 +137,6 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
   const setAddAgentOpen = useStore(s => s.setAddAgentOpen);
   const addAgentOpen = useStore(s => s.addAgentOpen);
   const setAgentNote = useStore(s => s.setAgentNote);
-  const renameAgent = useStore(s => s.renameAgent);
   const updateAgent = useStore(s => s.updateAgent);
   // The floor strip (and with it the restore button) is hidden behind the
   // overlay, so the roster carries restore too.
@@ -289,7 +288,6 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                 active={a.id === agent.id}
                 onClick={() => { select(a.id); setFullscreen(a.id); }}
                 onNoteChange={(note) => setAgentNote(a.id, note)}
-                onRename={(name) => renameAgent(a.id, name)}
                 drag={drag}
                 scale={scale}
               />
@@ -326,7 +324,6 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                     active={a.id === agent.id}
                     onClick={() => { select(a.id); setFullscreen(a.id); }}
                     onNoteChange={(note) => setAgentNote(a.id, note)}
-                    onRename={(name) => renameAgent(a.id, name)}
                     drag={drag}
                     scale={scale}
                   />
@@ -455,7 +452,6 @@ function SidebarRow({
   active,
   onClick,
   onNoteChange,
-  onRename,
   drag,
   scale
 }: {
@@ -463,7 +459,6 @@ function SidebarRow({
   active: boolean;
   onClick: () => void;
   onNoteChange: (note: string) => void;
-  onRename: (name: string) => void;
   drag: RowDrag;
   scale: ReturnType<typeof rosterScale>;
 }) {
@@ -480,21 +475,11 @@ function SidebarRow({
   const noteWidth = Math.min(300, Math.round(noteFontSize * 20));
   const noteHeight = Math.round(noteFontSize * 9);
   // Total popover height, used only to keep it on screen near the bottom edge:
-  // the note textarea plus the name field, two labels, the hint and the padding.
-  const popoverHeight = noteHeight + Math.round(noteFontSize * 1.9) + noteLabelSize * 3 + 48;
+  // the note textarea plus its label, the hint and the padding.
+  const popoverHeight = noteHeight + noteLabelSize * 2 + 40;
 
   // One line of the note = one bullet on the row.
   const bullets = (agent.note ?? '').split('\n').map(s => s.trim()).filter(Boolean);
-
-  // Rename is local-until-committed: typing straight into the store would rename
-  // the agent on every keystroke and write the registry each time.
-  const [draftName, setDraftName] = useState(agent.name);
-  useEffect(() => { setDraftName(agent.name); }, [agent.name]);
-  const commitName = () => {
-    const next = draftName.trim();
-    if (!next || next === agent.name) { setDraftName(agent.name); return; }
-    onRename(next);
-  };
 
   useEffect(() => () => {
     if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
@@ -637,45 +622,6 @@ function SidebarRow({
             boxSizing: 'border-box'
           }}
         >
-          {/* Rename lives here rather than on the row: the row is a <button>,
-              and an input nested inside one swallows its own clicks. */}
-          <div style={{
-            marginBottom: 3,
-            fontFamily: 'var(--cth-font-display)',
-            fontSize: noteLabelSize,
-            lineHeight: `${Math.round(noteLabelSize * 1.5)}px`,
-            color: 'var(--cth-ink-700)'
-          }}>NAME</div>
-          <input
-            value={draftName}
-            onChange={(e) => setDraftName(e.target.value)}
-            onFocus={() => {
-              if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
-            }}
-            // Commit on blur as well as Enter — a rename typed and then clicked
-            // away from should not be silently discarded.
-            onBlur={() => { commitName(); scheduleClose(); }}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === 'Enter') { e.preventDefault(); commitName(); }
-              // Escape abandons the edit and restores the current name.
-              if (e.key === 'Escape') { setDraftName(agent.name); setNotePosition(null); }
-            }}
-            aria-label={`Rename ${agent.name}`}
-            maxLength={40}
-            style={{
-              width: '100%',
-              height: Math.round(noteFontSize * 1.9),
-              marginBottom: 8,
-              padding: '2px 8px',
-              border: 'none', outline: 'none', boxSizing: 'border-box',
-              background: 'var(--cth-cream-100)',
-              boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
-              fontFamily: 'var(--cth-font-mono)',
-              fontSize: noteFontSize,
-              color: 'var(--cth-ink-900)'
-            }}
-          />
           <div style={{
             marginBottom: 6,
             fontFamily: 'var(--cth-font-display)',
