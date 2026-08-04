@@ -13,7 +13,7 @@ import {
   terminalReadyToReceive
 } from '../../../shared/providerAutomation';
 import type { AgentProvider } from '../../../shared/agentProvider';
-import { prepareTerminalForAutomation } from '@/components/terminalPool';
+import { isTerminalAutomationSafe } from '@/components/terminalPool';
 import { deliverWithAcknowledgement } from './queueDelivery';
 
 const GOD_ID = 'god';
@@ -34,17 +34,6 @@ const INITIAL_GOD_PROMPT = [
   '4. Skim COMMANDS.md (hive root) for the Claude Code commands you can use — and run `mempalace wake-up` for a memory digest if the CLI is available.',
   'Then begin orchestrating: triage requests, delegate work to the team, and keep everyone unblocked. You are fully autonomous — there is no approval queue, so handle tool-permission prompts in this session yourself (the human can approve them remotely from their phone).'
 ].join('\n');
-
-/** Park text automation took off an agent's prompt into that agent's composer
- *  draft. A draft is only ever cleared on a GUESS that it was abandoned, so the
- *  text has to land somewhere the user can get it back from — a Ctrl-U in a TUI
- *  is not undoable, and every automatic writer shares this hazard. */
-function parkDiscardedDraft(agentId: string, discarded: string | null): void {
-  if (!discarded || !discarded.trim()) return;
-  const { drafts, setDraft } = useStore.getState();
-  const existing = drafts[agentId] ?? '';
-  setDraft(agentId, existing ? `${existing}\n${discarded}` : discarded);
-}
 
 // Per-pty submission chain. Every submitToPty for a given pty is appended here so
 // two callers (e.g. the boot sequence's /remote-control and the inbox-wake nudge)
@@ -464,32 +453,24 @@ export function useHive(config: HarnessConfig | null): void {
     });
   }, [config?.onboardingComplete]);
 
-  // 3) Wake idle agents holding unread inbox messages. The assistant is
-  //    send-only (it never receives inbox mail), so it's excluded.
+  // 3) Wake agents holding unread inbox messages. The assistant is send-only
+  //    (it never receives inbox mail), so it's excluded.
+  //
+  //    QUEUES the nudge rather than typing it. This loop used to write straight
+  //    into the terminal, which made it the one automatic writer that could land
+  //    on top of whatever the user was typing — its text fused onto the user's
+  //    half-written line and the pair got submitted as one garbled prompt. Going
+  //    through the queue means effect #4 owns every decision about when a
+  //    terminal may be typed into: idle, off cooldown, past boot grace, delivery
+  //    not paused, and no user draft in the way. One gate, one place, and this
+  //    loop stops needing prompt logic of its own. /compact (effect #6) has
+  //    always worked this way.
   useEffect(() => {
     if (!config?.onboardingComplete) return;
     const iv = setInterval(async () => {
-      const now = Date.now();
-      const agents = useStore.getState().agents.filter(
-        // Never type into an explicit human/permission wait. A worker waiting on
-        // the user must stay parked until the user answers or resumes delivery.
-        (a) => a.ptyId && a.status === 'idle'
-          // Don't type into an agent still running its boot sequence — the nudge
-          // would collide with /remote-control + the orientation prompt.
-          && (bootGraceUntil.current[a.id] ?? 0) < now
-      );
+      const agents = useStore.getState().agents.filter((a) => a.ptyId);
       for (const a of agents) {
         try {
-          const control = await window.cth.controlSnapshot(a.id);
-          if (control?.autoDeliveryPaused) continue;
-          // Same gate as the queue drain, and for the same reason: this loop
-          // types a nudge into the prompt. It used to check only "is it safe?",
-          // which goes true the moment an abandoned draft expires — so the nudge
-          // fused onto the user's half-typed line and submitted both as one
-          // corrupted prompt. Preparing (and parking the draft) is the fix.
-          const prep = prepareTerminalForAutomation(a.ptyId!, now);
-          parkDiscardedDraft(a.id, prep.discardedDraft);
-          if (!prep.ready) continue;
           const inbox = await window.cth.hiveInbox(a.id);
           // Dedup by the newest message id, not the count — a count can oscillate
           // as messages drain and re-arrive, which would re-nudge for the same set.
@@ -497,10 +478,9 @@ export function useHive(config: HarnessConfig | null): void {
             ? inbox.map((m) => m.id).sort().slice(-1)[0]
             : '';
           if (newest && nudged.current[a.id] !== newest) {
-            await submitToPty(
-              a.ptyId!,
-              'You have new hive inbox message(s) — read your inbox, act on them now, and move handled ones to inbox/.done/. Act autonomously; only message god if you genuinely need a decision.',
-              inferAgentProvider(a.command, a.provider)
+            useStore.getState().enqueueMessage(
+              a.id,
+              'You have new hive inbox message(s) — read your inbox, act on them now, and move handled ones to inbox/.done/. Act autonomously; only message god if you genuinely need a decision.'
             );
             nudged.current[a.id] = newest;
           } else if (!newest) {
@@ -538,12 +518,11 @@ export function useHive(config: HarnessConfig | null): void {
       if (control?.autoDeliveryPaused) return { sent: false };
       // Hold queued messages until the target finishes its boot sequence.
       if ((bootGraceUntil.current[target.id] ?? 0) >= now) return { sent: false };
-      // Clears an abandoned draft / closes an expired picker and parks anything
-      // it took off the prompt. Not ready yet means the TUI was just sent the
-      // key that frees the line; we come back for it on the next tick.
-      const prep = prepareTerminalForAutomation(target.ptyId, now);
-      parkDiscardedDraft(target.id, prep.discardedDraft);
-      if (!prep.ready) return { sent: false };
+      // The user owns the prompt: a draft they are writing, or a menu they
+      // opened, holds delivery. Both blocks expire after half an hour, and when
+      // one does we simply type after whatever is there — automation never
+      // erases the user's text and never closes the user's menu.
+      if (!isTerminalAutomationSafe(target.ptyId, now)) return { sent: false };
       if (now - (lastFlush.current[target.id] ?? 0) < FLUSH_COOLDOWN_MS) return { sent: false };
       const flightKey = `${srcId}:${next.id}`;
       if (inFlight.has(flightKey)) return { sent: false };

@@ -168,6 +168,7 @@ export function AgentStrip({ config }: AgentStripProps) {
             character={a.character}
             accent={a.accent}
             status={a.status}
+            ptyId={a.ptyId}
             project={a.project}
             action={a.action}
             progress={a.progress}

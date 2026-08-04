@@ -13,6 +13,7 @@
  * unmount — the rendered content moves with it, so the terminal is always
  * visible immediately, no repaint required.
  */
+import { useEffect, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -26,7 +27,6 @@ import {
 } from './terminalRecovery';
 import {
   canAutomateTerminal,
-  nextTerminalAutomationAction,
   opensInteractiveTerminalUi,
   shouldFollowTerminalOutput,
   terminalAutomationBlock,
@@ -262,13 +262,73 @@ export function isTerminalAutomationSafe(ptyId: string, now = Date.now()): boole
   return canAutomateTerminal(automationStateOf(entry), now);
 }
 
+/** Characters a TUI paints around its input line that are not the user's text:
+ *  the box the prompt sits in and the prompt marker itself. */
+const PROMPT_CHROME = /[─-╿\s>❯$#|]/g;
+
+/** Does the terminal's rendered prompt line actually hold text right now?
+ *
+ *  `inputDirty` is inferred by counting keystrokes, and that model DRIFTS: a TUI
+ *  that swallows keys for its own UI (a menu, a confirm) leaves the count above
+ *  zero while the visible prompt is empty. Nothing ever corrected it, so the
+ *  queue stayed blocked by a draft that did not exist — the "messages never
+ *  arrive" bug. xterm already holds the rendered screen, so read it instead of
+ *  trusting the count.
+ *
+ *  Returns null when the screen cannot be read (the terminal has not been opened
+ *  yet, or the row is missing). Deliberately only ever used to CLEAR a phantom,
+ *  never to invent a draft: if this says "empty" we believe it, and if it says
+ *  "has text" or "don't know" we fall back to the keystroke model. Being wrong
+ *  the other way would type over something the user really did write. */
+function promptLineHasText(entry: TerminalEntry): boolean | null {
+  if (!entry.opened || entry.exited) return null;
+  try {
+    const buf = entry.term.buffer.active;
+    const line = buf.getLine(buf.baseY + buf.cursorY);
+    if (!line) return null;
+    // `true` trims trailing whitespace cells, which a TUI pads its box with.
+    return line.translateToString(true).replace(PROMPT_CHROME, '').length > 0;
+  } catch {
+    return null; // never let a buffer read break delivery
+  }
+}
+
+/** Whether the user has unsubmitted text sitting on this terminal's prompt.
+ *  Drives both the automation gate and the roster's "typing" badge, so the badge
+ *  can never disagree with the reason delivery is being held. */
+export function hasTerminalDraft(ptyId: string | undefined): boolean {
+  if (!ptyId) return false;
+  const entry = pool.get(ptyId);
+  if (!entry) return false;
+  return entry.inputDirty && promptLineHasText(entry) !== false;
+}
+
+/** `hasTerminalDraft` as React state. The flag lives on a mutable pool entry
+ *  that no component subscribes to, so poll it — cheap (one buffer row read) and
+ *  a second of lag on a badge is invisible. */
+export function useHasTerminalDraft(ptyId: string | undefined): boolean {
+  const [dirty, setDirty] = useState(() => hasTerminalDraft(ptyId));
+  useEffect(() => {
+    // An agent with no pty has no prompt to hold anything — don't run a timer
+    // per card for it (the floor renders one card per agent).
+    if (!ptyId) { setDirty(false); return; }
+    const read = () => setDirty(hasTerminalDraft(ptyId));
+    read();
+    const iv = setInterval(read, 1000);
+    return () => clearInterval(iv);
+  }, [ptyId]);
+  return dirty;
+}
+
 function automationStateOf(entry: TerminalEntry) {
+  // The screen wins over the keystroke count, but only when it says "empty".
+  const inputDirty = entry.inputDirty && promptLineHasText(entry) !== false;
   return {
     exited: entry.exited,
     pickerOpen: entry.automationBlocked,
     pickerOpenedAt: entry.automationBlocked ? entry.automationBlockedAt : undefined,
-    inputDirty: entry.inputDirty,
-    inputDirtyAt: entry.inputDirty ? entry.inputDirtyAt : undefined,
+    inputDirty,
+    inputDirtyAt: inputDirty ? entry.inputDirtyAt : undefined,
     settleUntil: entry.automationSettleUntil
   };
 }
@@ -318,58 +378,17 @@ export function clearTerminalDraft(ptyId: string): string {
   return discarded;
 }
 
-/** Close an open picker by sending the key that actually closes one.
- * The Escape round-trips through xterm's own onData handler, so the latch is
- * released by the same path a user pressing Escape would take — we never just
- * assert the picker is gone without telling the TUI to close it. */
+/** Close an open picker by sending Escape, the key that actually closes one.
+ *
+ *  ONLY ever called from the composer's own button — i.e. because the user asked
+ *  for it. Automation must never do this on its own: the menu belongs to the
+ *  user, and we cannot see whether Escape actually closed it, so closing one to
+ *  make room for a queued message is both rude and unverifiable. */
 export function dismissTerminalPicker(ptyId: string): void {
   const entry = pool.get(ptyId);
   if (!entry || entry.exited) return;
   void window.cth.writePty(ptyId, '\x1b');
   releasePickerBlock(entry);
-}
-
-export interface AutomationPreparation {
-  /** True only when the prompt is free RIGHT NOW and safe to type into. */
-  ready: boolean;
-  /** Draft text taken off the prompt, so the caller can park it somewhere the
-   *  user can find it again. Null when nothing was discarded. */
-  discardedDraft: string | null;
-}
-
-/** Make this terminal's prompt safe for automation, and say whether it now is.
- *
- *  EVERY automatic writer must go through this — not just the queue drain. A
- *  block that has expired is only a GUESS that the UI it was guarding is gone:
- *  the picker latch is cleared by an Enter/Escape/Ctrl-C in that terminal, and a
- *  picker closed any other way (or still genuinely open) leaves it set. Acting
- *  on that guess by typing is how a queued message got typed into a live menu
- *  and acknowledged as delivered — lost, with the queue reporting success.
- *
- *  So an expired block is acted on by CLOSING the thing it described and
- *  reporting not-ready. The caller retries on its next tick, by which time the
- *  Escape (or Ctrl-U) has landed and the TUI has repainted the freed line. */
-export function prepareTerminalForAutomation(
-  ptyId: string,
-  now = Date.now()
-): AutomationPreparation {
-  const entry = pool.get(ptyId);
-  // No pooled terminal ⇒ no local picker and no draft we could be fusing with.
-  if (!entry) return { ready: true, discardedDraft: null };
-  switch (nextTerminalAutomationAction(automationStateOf(entry), now)) {
-    case 'go':
-      return { ready: true, discardedDraft: null };
-    case 'dismiss-picker':
-      dismissTerminalPicker(ptyId);
-      return { ready: false, discardedDraft: null };
-    case 'clear-draft':
-      // "Abandoned" is only a guess (a minute of no keystrokes), and it is wrong
-      // whenever the user paused to think or switched windows — so hand the text
-      // back instead of destroying it with a Ctrl-U they never asked for.
-      return { ready: false, discardedDraft: clearTerminalDraft(ptyId) };
-    default:
-      return { ready: false, discardedDraft: null };
-  }
 }
 
 /** Give this terminal a WebGL renderer for as long as it is on screen.

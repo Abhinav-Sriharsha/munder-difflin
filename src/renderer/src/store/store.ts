@@ -233,6 +233,20 @@ function persistAgents(agents: Agent[], selectedId: string | null): void {
   } catch { /* noop */ }
 }
 
+/** Run-state an agent recomputes from its live pty on every reload. A patch made
+ *  only of these is not worth a localStorage write; anything else is. Listed as
+ *  the volatile set rather than the durable set on purpose — a new durable field
+ *  then persists by default instead of being silently dropped. */
+const VOLATILE_AGENT_FIELDS = new Set<keyof Agent>([
+  'status', 'action', 'progress', 'currentStation', 'carrying',
+  'recentAssistantText', 'recentTextTs', 'blockReason',
+  'contextTokens', 'contextLimit', 'lastPrompt'
+]);
+
+function touchesDurableAgentField(patch: Partial<Agent>): boolean {
+  return Object.keys(patch).some((k) => !VOLATILE_AGENT_FIELDS.has(k as keyof Agent));
+}
+
 function loadPersistedAgents(): Agent[] {
   try {
     const raw = window.localStorage.getItem(LS_AGENTS);
@@ -400,7 +414,17 @@ export const useStore = create<State>((set) => ({
   setGodStatus: (status) => set({ godStatus: status }),
   select: (id) => set((s) => { persistAgents(s.agents, id); return { selectedId: id, ccTabRequest: null }; }),
   updateAgent: (id, patch) =>
-    set((s) => ({ agents: s.agents.map(a => a.id === id ? { ...a, ...patch } : a) })),
+    set((s) => {
+      const agents = s.agents.map(a => a.id === id ? { ...a, ...patch } : a);
+      // Persist only when something DURABLE changed. `updateAgent` is also the
+      // pty parser's per-chunk write (status/action/progress), so persisting
+      // unconditionally would rewrite localStorage on every burst of terminal
+      // output. Persisting nothing was worse: a model or command change lived
+      // only in memory, so the selector snapped back to the old model on reload
+      // and restore relaunched the old command.
+      if (touchesDurableAgentField(patch)) persistAgents(agents, s.selectedId);
+      return { agents };
+    }),
   setAgentNote: (id, note) =>
     set((s) => {
       const agents = s.agents.map((a) => a.id === id ? { ...a, note } : a);

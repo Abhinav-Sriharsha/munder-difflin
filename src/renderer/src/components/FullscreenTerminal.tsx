@@ -13,6 +13,7 @@ import { useStore, type Agent } from '@/store/store';
 import { usePtyParser } from '@/hooks/usePtyParser';
 import { useRestoreTeam } from '@/hooks/useRestoreTeam';
 import { useTerminalFontSize } from './terminalFontSize';
+import { useHasTerminalDraft } from './terminalPool';
 import type { HarnessConfig } from '@/store/config';
 
 /** Roster rail width. A fixed 232px is right on a 14" laptop but reads as a
@@ -481,6 +482,8 @@ function SidebarRow({
   // One line of the note = one bullet on the row.
   const bullets = (agent.note ?? '').split('\n').map(s => s.trim()).filter(Boolean);
 
+  const typing = useHasTerminalDraft(agent.ptyId);
+
   useEffect(() => () => {
     if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
   }, []);
@@ -571,7 +574,10 @@ function SidebarRow({
               fontFamily: 'var(--cth-font-display)',
               fontSize: scale.name, lineHeight: 1.5
             }}>{agent.name.toUpperCase()}</span>
-            <PixelBadge status={agent.status} />
+            {/* Your unsent text outranks the agent's own state here: an idle
+                agent with a draft on its prompt is not idle-and-free, it is
+                idle-and-held, and nothing else on screen said so. */}
+            <PixelBadge status={typing ? 'typing' : agent.status} />
           </div>
           {/* Every line of every agent, always on screen — the roster's job is
               to answer "who is on what" without a single interaction. */}
@@ -677,6 +683,7 @@ function SidebarRow({
 }
 
 function Header({ agent }: { agent: Agent }) {
+  const typing = useHasTerminalDraft(agent.ptyId);
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12,
@@ -698,7 +705,7 @@ function Header({ agent }: { agent: Agent }) {
         fontStyle: 'italic'
       }}>“{agent.description}”</span>
       <div style={{ marginLeft: 'auto' }}>
-        <PixelBadge status={agent.status} />
+        <PixelBadge status={typing ? 'typing' : agent.status} />
       </div>
     </div>
   );

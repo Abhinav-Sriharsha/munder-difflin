@@ -36,22 +36,27 @@ export function shouldFollowTerminalOutput(viewportY: number, baseY: number): bo
 }
 
 /** How long an untouched draft on the prompt keeps blocking queue delivery.
- * A draft blocks so automation can't fuse its text with the user's, but the
- * block MUST expire: the renderer's line buffer is only a model of the real
- * input line, and a TUI that swallows keystrokes for its own UI can leave the
- * buffer non-empty while the prompt looks clear — which used to wedge an
- * agent's queue permanently with the composer still claiming it was sending. */
-export const STALE_INPUT_MS = 60_000;
+ *
+ * The block exists so automation can't fuse its text onto a half-written line.
+ * It still has to expire, because the flag is set from KEYSTROKES and a TUI that
+ * swallows keys for its own UI can leave it set while the prompt is visibly
+ * empty — a phantom draft, which wedged the queue for the rest of the session.
+ *
+ * Half an hour, not a minute. The old 60s window fired while the user had merely
+ * paused to think, and treating a real draft as abandoned is the expensive
+ * mistake; leaving a queued message parked a while longer is the cheap one. When
+ * it does fire, delivery simply types after the existing text (the two fuse into
+ * one prompt) — automation never deletes what the user wrote. */
+export const STALE_INPUT_MS = 1_800_000;
 
 /** How long an untouched picker keeps blocking queue delivery.
- * Like the draft block, this MUST expire. The picker latch is set when the user
- * submits a bare `/model`-style command and is only cleared by an Enter, Escape
- * or Ctrl-C typed into that same terminal — so a picker the AGENT closes, or one
- * dismissed any other way, left the flag set with no path back. That wedged the
- * agent's queue permanently, which is exactly the failure this expiry ends.
- * Longer than the draft window: a human picking from a menu is slower than a
- * human typing, and re-latching costs nothing. */
-export const STALE_PICKER_MS = 180_000;
+ * The picker latch is set when the user submits a bare `/model`-style command
+ * and is cleared by an Enter, Escape or Ctrl-C typed into that terminal — so a
+ * picker closed any other way leaves it set with no path back. Same half hour,
+ * same reason: it is the user's menu, so wait a long time, then deliver. We
+ * never send Escape ourselves; closing someone's open menu to make room for a
+ * queued message is not ours to do. */
+export const STALE_PICKER_MS = 1_800_000;
 
 export interface TerminalAutomationState {
   exited: boolean;
@@ -94,32 +99,6 @@ export function terminalAutomationBlock(
   if (state.inputDirty && !isStaleTerminalDraft(state, now)) return 'draft';
   if (now < state.settleUntil) return 'settling';
   return null;
-}
-
-/** What an automatic writer must DO before it may type into this terminal.
- *
- *  `terminalAutomationBlock` answers "may I type?", and reports an EXPIRED block
- *  as no block at all. That answer is a guess: an expiry only means nobody has
- *  touched the picker/draft for a while, not that it is gone. Every caller that
- *  acted on the guess by typing was a bug — a queued message typed into a live
- *  menu and acknowledged as delivered, or an inbox nudge fused onto the user's
- *  half-written line. So expiries resolve to an ACTION that frees the prompt
- *  ('dismiss-picker' ⇒ send Escape, 'clear-draft' ⇒ send Ctrl-U and keep the
- *  text), after which the caller retries once the TUI has repainted. */
-export type TerminalAutomationAction = 'go' | 'dismiss-picker' | 'clear-draft' | 'wait';
-
-export function nextTerminalAutomationAction(
-  state: TerminalAutomationState,
-  now = Date.now()
-): TerminalAutomationAction {
-  // A dead pty cannot be freed by typing into it.
-  if (state.exited) return 'wait';
-  // Picker outranks draft: both flags are set while a slash menu is open, and
-  // Ctrl-U into a menu edits the menu's filter rather than freeing the prompt.
-  if (state.pickerOpen) return isStaleTerminalPicker(state, now) ? 'dismiss-picker' : 'wait';
-  if (state.inputDirty) return isStaleTerminalDraft(state, now) ? 'clear-draft' : 'wait';
-  if (now < state.settleUntil) return 'wait';
-  return 'go';
 }
 
 /** Automatic writes may own the prompt only when no user draft or picker does. */

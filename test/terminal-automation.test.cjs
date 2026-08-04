@@ -11,7 +11,6 @@ const {
   shouldFollowTerminalOutput,
   terminalAutomationBlock,
   isStaleTerminalPicker,
-  nextTerminalAutomationAction,
   STALE_INPUT_MS,
   STALE_PICKER_MS
 } = loadTs('src/renderer/src/components/terminalAutomation.ts');
@@ -93,41 +92,27 @@ test('automation block reports why delivery is held', () => {
   );
 });
 
-test('an expired block is closed, never typed through', () => {
+test('the user owns the prompt for a long time before automation takes it', () => {
+  // Half an hour, both blocks. A 60s window fired while the user had merely
+  // paused to think; treating a live draft as abandoned is the expensive
+  // mistake, and parking a queued message a while longer is the cheap one.
+  assert.equal(STALE_INPUT_MS, 1_800_000);
+  assert.equal(STALE_PICKER_MS, 1_800_000);
+
   const at = 1_000_000;
   const ready = { exited: false, pickerOpen: false, inputDirty: false, settleUntil: 0 };
-  assert.equal(nextTerminalAutomationAction(ready, at), 'go');
-
-  // Fresh picker / draft: wait, exactly as before.
-  const picker = { ...ready, pickerOpen: true, pickerOpenedAt: at };
   const draft = { ...ready, inputDirty: true, inputDirtyAt: at };
-  assert.equal(nextTerminalAutomationAction(picker, at + 1), 'wait');
-  assert.equal(nextTerminalAutomationAction(draft, at + 1), 'wait');
+  const picker = { ...ready, pickerOpen: true, pickerOpenedAt: at };
 
-  // Expired: the caller must FREE the prompt, not assume it is free. Letting an
-  // expiry read as 'go' typed queued messages into a still-open menu (and marked
-  // them delivered) and fused inbox nudges onto the user's half-written line.
-  assert.equal(nextTerminalAutomationAction(picker, at + STALE_PICKER_MS), 'dismiss-picker');
-  assert.equal(nextTerminalAutomationAction(draft, at + STALE_INPUT_MS), 'clear-draft');
+  // Ten minutes in, both still belong to the user.
+  assert.equal(canAutomateTerminal(draft, at + 600_000), false);
+  assert.equal(canAutomateTerminal(picker, at + 600_000), false);
 
-  // Both expired: close the menu first — Ctrl-U inside a picker edits its filter
-  // instead of clearing the prompt.
-  assert.equal(
-    nextTerminalAutomationAction(
-      { ...ready, pickerOpen: true, pickerOpenedAt: at, inputDirty: true, inputDirtyAt: at },
-      at + STALE_PICKER_MS
-    ),
-    'dismiss-picker'
-  );
-
-  // No timestamp ⇒ never expires, so nothing silently changes for a state
-  // recorded before these fields existed.
-  assert.equal(nextTerminalAutomationAction({ ...ready, pickerOpen: true }, at + 1e9), 'wait');
-  assert.equal(nextTerminalAutomationAction({ ...ready, inputDirty: true }, at + 1e9), 'wait');
-
-  // A dead pty cannot be freed by typing into it, and settling just waits.
-  assert.equal(nextTerminalAutomationAction({ ...ready, exited: true }, at), 'wait');
-  assert.equal(nextTerminalAutomationAction({ ...ready, settleUntil: at + 1 }, at), 'wait');
+  // Past the window delivery proceeds — it types AFTER whatever is on the line
+  // (the two fuse into one prompt). Automation never erases the user's text and
+  // never closes the user's menu, so there is nothing to undo either way.
+  assert.equal(canAutomateTerminal(draft, at + STALE_INPUT_MS), true);
+  assert.equal(canAutomateTerminal(picker, at + STALE_PICKER_MS), true);
 });
 
 test('terminal output follows only when already at the bottom', () => {
