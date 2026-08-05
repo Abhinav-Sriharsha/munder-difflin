@@ -224,7 +224,7 @@ export function App() {
         style={{
           height: 36, minHeight: 36,
           background: 'linear-gradient(180deg, var(--cth-cream-100) 0%, var(--cth-cream-200) 100%)',
-          borderBottom: '2px solid var(--cth-ink-900)',
+          borderBottom: '1px solid var(--cth-ink-300)',
           display: 'flex',
           alignItems: 'center',
           paddingLeft: 96,
@@ -240,7 +240,7 @@ export function App() {
         />
         <span style={{
           fontFamily: 'var(--cth-font-ui)',
-          fontSize: 14,
+          fontSize: 13,
           color: 'var(--cth-ink-500)'
         }}>
           v{__APP_VERSION__} · {config.autoMode ? 'auto mode on' : 'auto mode off'}
@@ -265,9 +265,9 @@ export function App() {
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, padding: 0,
             background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             border: 'none', borderRadius: 2, cursor: 'pointer',
-            color: 'var(--cth-ink-900)', fontSize: 14, lineHeight: 1
+            color: 'var(--cth-ink-900)', fontSize: 13, lineHeight: 1
           }}
         >
           {appThemeNow === 'dark' ? '☀' : '☾'}
@@ -288,7 +288,7 @@ export function App() {
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, padding: 0,
             background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             border: 'none', borderRadius: 2, cursor: 'pointer',
             color: 'var(--cth-ink-900)'
           }}
@@ -304,7 +304,7 @@ export function App() {
             display: 'inline-flex', alignItems: 'center', gap: 5,
             height: 28, padding: '0 9px',
             background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             border: 'none', borderRadius: 2, cursor: 'pointer',
             color: 'var(--cth-ink-900)',
             fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '14px'
@@ -321,7 +321,7 @@ export function App() {
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, padding: 0,
             background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             border: 'none', borderRadius: 2, cursor: 'pointer',
             color: 'var(--cth-ink-900)'
           }}
@@ -349,7 +349,7 @@ export function App() {
               <div style={{ pointerEvents: 'auto', width: 360 }}>
                 <PixelPanel variant="dialog" title="EMPTY FLOOR" noPadding>
                   <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <p style={{ margin: 0, fontSize: 14, lineHeight: '20px' }}>
+                    <p style={{ margin: 0, fontSize: 13, lineHeight: '20px' }}>
                       No agents on the floor yet. Spawn one to see real claude output stream in here.
                     </p>
                     <PixelButton variant="primary" size="md" onClick={() => setAddAgentOpen(true)}>
@@ -386,7 +386,7 @@ export function App() {
                 fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
                 color: 'var(--cth-ink-500)'
               }}>WAKING THE FLOOR</div>
-              <p style={{ margin: 0, fontSize: 14, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
+              <p style={{ margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
                 Michael is clocking in.<br />
                 The terminal will land here once he's seated.
               </p>
@@ -401,7 +401,7 @@ export function App() {
                 fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
                 color: 'var(--cth-ink-500)'
               }}>NO AGENT SELECTED</div>
-              <p style={{ margin: 0, fontSize: 14, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
+              <p style={{ margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
                 Spawn an agent from the strip below.<br />
                 The terminal and command bar will land here.
               </p>

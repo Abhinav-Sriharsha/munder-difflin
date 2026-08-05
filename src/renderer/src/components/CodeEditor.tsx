@@ -164,7 +164,7 @@ export function CodeEditor({
           No file open
         </div>
         <div style={{
-          fontFamily: 'var(--cth-font-ui)', fontSize: 14,
+          fontFamily: 'var(--cth-font-ui)', fontSize: 13,
           color: 'var(--cth-ink-500)'
         }}>
           Pick a file from the tree to view it here.
@@ -185,7 +185,7 @@ export function CodeEditor({
         padding: '4px 8px',
         background: 'var(--cth-cream-200)',
         borderBottom: '1px solid var(--cth-ink-700)',
-        fontFamily: 'var(--cth-font-ui)', fontSize: 13,
+        fontFamily: 'var(--cth-font-ui)', fontSize: 12,
         color: 'var(--cth-ink-700)'
       }}>
         <Icon name="code" />
@@ -265,7 +265,7 @@ const editorBtn: React.CSSProperties = {
   color: 'var(--cth-ink-900)',
   background: 'var(--cth-cream-100)',
   border: 'none',
-  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
   cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4
 };

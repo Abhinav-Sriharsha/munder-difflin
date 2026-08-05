@@ -94,7 +94,7 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
         <div style={{
           width: 32, height: 32,
           background: `var(--cth-${agent.accent}-light)`,
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
           flexShrink: 0
         }}>
@@ -211,7 +211,7 @@ function EmptyTab({ title, children }: { title: string; children: React.ReactNod
         color: 'var(--cth-ink-500)'
       }}>{title.toUpperCase()}</div>
       <p style={{
-        margin: 0, fontSize: 14, textAlign: 'center', color: 'var(--cth-ink-700)',
+        margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)',
         maxWidth: 280
       }}>{children}</p>
     </div>

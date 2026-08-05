@@ -37,8 +37,8 @@ export function UpdateToast() {
   const buttonStyle: React.CSSProperties = {
     padding: '3px 10px 1px',
     background: 'var(--cth-mint-light, #d0f0e0)',
-    boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
-    fontFamily: 'var(--cth-font-ui)', fontSize: 13,
+    boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
+    fontFamily: 'var(--cth-font-ui)', fontSize: 12,
     color: 'var(--cth-ink-900)', cursor: 'pointer', border: 'none'
   };
 
@@ -54,7 +54,7 @@ export function UpdateToast() {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <Icon name="sparkle" />
-        <span style={{ fontSize: 14, color: 'var(--cth-ink-900)', fontWeight: 600 }}>
+        <span style={{ fontSize: 13, color: 'var(--cth-ink-900)', fontWeight: 600 }}>
           {status.state === 'downloaded'
             ? `Update v${status.version} downloaded`
             : `v${status.version} is available`}

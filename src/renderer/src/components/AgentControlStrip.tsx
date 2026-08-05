@@ -86,7 +86,7 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
           placeholder="steer this agent (injected as context, no typing into its terminal)…"
           style={{
             flex: 1, padding: '4px 6px', background: 'var(--cth-paper-100)', border: 'none',
-            boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)', fontFamily: 'var(--cth-font-ui)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)', fontFamily: 'var(--cth-font-ui)',
             fontSize: 12, color: 'var(--cth-ink-900)', outline: 'none'
           }}
         />

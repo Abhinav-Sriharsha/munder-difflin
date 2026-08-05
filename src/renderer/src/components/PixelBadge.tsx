@@ -72,7 +72,7 @@ export function PixelBadge({ status, label, style }: PixelBadgeProps) {
           width: 8,
           height: 8,
           background: colorByStatus[status],
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
         }}
       />
       {text}

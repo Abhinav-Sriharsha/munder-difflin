@@ -64,7 +64,7 @@ canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 /* Focus ring — 2px outer offset, ink */
 :focus-visible {
-  outline: 2px solid var(--cth-ink-900);
+  outline: 1px solid var(--cth-ink-300);
   outline-offset: 2px;
 }
 
@@ -72,11 +72,11 @@ canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
 ::-webkit-scrollbar { width: 12px; height: 12px; }
 ::-webkit-scrollbar-track {
   background: var(--cth-cream-200);
-  box-shadow: inset 0 0 0 1px var(--cth-ink-700);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
 }
 ::-webkit-scrollbar-thumb {
   background: var(--cth-ink-700);
-  box-shadow: inset 0 0 0 1px var(--cth-ink-900);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--cth-ink-900); }
 
@@ -104,12 +104,12 @@ canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
 .cth-settings-btn { transition: background 80ms steps(2), box-shadow 80ms steps(2), transform 80ms steps(2); }
 .cth-settings-btn:hover {
   background: var(--cth-lemon) !important;
-  box-shadow: inset 0 0 0 1.5px var(--cth-ink-900), 2px 2px 0 0 var(--cth-ink-900) !important;
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300), 2px 2px 0 0 var(--cth-ink-900) !important;
   transform: translate(-1px, -1px);
 }
 .cth-settings-btn:active {
   transform: translate(0, 0);
-  box-shadow: inset 0 0 0 1.5px var(--cth-ink-900) !important;
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300) !important;
 }
 
 /* Keyframes — pixel-style: step-based, no easing */

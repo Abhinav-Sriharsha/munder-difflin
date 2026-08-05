@@ -240,7 +240,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
         style={{
           position: 'absolute', top: 0, left: 0, right: 0, height: 36,
           background: 'linear-gradient(180deg, var(--cth-cream-100) 0%, var(--cth-cream-200) 100%)',
-          borderBottom: '2px solid var(--cth-ink-900)',
+          borderBottom: '1px solid var(--cth-ink-300)',
           display: 'flex', alignItems: 'center',
           paddingLeft: 96, paddingRight: 12, gap: 12,
           userSelect: 'none'
@@ -264,9 +264,9 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               width: 28, height: 28, padding: 0,
               background: 'var(--cth-paper-100)',
-              boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+              boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
               border: 'none', borderRadius: 2, cursor: 'pointer',
-              color: 'var(--cth-ink-900)', fontSize: 14, lineHeight: 1
+              color: 'var(--cth-ink-900)', fontSize: 13, lineHeight: 1
             }}
           >
             {appThemeNow === 'dark' ? '☀' : '☾'}
@@ -279,7 +279,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               width: 28, height: 28, padding: 0,
               background: 'var(--cth-paper-100)',
-              boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+              boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
               border: 'none', borderRadius: 2, cursor: 'pointer',
               color: 'var(--cth-ink-900)'
             }}
@@ -294,7 +294,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
               display: 'inline-flex', alignItems: 'center', gap: 5,
               height: 28, padding: '0 9px',
               background: 'var(--cth-paper-100)',
-              boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+              boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
               border: 'none', borderRadius: 2, cursor: 'pointer',
               color: 'var(--cth-ink-900)',
               fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '14px'
@@ -314,7 +314,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
           width: SIDEBAR_WIDTH, flexShrink: 0,
           display: 'flex', flexDirection: 'column',
           background: 'var(--cth-cream-200)',
-          borderRight: '2px solid var(--cth-ink-900)'
+          borderRight: '1px solid var(--cth-ink-300)'
         }}>
           <div style={{ padding: 8, borderBottom: '1px solid var(--cth-ink-300)' }}>
             <button
@@ -324,7 +324,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                 width: '100%', height: 32,
                 background: 'var(--cth-cream-100)',
                 border: 'none',
-                boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+                boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
                 fontFamily: 'var(--cth-font-ui)',
                 fontSize: 'clamp(14px, 0.7vw, 15px)',
                 color: 'var(--cth-ink-900)',
@@ -406,7 +406,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                   fontFamily: 'var(--cth-font-ui)', fontSize: 11,
                   color: 'var(--cth-ink-900)',
                   background: 'var(--cth-status-working)',
-                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
+                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
                 }}>
                   <Icon name="play" /> restoring your team…
                 </div>
@@ -585,7 +585,7 @@ function SidebarRow({
           background: active ? 'var(--cth-cream-100)' : 'transparent',
           border: 'none',
           boxShadow: active
-            ? 'inset 3px 0 0 var(--cth-ink-900), inset 0 0 0 1px var(--cth-ink-700)'
+            ? 'inset 3px 0 0 var(--cth-ink-900), inset 0 0 0 1px var(--cth-ink-100)'
             // Insertion cue on the hovered drop target.
             : drag.overId === agent.id && drag.dragId && drag.dragId !== agent.id
             ? 'inset 0 2px 0 var(--cth-ink-900)'
@@ -595,7 +595,7 @@ function SidebarRow({
           cursor: drag.dragId ? 'grabbing' : 'grab',
           position: 'relative',
           textAlign: 'left',
-          fontFamily: 'var(--cth-font-ui)', fontSize: 14,
+          fontFamily: 'var(--cth-font-ui)', fontSize: 13,
           color: 'var(--cth-ink-900)',
           transition: 'opacity 120ms ease'
         }}
@@ -603,7 +603,7 @@ function SidebarRow({
         <div style={{
           width: scale.portrait, height: Math.round(scale.portrait * 1.3), flexShrink: 0,
           background: `var(--cth-${agent.accent}-light)`,
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
           overflow: 'hidden'
         }}>
@@ -693,7 +693,7 @@ function SidebarRow({
             zIndex: 450,
             padding: 8,
             background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 2px var(--cth-ink-900), 4px 4px 0 rgba(26,19,32,0.25)',
+            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500), 4px 4px 0 rgba(26,19,32,0.25)',
             boxSizing: 'border-box'
           }}
         >
@@ -729,7 +729,7 @@ function SidebarRow({
               resize: 'vertical',
               boxSizing: 'border-box',
               background: 'var(--cth-cream-100)',
-              boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+              boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
               fontFamily: 'var(--cth-font-mono)',
               fontSize: noteFontSize,
               lineHeight: `${Math.round(noteFontSize * 1.6)}px`,
@@ -754,19 +754,19 @@ function Header({ agent }: { agent: Agent }) {
       display: 'flex', alignItems: 'center', gap: 12,
       padding: '6px 10px',
       background: 'var(--cth-cream-50)',
-      boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)'
+      boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)'
     }}>
       <span style={{
         fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '16px',
         color: 'var(--cth-ink-900)'
       }}>{agent.name.toUpperCase()}</span>
       <span style={{
-        fontSize: 13, color: 'var(--cth-ink-500)',
+        fontSize: 12, color: 'var(--cth-ink-500)',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         maxWidth: 300
       }}>{agent.cwd}</span>
       <span style={{
-        fontSize: 13, color: 'var(--cth-ink-700)',
+        fontSize: 12, color: 'var(--cth-ink-700)',
         fontStyle: 'italic'
       }}>“{agent.description}”</span>
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>

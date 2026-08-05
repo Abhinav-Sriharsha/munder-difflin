@@ -115,7 +115,7 @@ export function GitTab({ cwd }: GitTabProps) {
           fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
           padding: '2px 6px',
           background: 'var(--cth-sky-light)',
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
           color: 'var(--cth-ink-900)'
         }}>
           {detached ? 'DETACHED HEAD' : (branch ?? '—')}
@@ -137,7 +137,7 @@ export function GitTab({ cwd }: GitTabProps) {
           padding: '4px 10px',
           background: 'var(--cth-coral-light)',
           color: 'var(--cth-ink-900)',
-          fontSize: 13,
+          fontSize: 12,
           borderBottom: '1px solid var(--cth-coral)'
         }}>{error}</div>
       )}
@@ -168,7 +168,7 @@ export function GitTab({ cwd }: GitTabProps) {
                 <span key={`l-${b}`} style={{
                   padding: '0 6px', fontSize: 12,
                   background: b === branch ? 'var(--cth-lemon)' : 'var(--cth-cream-100)',
-                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
                   color: 'var(--cth-ink-900)'
                 }}>{b}</span>
               ))}
@@ -191,7 +191,7 @@ export function GitTab({ cwd }: GitTabProps) {
         {/* Graph */}
         <Section title="log">
           {log.length > 0 ? <CommitGraph commits={log} currentBranch={branch} /> : (
-            <div style={{ padding: 12, color: 'var(--cth-ink-500)', fontSize: 13 }}>no commits yet</div>
+            <div style={{ padding: 12, color: 'var(--cth-ink-500)', fontSize: 12 }}>no commits yet</div>
           )}
         </Section>
       </div>
@@ -230,7 +230,7 @@ function StatusGroup({ label, entries }: {
         <div key={`${label}-${e.path}-${e.code}`} style={{
           display: 'flex', alignItems: 'center', gap: 6,
           padding: '2px 12px',
-          fontSize: 13, color: 'var(--cth-ink-900)'
+          fontSize: 12, color: 'var(--cth-ink-900)'
         }}>
           <span style={{
             display: 'inline-block', width: 14, textAlign: 'center',

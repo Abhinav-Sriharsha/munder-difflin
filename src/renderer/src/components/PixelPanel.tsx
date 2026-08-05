@@ -49,7 +49,7 @@ export function PixelPanel({
   // Active variant: paint accent over the middle border slot (3px ring at 1px inset)
   if (variant === 'active' && accent) {
     baseStyle.boxShadow = `
-      inset 0 0 0 1px var(--cth-ink-700),
+      inset 0 0 0 1px var(--cth-ink-100),
       inset 0 0 0 3px var(--cth-${accent}),
       inset 0 0 0 5px var(--cth-ink-900)`;
   }

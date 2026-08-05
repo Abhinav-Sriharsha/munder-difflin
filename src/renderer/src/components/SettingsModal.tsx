@@ -36,9 +36,9 @@ const slackInputStyle: CSSProperties = {
   padding: '6px 8px 4px',
   background: 'var(--cth-paper-100)',
   border: 'none',
-  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
   fontFamily: 'var(--cth-font-ui)',
-  fontSize: 14,
+  fontSize: 13,
   color: 'var(--cth-ink-900)',
   outline: 'none'
 };
@@ -542,7 +542,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>New home folder</span>
                 <code style={{
-                  fontFamily: 'var(--cth-font-mono, monospace)', fontSize: 13,
+                  fontFamily: 'var(--cth-font-mono, monospace)', fontSize: 12,
                   color: 'var(--cth-ink-900)', wordBreak: 'break-all'
                 }}>{changeHome}</code>
               </div>
@@ -568,7 +568,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                       }}
                     >
                       <span style={{
-                        fontSize: 14, lineHeight: '20px',
+                        fontSize: 13, lineHeight: '20px',
                         color: 'var(--cth-ink-900)', fontWeight: selected ? 700 : 400
                       }}>
                         {selected ? '◉ ' : '○ '}{title}
@@ -580,7 +580,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
               </div>
 
               {changeErr && (
-                <div style={{ fontSize: 13, lineHeight: '18px', color: '#6E1423' }}>{changeErr}</div>
+                <div style={{ fontSize: 12, lineHeight: '18px', color: '#6E1423' }}>{changeErr}</div>
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -600,7 +600,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                 <div style={{
                   width: 32, height: 32,
                   background: 'var(--cth-coral-light)',
-                  boxShadow: 'inset 0 0 0 2px var(--cth-ink-900)',
+                  boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0
                 }}>
@@ -688,7 +688,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         }}>
                           Home folder
                         </div>
-                        <div style={{ display: 'flex', gap: 12, fontSize: 14, lineHeight: '20px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 12, fontSize: 13, lineHeight: '20px', alignItems: 'center' }}>
                           <span style={{
                             flex: 1, color: 'var(--cth-ink-900)', wordBreak: 'break-all',
                             fontFamily: 'var(--cth-font-mono, monospace)'
@@ -709,7 +709,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {rows.map(([label, value]) => (
-                            <div key={label} style={{ display: 'flex', gap: 12, fontSize: 14, lineHeight: '20px' }}>
+                            <div key={label} style={{ display: 'flex', gap: 12, fontSize: 13, lineHeight: '20px' }}>
                               <span style={{ width: 160, flexShrink: 0, color: 'var(--cth-ink-500)' }}>{label}</span>
                               <span style={{
                                 color: 'var(--cth-ink-900)', wordBreak: 'break-all',
@@ -732,7 +732,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
                               Desktop notifications
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
@@ -761,7 +761,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
                               Scheduled auto-compact
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
@@ -781,7 +781,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         <div style={{ height: 10 }} />
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
                               Auto-update
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
@@ -855,7 +855,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
                               Enterprise knowledge base
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
@@ -917,7 +917,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
                               Slack integration
                               {/* i - toggles the step-by-step connect guide. */}
                               <button
@@ -1095,7 +1095,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
                               Webhook API
                               <button
                                 type="button"
@@ -1226,7 +1226,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
                               Free Flow (voice dictation)
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
@@ -1306,7 +1306,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                           Realtime Michael
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          <span style={{ fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                          <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
                             Voice chat with Michael
                           </span>
                           <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
@@ -1346,7 +1346,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                             <span aria-hidden style={{
                               width: 8, height: 8, flexShrink: 0,
                               background: hasOpenAiKey ? 'var(--cth-mint)' : 'var(--cth-lemon)',
-                              boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
+                              boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
                             }} />
                             {hasOpenAiKey
                               ? 'OpenAI key detected — Talk is enabled.'
@@ -1393,7 +1393,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
                         color: '#6E1423'
                       }}>DANGER ZONE</div>
-                      <p style={{ margin: 0, fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-700)' }}>
+                      <p style={{ margin: 0, fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-700)' }}>
                         Reset wipes Michael's memories, the entire hive (every agent, message,
                         task, and the board), the semantic-memory palace, and all settings -
                         then takes you back to onboarding.

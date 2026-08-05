@@ -103,7 +103,7 @@ export function CompletionToast(): JSX.Element | null {
           style={{
             pointerEvents: 'auto',
             background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 2px var(--cth-ink-900), 4px 4px 0 0 var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500), 4px 4px 0 0 var(--cth-ink-900)',
             padding: 12,
             display: 'flex',
             flexDirection: 'column',
@@ -153,7 +153,7 @@ export function CompletionToast(): JSX.Element | null {
             {t.summary}
           </div>
           {t.objective && (
-            <div style={{ fontSize: 13, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
+            <div style={{ fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
               {t.objective}
             </div>
           )}

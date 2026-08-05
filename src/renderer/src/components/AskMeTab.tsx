@@ -133,7 +133,7 @@ export function AskMeTab() {
     // questions and answers. Display/badge bits keep their explicit faces.
     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--cth-paper-200)', padding: 10, display: 'flex', flexDirection: 'column', gap: 10, fontFamily: 'var(--cth-font-mono)' }}>
       {waiting.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--cth-ink-500)', fontSize: 13 }}>
+        <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--cth-ink-500)', fontSize: 12 }}>
           Nothing needs you right now. 🌿<br />
           <span style={{ fontSize: 11, color: 'var(--cth-ink-300)' }}>
             When the team blocks a task on your input — a question to answer or a to-do only
@@ -146,7 +146,7 @@ export function AskMeTab() {
         const stuck = dependentsTree(t.id, tasks);
         return (
           <div key={t.id} style={{
-            background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+            background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
             display: 'flex', flexDirection: 'column'
           }}>
             {/* header: title + assignee */}
@@ -202,7 +202,7 @@ export function AskMeTab() {
                 style={{
                   width: '100%', boxSizing: 'border-box', padding: '6px 8px', resize: 'vertical',
                   background: 'var(--cth-paper-100)', border: 'none',
-                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
                   fontFamily: 'var(--cth-font-mono)', fontSize: 15, lineHeight: '18px',
                   color: 'var(--cth-ink-900)', outline: 'none'
                 }}
@@ -243,7 +243,7 @@ export function AskMeTab() {
                       fontSize: 12, color: 'var(--cth-ink-700)'
                     }}>
                       <span style={{ color: 'var(--cth-ink-300)' }}>└</span>
-                      <span style={{ width: 7, height: 7, flexShrink: 0, background: d.status === 'blocked' ? 'var(--cth-coral)' : 'var(--cth-sky)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)' }} />
+                      <span style={{ width: 7, height: 7, flexShrink: 0, background: d.status === 'blocked' ? 'var(--cth-coral)' : 'var(--cth-sky)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)' }} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</span>
                       {nameFor(d.assignee) && <span style={{ fontSize: 10, color: 'var(--cth-ink-500)' }}>({nameFor(d.assignee)})</span>}
                     </div>

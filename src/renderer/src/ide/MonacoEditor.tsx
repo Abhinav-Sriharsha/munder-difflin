@@ -39,7 +39,7 @@ export function MonacoEditor({ path, value, onChange, onSave, readOnly }: Monaco
       options={{
         readOnly,
         fontFamily: '"JetBrains Mono", "SF Mono", Menlo, monospace',
-        fontSize: 13,
+        fontSize: 12,
         lineHeight: 20,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,

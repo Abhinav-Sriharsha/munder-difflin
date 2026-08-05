@@ -34,7 +34,7 @@ function fmtTokens(n: number): string {
 }
 
 const card: React.CSSProperties = {
-  background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+  background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
   padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6
 };
 const metaRow: React.CSSProperties = {
@@ -54,7 +54,7 @@ function StatusBadge({ w }: { w: WorkerSnapshot }) {
       textTransform: 'uppercase', letterSpacing: 0.5,
       color: releasing ? 'var(--cth-paper-100)' : 'var(--cth-ink-900)',
       background: releasing ? 'var(--cth-ink-700)' : 'var(--cth-green, #2f8f4e)',
-      boxShadow: releasing ? 'none' : 'inset 0 0 0 1px var(--cth-ink-700)'
+      boxShadow: releasing ? 'none' : 'inset 0 0 0 1px var(--cth-ink-100)'
     }}>
       {releasing ? 'stopping' : 'working'}
     </span>
@@ -111,13 +111,13 @@ export function WorkersTab() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                     <StatusBadge w={w} />
                     <span style={{
-                      fontFamily: 'var(--cth-font-ui)', fontSize: 13, fontWeight: 600, color: 'var(--cth-ink-900)',
+                      fontFamily: 'var(--cth-font-ui)', fontSize: 12, fontWeight: 600, color: 'var(--cth-ink-900)',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                     }}>{w.name}</span>
                     {w.hasSlack && (
                       <span title="replies to a Slack thread" style={{
                         fontFamily: 'var(--cth-font-mono)', fontSize: 10, color: 'var(--cth-ink-700)',
-                        boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)', padding: '0 5px'
+                        boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)', padding: '0 5px'
                       }}>slack</span>
                     )}
                   </div>

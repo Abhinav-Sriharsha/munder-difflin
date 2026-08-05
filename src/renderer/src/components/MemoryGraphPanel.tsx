@@ -426,7 +426,7 @@ function Legend() {
   return (
     <div style={{
       position: 'absolute', bottom: 8, left: 8, padding: '5px 7px',
-      background: 'var(--cth-cream-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+      background: 'var(--cth-cream-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
       display: 'flex', flexWrap: 'wrap', gap: '2px 10px', maxWidth: 280, pointerEvents: 'none'
     }}>
       {items.map((it) => (
@@ -447,7 +447,7 @@ function Tooltip({ x, y, wrap, children }: { x: number; y: number; wrap: { w: nu
       position: 'absolute', left: Math.max(6, left), top: flipUp ? undefined : y + 14,
       bottom: flipUp ? wrap.h - y + 14 : undefined,
       width: W, padding: 8, pointerEvents: 'none', zIndex: 5,
-      background: 'var(--cth-cream-50)', boxShadow: '2px 2px 0 var(--cth-ink-900), inset 0 0 0 1px var(--cth-ink-900)'
+      background: 'var(--cth-cream-50)', boxShadow: '2px 2px 0 var(--cth-ink-900), inset 0 0 0 1px var(--cth-ink-300)'
     }}>{children}</div>
   );
 }
@@ -459,7 +459,7 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px 2px', border: 'none', cursor: 'pointer',
         background: on ? 'var(--cth-lilac)' : 'var(--cth-cream-200)',
-        boxShadow: on ? 'inset 0 0 0 1px var(--cth-ink-900)' : 'inset 0 0 0 1px var(--cth-ink-700)',
+        boxShadow: on ? 'inset 0 0 0 1px var(--cth-ink-300)' : 'inset 0 0 0 1px var(--cth-ink-100)',
         fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)'
       }}
     >
@@ -523,12 +523,12 @@ function memorySnippet(text: string): string {
 
 const iconBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px 2px', border: 'none', cursor: 'pointer',
-  background: 'var(--cth-cream-200)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+  background: 'var(--cth-cream-200)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
   fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)'
 };
 
 const tipTitle: React.CSSProperties = {
-  fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-ink-900)', lineHeight: '16px'
+  fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)', lineHeight: '16px'
 };
 const tipBody: React.CSSProperties = {
   fontSize: 11, lineHeight: '15px', color: 'var(--cth-ink-700)'

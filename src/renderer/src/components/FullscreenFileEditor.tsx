@@ -46,7 +46,7 @@ export function FullscreenFileEditor() {
         style={{
           position: 'absolute', top: 0, left: 0, right: 0, height: 36,
           background: 'linear-gradient(180deg, var(--cth-cream-100) 0%, var(--cth-cream-200) 100%)',
-          borderBottom: '2px solid var(--cth-ink-900)',
+          borderBottom: '1px solid var(--cth-ink-300)',
           display: 'flex', alignItems: 'center',
           paddingLeft: 96, paddingRight: 12, gap: 12,
           userSelect: 'none',

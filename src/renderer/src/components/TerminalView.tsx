@@ -49,7 +49,7 @@ export function TerminalView({ initialLines = [], feed = [] }: TerminalViewProps
     const term = new Terminal({
       theme,
       fontFamily: '"JetBrains Mono", "SF Mono", Menlo, monospace',
-      fontSize: 14,
+      fontSize: 13,
       lineHeight: 1.0,
       cursorBlink: true,
       cursorStyle: 'block',
@@ -108,7 +108,7 @@ export function TerminalView({ initialLines = [], feed = [] }: TerminalViewProps
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6,
         fontFamily: 'var(--cth-font-ui)',
-        fontSize: 13,
+        fontSize: 12,
         color: 'var(--cth-ink-500)',
         borderBottom: '1px dashed var(--cth-ink-300)',
         paddingBottom: 4,
@@ -116,7 +116,7 @@ export function TerminalView({ initialLines = [], feed = [] }: TerminalViewProps
       }}>
         <span style={{
           width: 8, height: 8, background: 'var(--cth-coral)',
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
         }} />
         live · pipe-pane
       </div>

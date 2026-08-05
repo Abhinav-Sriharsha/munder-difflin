@@ -220,7 +220,7 @@ export function IdePanel() {
         style={{
           position: 'absolute', top: 0, left: 0, right: 0, height: 36,
           background: 'linear-gradient(180deg, var(--cth-cream-100) 0%, var(--cth-cream-200) 100%)',
-          borderBottom: '2px solid var(--cth-ink-900)',
+          borderBottom: '1px solid var(--cth-ink-300)',
           display: 'flex', alignItems: 'center',
           paddingLeft: 96, paddingRight: 8, gap: 10,
           userSelect: 'none'
@@ -232,7 +232,7 @@ export function IdePanel() {
           MUNDER DIFFLIN · IDE
         </span>
         <span title={root ?? ''} style={{
-          fontFamily: 'var(--cth-font-mono)', fontSize: 14, color: 'var(--cth-ink-500)',
+          fontFamily: 'var(--cth-font-mono)', fontSize: 13, color: 'var(--cth-ink-500)',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '40vw'
         }}>
           {root ? basename(root) : 'no workspace'}
@@ -247,7 +247,7 @@ export function IdePanel() {
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, padding: 0,
             background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             border: 'none', borderRadius: 2, cursor: 'pointer', color: 'var(--cth-ink-900)'
           }}
         >
@@ -280,10 +280,10 @@ export function IdePanel() {
               } />
               <div style={{ overflow: 'auto', minHeight: 0 }}>
                 {isRepo === false && (
-                  <div style={{ padding: '6px 12px', fontSize: 13, color: 'var(--cth-ink-500)' }}>not a git repo</div>
+                  <div style={{ padding: '6px 12px', fontSize: 12, color: 'var(--cth-ink-500)' }}>not a git repo</div>
                 )}
                 {isRepo && changedFiles.length === 0 && (
-                  <div style={{ padding: '6px 12px', fontSize: 13, color: 'var(--cth-ink-500)' }}>working tree clean</div>
+                  <div style={{ padding: '6px 12px', fontSize: 12, color: 'var(--cth-ink-500)' }}>working tree clean</div>
                 )}
                 {changedFiles.map((f) => {
                   const active = activeKey === tabKey('diff', f.path);
@@ -294,7 +294,7 @@ export function IdePanel() {
                       title={f.path}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 6, padding: '2px 12px',
-                        cursor: 'pointer', fontSize: 13, color: 'var(--cth-ink-900)',
+                        cursor: 'pointer', fontSize: 12, color: 'var(--cth-ink-900)',
                         background: active ? 'var(--cth-lemon-light)' : 'transparent'
                       }}
                     >
@@ -345,7 +345,7 @@ export function IdePanel() {
                       background: active ? 'var(--cth-paper-100)' : 'transparent',
                       boxShadow: active ? 'inset 0 -2px 0 var(--cth-sky)' : 'none',
                       borderRight: '1px solid var(--cth-ink-100)',
-                      fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-ink-900)'
+                      fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)'
                     }}
                   >
                     {t.mode === 'diff' && (
@@ -381,7 +381,7 @@ export function IdePanel() {
                     fontFamily: 'var(--cth-font-display)', fontSize: 8, textTransform: 'uppercase',
                     letterSpacing: 1, color: 'var(--cth-ink-700)'
                   }}>nothing open</div>
-                  <div style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 14 }}>
+                  <div style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 13 }}>
                     Pick a file from the tree to edit, or a changed file to diff.
                   </div>
                 </div>
@@ -422,7 +422,7 @@ export function IdePanel() {
                     <div style={{
                       display: 'flex', alignItems: 'center', gap: 8, padding: '3px 8px',
                       background: 'var(--cth-cream-200)', borderBottom: '1px solid var(--cth-ink-700)',
-                      fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-ink-700)'
+                      fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-700)'
                     }}>
                       <span style={{ color: 'var(--cth-ink-500)' }}>HEAD</span>
                       <Icon name="arrow-right" />
@@ -469,7 +469,7 @@ function EditorBar({ rel, dirty, saveState, onSave, onCopy }: {
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6, padding: '3px 8px',
       background: 'var(--cth-cream-200)', borderBottom: '1px solid var(--cth-ink-700)',
-      fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-ink-700)'
+      fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-700)'
     }}>
       <Icon name="code" />
       <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--cth-font-mono)' }} title={rel}>
@@ -488,7 +488,7 @@ function Centered({ children, tone }: { children: React.ReactNode; tone?: 'error
   return (
     <div style={{
       height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 16, textAlign: 'center', fontFamily: 'var(--cth-font-ui)', fontSize: 14,
+      padding: 16, textAlign: 'center', fontFamily: 'var(--cth-font-ui)', fontSize: 13,
       color: tone === 'error' ? 'var(--cth-coral)' : 'var(--cth-ink-500)'
     }}>{children}</div>
   );
@@ -502,6 +502,6 @@ const iconBtn: React.CSSProperties = {
 const textBtn: React.CSSProperties = {
   padding: '0 6px', height: 20, fontFamily: 'var(--cth-font-ui)', fontSize: 12,
   color: 'var(--cth-ink-900)', background: 'var(--cth-cream-100)', border: 'none',
-  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)', cursor: 'pointer',
+  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)', cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4
 };

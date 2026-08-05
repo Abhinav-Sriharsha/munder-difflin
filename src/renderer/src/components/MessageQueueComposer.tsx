@@ -204,7 +204,7 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
           <span style={{
             fontSize: 11, padding: '1px 6px 0',
             background: 'var(--cth-cream-200)',
-            boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
             fontFamily: 'var(--cth-font-ui)', color: 'var(--cth-ink-900)'
           }}>{queue.length}</span>
         )}
@@ -291,7 +291,7 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
                 maxWidth: '100%',
                 padding: '2px 4px 2px 6px',
                 background: 'var(--cth-cream-200)',
-                boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+                boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
                 fontFamily: 'var(--cth-font-mono)', fontSize: 12, lineHeight: '16px',
                 color: 'var(--cth-ink-900)'
               }}
@@ -338,7 +338,7 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
             padding: '6px 8px',
             background: 'var(--cth-paper-100)',
             border: 'none',
-            boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
             fontFamily: 'var(--cth-font-mono)',
             fontSize: composerFontSize, lineHeight: `${composerLineHeight}px`,
             color: 'var(--cth-ink-900)',
@@ -346,8 +346,10 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
             boxSizing: 'border-box'
           }}
         />
-        {/* Control bar: Delegate (god only) left; Attach + voice + Send aligned right. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {/* Control bar: Delegate (god only) left; Attach + voice + Send aligned
+            right. flexWrap so a narrow sidebar wraps the buttons onto a second
+            row instead of pushing Send off-screen. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, rowGap: 6, flexWrap: 'wrap', minWidth: 0 }}>
           {agent.isGod && (
             <DelegateSwitch on={delegate} onToggle={() => setDelegate((d) => !d)} />
           )}
@@ -429,7 +431,7 @@ function QueuedMessageRow(
           ref={bodyRef}
           title={expanded ? undefined : message.text}
           style={{
-            fontSize: 13, lineHeight: '18px',
+            fontSize: 12, lineHeight: '18px',
             color: 'var(--cth-ink-900)',
             whiteSpace: 'pre-wrap', wordBreak: 'break-word',
             ...(expanded
@@ -503,7 +505,7 @@ function DelegateSwitch({ on, onToggle }: { on: boolean; onToggle: () => void })
         <span style={{
           position: 'absolute', top: 2, left: on ? 16 : 2, width: 10, height: 10,
           background: 'var(--cth-paper-100)',
-          boxShadow: '0 0 0 1px var(--cth-ink-900)',
+          boxShadow: '0 0 0 1px var(--cth-ink-300)',
           transition: 'left 120ms ease'
         }} />
       </span>

@@ -116,7 +116,7 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
       }}>
         <div style={{
           width: 32, height: 32, background: `var(--cth-${agent.accent}-light)`,
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden', flexShrink: 0
         }}>
           <SpritePortrait character={agent.character} scale={1} />
@@ -153,8 +153,8 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
               background: tab === t.key ? `var(--cth-${agent.accent})` : 'var(--cth-cream-200)',
               color: 'var(--cth-ink-900)',
               boxShadow: tab === t.key
-                ? 'inset 0 0 0 1px var(--cth-ink-900)'
-                : 'inset 0 0 0 1px var(--cth-ink-700)',
+                ? 'inset 0 0 0 1px var(--cth-ink-300)'
+                : 'inset 0 0 0 1px var(--cth-ink-100)',
               fontFamily: 'var(--cth-font-ui)', fontSize: 13
             }}
           >
@@ -540,7 +540,7 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
                 width: 24, height: 24, background: `var(--cth-${a.accent}-light)`,
-                boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+                boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
                 display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden', flexShrink: 0
               }}>
                 <SpritePortrait character={a.character} scale={1} />
@@ -549,7 +549,7 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
                 onClick={() => select(a.id)}
                 style={{
                   border: 'none', background: 'transparent', cursor: 'pointer', padding: 0,
-                  fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-ink-900)'
+                  fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)'
                 }}
               >{a.name}{a.isGod ? ' (god)' : ''}</button>
               <PixelBadge status={armed ? 'looping' : a.status} />
@@ -759,7 +759,7 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
         {/* Fleet summary band */}
         <div style={{
           display: 'flex', gap: 14, marginTop: 2, padding: '6px 8px',
-          background: 'var(--cth-cream-200)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+          background: 'var(--cth-cream-200)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
           fontFamily: 'var(--cth-font-mono)', fontSize: 11, color: 'var(--cth-ink-900)', flexWrap: 'wrap'
         }}>
           <span>Σ <strong>{fmtTokens(sumTokens)}</strong> tok</span>
@@ -861,7 +861,7 @@ function ArchivedSection() {
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,
           padding: '2px 8px 1px', border: 'none', cursor: 'pointer',
-          background: 'var(--cth-cream-200)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+          background: 'var(--cth-cream-200)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
           fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)',
           marginBottom: open ? 6 : 0
         }}
@@ -874,13 +874,13 @@ function ArchivedSection() {
         }}>
           <div style={{
             width: 24, height: 24, background: `var(--cth-${a.accent}-light)`,
-            boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden', flexShrink: 0
           }}>
             <SpritePortrait character={a.character} scale={1} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-ink-700)' }}>{a.name}</div>
+            <div style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-700)' }}>{a.name}</div>
             <div style={{ fontSize: 11, color: 'var(--cth-ink-500)', wordBreak: 'break-all' }}>{a.cwd}</div>
           </div>
           <button
@@ -1054,13 +1054,13 @@ function TokenLimitEditor({ value, onSet }: { value?: number; onSet: (tokens: nu
         placeholder="tokens"
         style={{
           width: 84, padding: '2px 4px', background: 'var(--cth-paper-100)', border: 'none',
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)', fontFamily: 'var(--cth-font-mono)',
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)', fontFamily: 'var(--cth-font-mono)',
           fontSize: 11, color: 'var(--cth-ink-900)', outline: 'none'
         }}
       />
       <button
         onMouseDown={(e) => e.preventDefault()} onClick={commit} title="Save limit"
-        style={{ flexShrink: 0, padding: '1px 5px', border: 'none', cursor: 'pointer', background: 'var(--cth-mint)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)', fontSize: 11, color: 'var(--cth-ink-900)' }}
+        style={{ flexShrink: 0, padding: '1px 5px', border: 'none', cursor: 'pointer', background: 'var(--cth-mint)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)', fontSize: 11, color: 'var(--cth-ink-900)' }}
       >✓</button>
     </span>
   );
@@ -1139,10 +1139,10 @@ function HandbookTab() {
                   fontFamily: 'var(--cth-font-display)', fontSize: 7, lineHeight: '12px',
                   padding: '1px 4px 0', flexShrink: 0,
                   background: it.kind === 'slash' ? 'var(--cth-sky-light)' : 'var(--cth-mint-light)',
-                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)', color: 'var(--cth-ink-900)'
+                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)', color: 'var(--cth-ink-900)'
                 }}>{it.kind === 'slash' ? 'SLASH' : 'CLI'}</span>
                 <code style={{
-                  flex: 1, minWidth: 0, fontFamily: 'var(--cth-font-mono)', fontSize: 13,
+                  flex: 1, minWidth: 0, fontFamily: 'var(--cth-font-mono)', fontSize: 12,
                   color: 'var(--cth-ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                 }}>{it.cmd.trim() || '#'}</code>
                 <button
@@ -1152,7 +1152,7 @@ function HandbookTab() {
                     flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4,
                     padding: '2px 7px 1px', border: 'none', cursor: 'pointer',
                     background: copied === it.cmd ? 'var(--cth-mint)' : 'var(--cth-cream-200)',
-                    boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+                    boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
                     fontFamily: 'var(--cth-font-ui)', fontSize: 11, color: 'var(--cth-ink-900)'
                   }}
                 >
@@ -1194,7 +1194,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, textAlign: 'center', color: 'var(--cth-ink-700)', fontSize: 14, background: 'var(--cth-paper-200)' }}>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, textAlign: 'center', color: 'var(--cth-ink-700)', fontSize: 13, background: 'var(--cth-paper-200)' }}>
       {children}
     </div>
   );
@@ -1218,8 +1218,8 @@ function Pre({ children }: { children: React.ReactNode }) {
 const textareaStyle: React.CSSProperties = {
   flex: 1, width: '100%', resize: 'none', padding: '6px 8px',
   background: 'var(--cth-paper-100)', border: 'none',
-  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
-  fontFamily: 'var(--cth-font-mono)', fontSize: 13, lineHeight: '17px',
+  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
+  fontFamily: 'var(--cth-font-mono)', fontSize: 12, lineHeight: '17px',
   color: 'var(--cth-ink-900)', outline: 'none', boxSizing: 'border-box'
 };
 
@@ -1233,7 +1233,7 @@ function Select({ value, onChange, disabled, children }: {
       onChange={(e) => onChange(e.target.value)}
       style={{
         padding: '3px 6px', background: 'var(--cth-paper-100)',
-        border: 'none', boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+        border: 'none', boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
         fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)', cursor: 'pointer',
         // Never let a long option name push the sidebar wider than it is.
         minWidth: 0, maxWidth: '100%'

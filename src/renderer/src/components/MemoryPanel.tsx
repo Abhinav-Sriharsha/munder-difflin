@@ -82,9 +82,9 @@ export function MemoryPanel() {
           style={{
             padding: '5px 10px 3px',
             background: active ? 'var(--cth-lemon-light)' : 'var(--cth-cream-200)',
-            boxShadow: 'inset 0 0 0 2px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500)',
             fontFamily: 'var(--cth-font-ui)',
-            fontSize: 13,
+            fontSize: 12,
             color: 'var(--cth-ink-900)',
             cursor: 'pointer',
             border: 'none'
@@ -103,8 +103,8 @@ export function MemoryPanel() {
 
             {/* Status + on/off — the two things the user controls at a glance. */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--cth-ink-900)', fontFamily: 'var(--cth-font-ui)' }}>
-                <span style={{ width: 9, height: 9, background: state.dot, boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)' }} />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--cth-ink-900)', fontFamily: 'var(--cth-font-ui)' }}>
+                <span style={{ width: 9, height: 9, background: state.dot, boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)' }} />
                 {state.label}
               </span>
               {status?.available && (
@@ -167,15 +167,15 @@ export function MemoryPanel() {
                           flex: 1, textAlign: 'left', cursor: 'pointer', border: 'none',
                           padding: '7px 9px 6px',
                           background: sel ? 'var(--cth-lemon-light)' : 'var(--cth-cream-100)',
-                          boxShadow: sel ? 'inset 0 0 0 2px var(--cth-ink-900)' : 'inset 0 0 0 1px var(--cth-ink-300)',
+                          boxShadow: sel ? 'inset 0 0 0 1.5px var(--cth-ink-500)' : 'inset 0 0 0 1px var(--cth-ink-300)',
                           fontFamily: 'var(--cth-font-ui)'
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--cth-ink-900)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--cth-ink-900)' }}>
                           <span style={{
                             width: 8, height: 8, flexShrink: 0,
                             background: sel ? 'var(--cth-ink-900)' : 'transparent',
-                            boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)'
+                            boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)'
                           }} />
                           {m.title}
                         </div>
@@ -199,8 +199,8 @@ export function MemoryPanel() {
                     style={{
                       flex: 1, padding: '6px 8px 4px',
                       background: 'var(--cth-paper-100)', border: 'none',
-                      boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
-                      fontFamily: 'var(--cth-font-ui)', fontSize: 14,
+                      boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
+                      fontFamily: 'var(--cth-font-ui)', fontSize: 13,
                       color: 'var(--cth-ink-900)', outline: 'none'
                     }}
                   />
@@ -212,7 +212,7 @@ export function MemoryPanel() {
                   <pre style={{
                     margin: 0, maxHeight: '40vh', overflow: 'auto',
                     background: 'var(--cth-cream-100)',
-                    boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+                    boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
                     padding: 8, fontFamily: 'var(--cth-font-mono)', fontSize: 12,
                     whiteSpace: 'pre-wrap', color: 'var(--cth-ink-900)'
                   }}>{result}</pre>

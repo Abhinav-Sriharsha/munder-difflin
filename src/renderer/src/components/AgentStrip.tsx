@@ -80,12 +80,12 @@ export function AgentStrip({ config }: AgentStripProps) {
       padding: '14px 16px',
       overflowX: 'auto',
       overflowY: 'hidden',
-      borderTop: '2px solid var(--cth-ink-900)',
+      borderTop: '1px solid var(--cth-ink-300)',
       background: 'var(--cth-cream-200)',
       // Tall enough for the god card to stand proud of the row (it's taller and
       // rides a drop shadow) plus the hover-lift on every card, without clipping.
-      height: 132,
-      minHeight: 132,
+      height: 112,
+      minHeight: 112,
       alignItems: 'center'
     }}>
       {agents.map(a => (
@@ -142,11 +142,13 @@ export function AgentStrip({ config }: AgentStripProps) {
               const first = doingByAgent[a.id]?.[0];
               if (first) openTaskDetail(first);
             }}
+            note={a.note}
+            onEditNote={a.isGod ? undefined : () => setNoteEditId(a.id)}
           />
-          {/* Private note — VISIBLE by default when one exists (this used to be
-              fullscreen-only + hover-gated). Editing is explicit: the ✎ button
-              opens the editor in place; Esc / ✎ again closes it. */}
-          {noteEditId === a.id && !dragId ? (
+          {/* The note itself lives INSIDE the card (its own row above the gauge,
+              v0.3.4 — so it can never cover the context bar). This overlay is
+              only the transient EDITOR: ✎ opens it, Esc / ✕ closes it. */}
+          {noteEditId === a.id && !dragId && (
             <div
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
@@ -154,7 +156,7 @@ export function AgentStrip({ config }: AgentStripProps) {
                 position: 'absolute', left: 60, right: 7, bottom: 7, height: 30, zIndex: 5,
                 display: 'flex', alignItems: 'center', gap: 4, padding: '3px 4px',
                 background: 'var(--cth-paper-100)',
-                boxShadow: 'inset 0 0 0 1px var(--cth-ink-900), 2px 2px 0 rgba(26,19,32,0.2)',
+                boxShadow: 'inset 0 0 0 1px var(--cth-ink-300), 2px 2px 0 rgba(26,19,32,0.2)',
                 boxSizing: 'border-box'
               }}
             >
@@ -198,48 +200,6 @@ export function AgentStrip({ config }: AgentStripProps) {
                   border: 'none', cursor: 'pointer'
                 }}
               >✕</button>
-            </div>
-          ) : !dragId && (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              style={{
-                position: 'absolute', left: 60, right: 7, bottom: 7, height: a.note ? 22 : 0, zIndex: 5,
-                display: 'flex', alignItems: 'center', gap: 4,
-                pointerEvents: 'none'
-              }}
-            >
-              {a.note && (
-                <span
-                  title={a.note}
-                  style={{
-                    flex: 1, minWidth: 0, padding: '1px 5px',
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    background: 'var(--cth-paper-100)',
-                    boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
-                    fontFamily: 'var(--cth-font-mono)', fontSize: 11,
-                    lineHeight: '18px', color: 'var(--cth-ink-700)'
-                  }}
-                >
-                  {a.note.split('\n')[0]}
-                  {a.note.includes('\n') ? ` (+${a.note.split('\n').filter(Boolean).length - 1})` : ''}
-                </span>
-              )}
-              <button
-                onClick={(e) => { e.stopPropagation(); setNoteEditId(a.id); }}
-                title={a.note ? 'Edit private note' : 'Add private note'}
-                aria-label={`Edit note for ${a.name}`}
-                style={{
-                  pointerEvents: 'auto',
-                  position: a.note ? 'static' : 'absolute', right: 0, bottom: 0,
-                  flexShrink: 0, width: 20, height: 20, padding: 0, lineHeight: 1,
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, color: 'var(--cth-ink-500)',
-                  background: 'var(--cth-paper-100)',
-                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
-                  border: 'none', cursor: 'pointer'
-                }}
-              >✎</button>
             </div>
           )}
         </div>
@@ -311,7 +271,7 @@ export function AgentStrip({ config }: AgentStripProps) {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   height: 26, padding: '0 4px 0 8px',
-                  fontSize: 13, color: 'var(--cth-ink-900)',
+                  fontSize: 12, color: 'var(--cth-ink-900)',
                   background: 'var(--cth-paper-100)',
                   boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
                 }}

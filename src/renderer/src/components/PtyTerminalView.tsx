@@ -358,7 +358,7 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6,
         fontFamily: 'var(--cth-font-ui)',
-        fontSize: 13,
+        fontSize: 12,
         color: 'var(--cth-ink-500)',
         borderBottom: '1px dashed var(--cth-ink-300)',
         paddingBottom: 4,
@@ -369,7 +369,7 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
       }}>
         <span style={{
           width: 8, height: 8, background: 'var(--cth-mint)',
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
           animation: 'cth-pulse 1200ms steps(2, end) infinite'
         }} />
         live · pty {ptyId}

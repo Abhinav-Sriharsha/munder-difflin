@@ -76,7 +76,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
       <div style={{ width: 560, maxWidth: '94vw' }}>
         <PixelPanel variant="dialog" title="SELECT A HARNESS CONFIG" noPadding>
           <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <p style={{ margin: 0, fontSize: 13, lineHeight: '19px', color: 'var(--cth-ink-700)' }}>
+            <p style={{ margin: 0, fontSize: 12, lineHeight: '19px', color: 'var(--cth-ink-700)' }}>
               A <strong>harness config</strong> is the folder where the app keeps everything for one
               workspace — its settings, your agents and their memory, tasks, schedules, and history.
               Each config is separate and self-contained, so you can run different setups side by side.
@@ -132,7 +132,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
                     >
                       <Icon name="folder" />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 13, fontWeight: 600, color: 'var(--cth-ink-900)' }}>
+                        <div style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 12, fontWeight: 600, color: 'var(--cth-ink-900)' }}>
                           {folderName(h)}
                         </div>
                         <div style={{
@@ -152,7 +152,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
             {error && (
               <div style={{
                 padding: '6px 10px', background: 'var(--cth-coral-light)',
-                boxShadow: 'inset 0 0 0 1px var(--cth-coral)', fontSize: 13, color: 'var(--cth-ink-900)'
+                boxShadow: 'inset 0 0 0 1px var(--cth-coral)', fontSize: 12, color: 'var(--cth-ink-900)'
               }}>{error}</div>
             )}
 
