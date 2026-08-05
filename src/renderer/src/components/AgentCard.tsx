@@ -128,7 +128,9 @@ export function AgentCard({
             width: 36, height: isGod ? 50 : 46, alignSelf: 'center',
             background: `var(--cth-${accent}-light)`,
             boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
-            display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
+            // Anchor the sprite's TOP: the 56px-tall portrait overflows this
+            // tile, and bottom-anchoring cropped the head — crop feet, not face.
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflow: 'hidden',
             flexShrink: 0
           }}>
             <SpritePortrait character={character} scale={2} />

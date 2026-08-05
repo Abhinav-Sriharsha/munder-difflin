@@ -16,9 +16,6 @@ interface Attachment {
 }
 
 // Prepended (only to the enqueued value, never the visible draft) when the
-// god/Michael agent has the "Delegate to agents" toggle ON.
-const DELEGATE_PREFIX =
-  "Delegate to other available agents as mentioned if no agents available do it yourself one by one the user's message starts now: ";
 
 export interface MessageQueueComposerProps {
   agent: Agent;
@@ -68,7 +65,6 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
   const idle = agent.status === 'idle';
 
   // Only the god/Michael agent gets the delegation toggle. Default OFF.
-  const [delegate, setDelegate] = useState(false);
 
   // Files/images staged for the next message. Component-local: switching agents
   // remounts this component, so attachments are cleared on tab switch (drafts
@@ -138,8 +134,7 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
           ? `${text}\n\nAttached files:\n`
           : 'Attached files:\n') + attachments.map((a) => `- ${a.path} (${a.name})`).join('\n')
       : text;
-    const out = delegate ? DELEGATE_PREFIX + body : body;
-    enqueueMessage(agent.id, out);
+    enqueueMessage(agent.id, body);
     setText('');
     setAttachments([]);
   };
@@ -346,13 +341,10 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
             boxSizing: 'border-box'
           }}
         />
-        {/* Control bar: Delegate (god only) left; Attach + voice + Send aligned
-            right. flexWrap so a narrow sidebar wraps the buttons onto a second
-            row instead of pushing Send off-screen. */}
+        {/* Control bar: Attach + voice + Send aligned right. flexWrap so a
+            narrow sidebar wraps the buttons onto a second row instead of
+            pushing Send off-screen. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, rowGap: 6, flexWrap: 'wrap', minWidth: 0 }}>
-          {agent.isGod && (
-            <DelegateSwitch on={delegate} onToggle={() => setDelegate((d) => !d)} />
-          )}
           <span style={{ flex: 1 }} />
           <PixelButton variant="secondary" size="sm" onClick={pickFiles}>
             <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
@@ -473,45 +465,6 @@ function QueuedMessageRow(
   );
 }
 
-/**
- * A pixel-style toggle switch for the god/Michael delegation flag. ON prepends
- * DELEGATE_PREFIX to the enqueued message so Michael fans the task out to other
- * available agents (or does it himself one-by-one if none are free).
- */
-function DelegateSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={onToggle}
-      title="When ON, Michael hands the task to other available agents (or does it himself one-by-one if none are free)."
-      style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-        padding: '3px 6px', border: 'none', cursor: 'pointer', background: 'transparent',
-        fontFamily: 'var(--cth-font-ui)', fontSize: 12,
-        color: on ? 'var(--cth-ink-900)' : 'var(--cth-ink-700)'
-      }}
-    >
-      <span>Delegate</span>
-      {/* track */}
-      <span style={{
-        position: 'relative', flexShrink: 0, width: 28, height: 14,
-        background: on ? 'var(--cth-lilac)' : 'var(--cth-cream-200)',
-        boxShadow: `inset 0 0 0 1px ${on ? 'var(--cth-ink-900)' : 'var(--cth-ink-700)'}`,
-        transition: 'background 120ms ease'
-      }}>
-        {/* knob */}
-        <span style={{
-          position: 'absolute', top: 2, left: on ? 16 : 2, width: 10, height: 10,
-          background: 'var(--cth-paper-100)',
-          boxShadow: '0 0 0 1px var(--cth-ink-300)',
-          transition: 'left 120ms ease'
-        }} />
-      </span>
-    </button>
-  );
-}
 
 /**
  * Push-to-talk button for the queue composer. Click to start recording, click

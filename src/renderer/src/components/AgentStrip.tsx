@@ -49,7 +49,10 @@ export function AgentStrip({ config }: AgentStripProps) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   // Note editing is EXPLICIT (✎ toggles the editor) — nothing appears on hover.
+  // The editor is a fixed popover ABOVE the card (anchored off its rect): the
+  // strip clips overflow and the compact cards have no room for an inline box.
   const [noteEditId, setNoteEditId] = useState<string | null>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   // Each worker's actively-DOING ledger tasks, polled from hive/tasks.json —
   // rendered as a sticky note on the avatar card (click → task detail).
   const [doingByAgent, setDoingByAgent] = useState<Record<string, string[]>>({});
@@ -94,6 +97,7 @@ export function AgentStrip({ config }: AgentStripProps) {
         // starts on movement — so AgentCard's onClick is unaffected.
         <div
           key={a.id}
+          ref={(el) => { cardRefs.current[a.id] = el; }}
           draggable
           onDragStart={(e) => { setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
           onDragOver={(e) => {
@@ -145,63 +149,79 @@ export function AgentStrip({ config }: AgentStripProps) {
             note={a.note}
             onEditNote={a.isGod ? undefined : () => setNoteEditId(a.id)}
           />
-          {/* The note itself lives INSIDE the card (its own row above the gauge,
-              v0.3.4 — so it can never cover the context bar). This overlay is
-              only the transient EDITOR: ✎ opens it, Esc / ✕ closes it. */}
-          {noteEditId === a.id && !dragId && (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              style={{
-                position: 'absolute', left: 60, right: 7, bottom: 7, height: 30, zIndex: 5,
-                display: 'flex', alignItems: 'center', gap: 4, padding: '3px 4px',
-                background: 'var(--cth-paper-100)',
-                boxShadow: 'inset 0 0 0 1px var(--cth-ink-300), 2px 2px 0 rgba(26,19,32,0.2)',
-                boxSizing: 'border-box'
-              }}
-            >
-              <span style={{
-                flexShrink: 0, fontFamily: 'var(--cth-font-mono)', fontSize: 10,
-                lineHeight: '18px', color: 'var(--cth-ink-700)'
-              }}>NOTE</span>
-              {/* A textarea, not an input: the note is a bullet list (one line
-                  each) and the fullscreen roster renders every line. An <input>
-                  silently drops the newlines the moment the user edits here,
-                  which would eat every bullet but the first. */}
-              <textarea
-                autoFocus
-                draggable={false}
-                rows={1}
-                wrap="off"
-                value={a.note ?? ''}
-                onChange={(e) => setAgentNote(a.id, e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Escape') setNoteEditId(null); }}
-                placeholder="private note…"
-                aria-label={`Note for ${a.name}`}
-                title={a.note || undefined}
-                style={{
-                  flex: 1, minWidth: 0, height: 22, padding: '2px 5px',
-                  border: 'none', outline: 'none', boxSizing: 'border-box',
-                  resize: 'none', overflow: 'auto',
-                  background: 'var(--cth-cream-100)',
-                  fontFamily: 'var(--cth-font-mono)', fontSize: 12,
-                  lineHeight: '18px', color: 'var(--cth-ink-900)'
-                }}
-              />
-              <button
-                onClick={() => setNoteEditId(null)}
-                title="Done"
-                aria-label="Close note editor"
-                style={{
-                  flexShrink: 0, width: 18, height: 18, padding: 0, lineHeight: 1,
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'var(--cth-font-ui)', fontSize: 11,
-                  color: 'var(--cth-ink-500)', background: 'transparent',
-                  border: 'none', cursor: 'pointer'
-                }}
-              >✕</button>
-            </div>
-          )}
+          {/* The note itself lives INSIDE the card (its own row above the gauge).
+              This is the transient EDITOR: a fixed popover ABOVE the card —
+              the compact card has no room for an inline box, and the strip
+              clips overflow. ✎ opens it; Esc / ✕ / click-away closes. */}
+          {noteEditId === a.id && !dragId && (() => {
+            const rect = cardRefs.current[a.id]?.getBoundingClientRect();
+            if (!rect) return null;
+            const width = 280;
+            const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+            const bottom = Math.max(8, window.innerHeight - rect.top + 8);
+            return (
+              <>
+                {/* click-away backdrop */}
+                <div
+                  onClick={() => setNoteEditId(null)}
+                  style={{ position: 'fixed', inset: 0, zIndex: 349, background: 'transparent' }}
+                />
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  style={{
+                    position: 'fixed', left, bottom, width, zIndex: 350,
+                    padding: 10, boxSizing: 'border-box',
+                    background: 'var(--cth-paper-100)',
+                    boxShadow: 'inset 0 0 0 1px var(--cth-ink-300), 3px 3px 0 rgba(26,19,32,0.14)',
+                    display: 'flex', flexDirection: 'column', gap: 6
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{
+                      fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+                      color: 'var(--cth-ink-500)'
+                    }}>PRIVATE NOTE · {a.name.toUpperCase()}</span>
+                    <button
+                      onClick={() => setNoteEditId(null)}
+                      title="Done"
+                      aria-label="Close note editor"
+                      style={{
+                        flexShrink: 0, width: 18, height: 18, padding: 0, lineHeight: 1,
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        fontFamily: 'var(--cth-font-ui)', fontSize: 11,
+                        color: 'var(--cth-ink-500)', background: 'transparent',
+                        border: 'none', cursor: 'pointer'
+                      }}
+                    >✕</button>
+                  </div>
+                  {/* A textarea, not an input: the note is a bullet list (one
+                      line per bullet) and the fullscreen roster renders every
+                      line — an <input> would silently eat the newlines. */}
+                  <textarea
+                    autoFocus
+                    rows={3}
+                    value={a.note ?? ''}
+                    onChange={(e) => setAgentNote(a.id, e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setNoteEditId(null); }}
+                    placeholder="one line per bullet…"
+                    aria-label={`Note for ${a.name}`}
+                    style={{
+                      width: '100%', padding: '6px 8px',
+                      border: 'none', outline: 'none', resize: 'none', boxSizing: 'border-box',
+                      background: 'var(--cth-cream-100)',
+                      boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
+                      fontFamily: 'var(--cth-font-mono)', fontSize: 12,
+                      lineHeight: '18px', color: 'var(--cth-ink-900)'
+                    }}
+                  />
+                  <span style={{ fontSize: 10, color: 'var(--cth-ink-500)' }}>
+                    one line = one bullet · esc to close
+                  </span>
+                </div>
+              </>
+            );
+          })()}
         </div>
       ))}
       <PixelButton
