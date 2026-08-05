@@ -48,8 +48,8 @@ export function TerminalView({ initialLines = [], feed = [] }: TerminalViewProps
     if (!hostRef.current) return;
     const term = new Terminal({
       theme,
-      fontFamily: 'VT323, monospace',
-      fontSize: 18,
+      fontFamily: '"JetBrains Mono", "SF Mono", Menlo, monospace',
+      fontSize: 14,
       lineHeight: 1.0,
       cursorBlink: true,
       cursorStyle: 'block',

@@ -19,27 +19,28 @@ export const colors = {
     300: 0xa899b5,
     100: 0xd9cfe0
   },
+  // v0.3.4 recalibration: same hues, professional saturation (mirrors tokens.css)
   accent: {
-    coral: 0xff6b6b,
-    coralLight: 0xffb4b4,
-    mint: 0x6bcf7f,
-    mintLight: 0xb4e5bd,
-    sky: 0x4ecdc4,
-    skyLight: 0xa8e6e0,
-    lemon: 0xffd93d,
-    lemonLight: 0xffec99,
-    lilac: 0xb197fc,
-    lilacLight: 0xd6c5ff,
-    peach: 0xffa07a,
-    peachLight: 0xffd0b5
+    coral: 0xd96a62,
+    coralLight: 0xf3d3cd,
+    mint: 0x5ca97a,
+    mintLight: 0xd2e7da,
+    sky: 0x4f9faf,
+    skyLight: 0xcfe5e9,
+    lemon: 0xdcab3c,
+    lemonLight: 0xf3e4bc,
+    lilac: 0x9482d3,
+    lilacLight: 0xe0daf2,
+    peach: 0xd99168,
+    peachLight: 0xf3daca
   },
   status: {
-    idle: 0xa899b5,
-    thinking: 0x4ecdc4,
-    working: 0xffd93d,
-    blocked: 0xff6b6b,
-    success: 0x6bcf7f,
-    ghost: 0xd9cfe0
+    idle: 0xa199ab,
+    thinking: 0x4f9faf,
+    working: 0xdcab3c,
+    blocked: 0xd96a62,
+    success: 0x5ca97a,
+    ghost: 0xd9d3de
   },
   world: {
     grassLight: 0xd4eab0,
@@ -57,8 +58,8 @@ export const space = {
 
 export const type = {
   display: '"Press Start 2P", monospace',
-  ui: '"Pixelify Sans", system-ui, sans-serif',
-  mono: '"VT323", "JetBrains Mono", monospace'
+  ui: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+  mono: '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace'
 } as const;
 
 export const tileSize = 32; // px — the world is built from 32×32 tiles

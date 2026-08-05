@@ -53,7 +53,7 @@ const zoomBtnStyle: CSSProperties = {
 const lightTheme = {
   background: '#FCFAF0',
   foreground: '#1A1320',
-  cursor: '#FF6B6B',
+  cursor: '#D96A62',
   cursorAccent: '#FCFAF0',
   selectionBackground: '#FFEC99',
   selectionForeground: '#1A1320',
@@ -75,30 +75,32 @@ const lightTheme = {
   brightWhite:  '#1A1320'
 };
 
-// Dark theme — the original neon-on-ink palette (designed for a dark background).
+// Dark theme — v0.3.4: matches the app's dark surface ramp (tokens.css
+// data-cth-theme='dark'). Muted-professional ANSI set: recognizable hues, no
+// fluorescing on the dark ground; brights are one legible step up, not pastels.
 const darkTheme = {
-  background: '#1A1320',
-  foreground: '#F3ECF7',
-  cursor: '#FF6B6B',
-  cursorAccent: '#1A1320',
-  selectionBackground: '#3A2F44',
-  selectionForeground: '#FFF8E7',
-  black:        '#241B2C',
-  red:          '#FF6B6B',
-  green:        '#6BCF7F',
-  yellow:       '#FFD93D',
-  blue:         '#4ECDC4',
-  magenta:      '#B197FC',
-  cyan:         '#4ECDC4',
-  white:        '#F3ECF7',
-  brightBlack:  '#857693',
-  brightRed:    '#FFB4B4',
-  brightGreen:  '#B4E5BD',
-  brightYellow: '#FFEC99',
-  brightBlue:   '#A8E6E0',
-  brightMagenta:'#D6C5FF',
-  brightCyan:   '#A8E6E0',
-  brightWhite:  '#FFFDF5'
+  background: '#1D1C21',
+  foreground: '#E8E6E3',
+  cursor: '#DF8078',
+  cursorAccent: '#1D1C21',
+  selectionBackground: '#37363E',
+  selectionForeground: '#E8E6E3',
+  black:        '#26252C',
+  red:          '#DF8078',
+  green:        '#6FB88B',
+  yellow:       '#D8B052',
+  blue:         '#64ACBB',
+  magenta:      '#A493E0',
+  cyan:         '#64ACBB',
+  white:        '#E8E6E3',
+  brightBlack:  '#8F8C90',
+  brightRed:    '#EBA39C',
+  brightGreen:  '#96CDA9',
+  brightYellow: '#E5C87E',
+  brightBlue:   '#8FC5D1',
+  brightMagenta:'#C0B3EB',
+  brightCyan:   '#8FC5D1',
+  brightWhite:  '#F5F4F2'
 };
 
 const THEMES: Record<PtyTheme, typeof lightTheme> = { light: lightTheme, dark: darkTheme };

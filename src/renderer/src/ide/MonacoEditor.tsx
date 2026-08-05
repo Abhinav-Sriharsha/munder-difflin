@@ -38,8 +38,8 @@ export function MonacoEditor({ path, value, onChange, onSave, readOnly }: Monaco
       loading={<div style={{ padding: 12, color: 'var(--cth-ink-500)', fontFamily: 'var(--cth-font-ui)' }}>loading editor…</div>}
       options={{
         readOnly,
-        fontFamily: 'VT323, "JetBrains Mono", monospace',
-        fontSize: 15,
+        fontFamily: '"JetBrains Mono", "SF Mono", Menlo, monospace',
+        fontSize: 13,
         lineHeight: 20,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,

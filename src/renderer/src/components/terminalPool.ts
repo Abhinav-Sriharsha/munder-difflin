@@ -88,7 +88,9 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
 
   const term = new Terminal({
     theme,
-    fontFamily: 'VT323, monospace',
+    // v0.3.4: JetBrains Mono replaces VT323 — the narrow CRT face strained at
+    // data density. lineHeight stays 1.0 so TUI box-drawing rows stay joined.
+    fontFamily: '"JetBrains Mono", "SF Mono", Menlo, monospace',
     fontSize,
     lineHeight: 1.0,
     cursorBlink: true,
