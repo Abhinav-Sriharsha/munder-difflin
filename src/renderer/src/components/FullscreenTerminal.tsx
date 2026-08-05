@@ -481,7 +481,6 @@ function SidebarRow({
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const noteRef = useRef<HTMLDivElement>(null);
-  const hideTimer = useRef<number | null>(null);
   const [notePosition, setNotePosition] = useState<{ left: number; top: number } | null>(null);
 
   // The editor rides the terminal's zoom, capped — it's a short note, not a
@@ -500,16 +499,13 @@ function SidebarRow({
 
   const typing = useHasTerminalDraft(agent.ptyId);
 
-  useEffect(() => () => {
-    if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
-  }, []);
-
-  /** Hovering a row opens its editor beside it — the bullets on the row are the
-   *  summary, this is where you write them. */
-  const openEditor = () => {
-    // An editor popping up under the cursor mid-drag just gets in the way.
+  /** The ✎ button opens the editor beside the row — the bullets on the row are
+   *  the summary, this is where you write them. EXPLICIT open only (v0.3.4):
+   *  hovering the roster no longer pops editors under the pointer. */
+  const toggleEditor = () => {
+    if (notePosition) { setNotePosition(null); return; }
+    // An editor popping up mid-drag just gets in the way.
     if (drag.dragId) return;
-    if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
     const rect = buttonRef.current?.getBoundingClientRect();
     if (!rect) return;
     // The roster is a left rail, so the editor opens to the RIGHT of its row.
@@ -518,16 +514,6 @@ function SidebarRow({
       left: Math.min(rect.right + 6, window.innerWidth - noteWidth - 8),
       top: Math.max(8, Math.min(rect.top, window.innerHeight - popoverHeight - 8))
     });
-  };
-
-  /** Close on a delay so the pointer can travel from the row into the editor
-   *  without it vanishing en route, and stay open while it's being typed in. */
-  const scheduleClose = () => {
-    if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
-    hideTimer.current = window.setTimeout(() => {
-      if (noteRef.current?.contains(document.activeElement)) return;
-      setNotePosition(null);
-    }, 160);
   };
 
   return (
@@ -546,8 +532,6 @@ function SidebarRow({
         onDrop={(e) => { e.preventDefault(); drag.drop(agent.id); }}
         onDragEnd={drag.end}
         onClick={onClick}
-        onMouseEnter={openEditor}
-        onMouseLeave={scheduleClose}
         aria-label={`${agent.name} · ${agent.project}`}
         aria-current={active ? 'true' : undefined}
         style={{
@@ -594,6 +578,26 @@ function SidebarRow({
                 agent with a draft on its prompt is not idle-and-free, it is
                 idle-and-held, and nothing else on screen said so. */}
             <PixelBadge status={typing ? 'typing' : agent.status} />
+            {/* Explicit note edit — a real control instead of a hover surprise.
+                A span, not a <button>: we're inside the row's button element. */}
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); toggleEditor(); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); toggleEditor(); }
+              }}
+              title={agent.note ? 'Edit private note' : 'Add private note'}
+              aria-label={`Edit note for ${agent.name}`}
+              style={{
+                flexShrink: 0, width: 20, height: 20,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, lineHeight: 1, color: 'var(--cth-ink-500)',
+                background: notePosition ? 'var(--cth-cream-200)' : 'var(--cth-paper-100)',
+                boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
+                cursor: 'pointer'
+              }}
+            >✎</span>
           </div>
           {/* Every line of every agent, always on screen — the roster's job is
               to answer "who is on what" without a single interaction. */}
@@ -627,10 +631,14 @@ function SidebarRow({
         </div>
       </button>
       {notePosition && createPortal(
+        <>
+        {/* click-away backdrop — the editor stays until dismissed on purpose */}
+        <div
+          onClick={() => setNotePosition(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 449, background: 'transparent' }}
+        />
         <div
           ref={noteRef}
-          onMouseEnter={openEditor}
-          onMouseLeave={scheduleClose}
           onClick={(e) => e.stopPropagation()}
           style={{
             position: 'fixed',
@@ -652,17 +660,12 @@ function SidebarRow({
             color: 'var(--cth-ink-700)'
           }}>PRIVATE NOTE</div>
           {/* A textarea, not an input: the note is a bullet list, so Enter has
-              to make a new line rather than doing nothing. */}
-          {/* No autoFocus — the editor opens on hover, and stealing focus every
-              time the pointer crosses the roster would pull the caret out of
-              whatever the user was typing. Click into it to edit. */}
+              to make a new line rather than doing nothing. autoFocus is safe
+              now that opening is an explicit click, not a pointer fly-by. */}
           <textarea
+            autoFocus
             value={agent.note ?? ''}
             onChange={(e) => onNoteChange(e.target.value)}
-            onFocus={() => {
-              if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
-            }}
-            onBlur={scheduleClose}
             onKeyDown={(e) => {
               e.stopPropagation(); // don't let Esc/typing reach the fullscreen handler
               if (e.key === 'Escape') {
@@ -691,7 +694,8 @@ function SidebarRow({
           <div style={{
             marginTop: 5, fontSize: 10, color: 'var(--cth-ink-500)'
           }}>one line = one bullet · esc to close</div>
-        </div>,
+        </div>
+        </>,
         document.body
       )}
     </>

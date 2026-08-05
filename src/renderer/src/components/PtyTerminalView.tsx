@@ -11,6 +11,7 @@ import {
   setTerminalFontSize,
   useTerminalFontSize
 } from './terminalFontSize';
+import { useAppTheme } from '@/design/theme';
 
 // Zoom lives in ./terminalFontSize so anything outside the terminal (the message
 // composer) can scale with it too; these aliases keep the call sites below short.
@@ -18,20 +19,10 @@ const DEFAULT_FONT_SIZE = DEFAULT_TERMINAL_FONT_SIZE;
 const MIN_FONT_SIZE = MIN_TERMINAL_FONT_SIZE;
 const MAX_FONT_SIZE = MAX_TERMINAL_FONT_SIZE;
 
-const LS_THEME = 'cth.ptyTheme';
-
+// v0.3.4: the terminal follows the APP-WIDE theme (design/theme.ts, toggled in
+// the title bar) instead of keeping its own light/dark switch — one theme for
+// chrome, terminal, and (via config.terminalTheme) each agent's TUI palette.
 type PtyTheme = 'light' | 'dark';
-
-function loadTheme(): PtyTheme {
-  try {
-    const v = window.localStorage.getItem(LS_THEME);
-    if (v === 'dark' || v === 'light') return v;
-  } catch { /* noop */ }
-  // Cream by default — safe because each agent's per-session Claude settings
-  // mirror the terminal theme, so the TUI paints the matching truecolor
-  // palette (light on cream, dark on ink).
-  return 'light';
-}
 
 const zoomBtnStyle: CSSProperties = {
   width: 18,
@@ -134,7 +125,7 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
   onUserPromptRef.current = onUserPrompt;
   const fontSize = useTerminalFontSize();
   const fontSizeRef = useRef(fontSize);
-  const [ptyTheme, setPtyTheme] = useState<PtyTheme>(loadTheme);
+  const ptyTheme: PtyTheme = useAppTheme();
   const ptyThemeRef = useRef(ptyTheme);
   ptyThemeRef.current = ptyTheme;
 
@@ -273,9 +264,9 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
     };
   }, [ptyId]);
 
-  // Apply theme changes to the pooled terminal and persist the choice.
+  // Apply app-theme changes to the pooled terminal (persistence lives in
+  // design/theme.ts — the title-bar toggle owns it).
   useEffect(() => {
-    try { window.localStorage.setItem(LS_THEME, ptyTheme); } catch { /* noop */ }
     acquireTerminal(ptyId, THEMES[ptyTheme], fontSizeRef.current).term.options.theme = THEMES[ptyTheme];
   }, [ptyTheme, ptyId]);
 
@@ -381,23 +372,9 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
         }} />
         live · pty {ptyId}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
-          <button
-            onClick={() => {
-              const next: PtyTheme = ptyTheme === 'dark' ? 'light' : 'dark';
-              setPtyTheme(next);
-              // Mirror into the harness config: every agent (re)spawned from
-              // now on gets the matching `theme` in its per-session Claude
-              // settings, so the TUI's truecolor palette fits the terminal.
-              // Scoped to harness agents — the user's global Claude theme
-              // (their own terminals) is never touched. Running sessions keep
-              // their palette until they restart.
-              void window.cth.updateConfig({ terminalTheme: next });
-            }}
-            title={ptyTheme === 'dark'
-              ? 'Switch terminal + agent sessions to the light theme'
-              : 'Switch terminal + agent sessions to the dark theme'}
-            style={{ ...zoomBtnStyle, width: 22, marginRight: 4 }}
-          >{ptyTheme === 'dark' ? '☀' : '☾'}</button>
+          {/* v0.3.4: the theme + enter-fullscreen buttons moved to the TITLE BAR
+              (top right) — more accessible, and the theme now darkens the whole
+              app. Only the EXIT affordance stays here, in fullscreen. */}
           <button
             onClick={() => zoom(-1)}
             disabled={fontSize <= MIN_FONT_SIZE}
@@ -415,13 +392,13 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
             title="Zoom in (Cmd +)"
             style={zoomBtnStyle}
           >+</button>
-          {onToggleFullscreen && (
+          {fullscreen && onToggleFullscreen && (
             <button
               onClick={onToggleFullscreen}
-              title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen terminal'}
+              title="Exit fullscreen (Esc)"
               style={{ ...zoomBtnStyle, width: 22, height: 22, marginLeft: 4 }}
             >
-              <Icon name={fullscreen ? 'minimize' : 'expand'} />
+              <Icon name="minimize" />
             </button>
           )}
         </div>

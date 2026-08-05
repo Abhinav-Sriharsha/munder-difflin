@@ -91,3 +91,41 @@
     inset 0 0 0 3px var(--cth-cream-200),
     inset 0 0 0 5px var(--cth-ink-900);
 }
+
+/* ── Dark theme (v0.3.4) ─────────────────────────────────────────────────────
+   One token swap darkens the WHOLE app: surfaces (cream/paper) go deep
+   ink-purple, the ink text scale inverts to light, accents stay (they read on
+   both). Stamped by design/theme.ts as data-cth-theme on <html>; the terminal
+   palette and per-agent Claude session themes follow the same switch. */
+:root[data-cth-theme='dark'] {
+  /* Base surfaces — darkest where light mode was lightest */
+  --cth-cream-50:  #17111D;
+  --cth-cream-100: #1E1626;
+  --cth-cream-200: #291F33;
+  --cth-cream-300: #382B45;
+  --cth-paper-100: #1B141F;
+  --cth-paper-200: #251C2D;
+
+  /* Ink → light text scale */
+  --cth-ink-900: #F2EDE4;
+  --cth-ink-700: #CFC5DA;
+  --cth-ink-500: #9C8CAB;
+  --cth-ink-300: #5D4E6B;
+  --cth-ink-100: #362B42;
+
+  /* Accent "-light" fills double as chip/selection backgrounds — darken them
+     so light text (ink-900) stays readable on top. */
+  --cth-coral-light: #6B3038;
+  --cth-mint-light:  #2C5236;
+  --cth-sky-light:   #24504C;
+  --cth-lemon-light: #5C4F1D;
+  --cth-lilac-light: #453563;
+  --cth-peach-light: #5E3A28;
+
+  /* Status ghosts sit on cards — keep them dim, not glowing */
+  --cth-status-idle:  #6B5878;
+  --cth-status-ghost: #453A52;
+
+  /* Hard shadow reads as void on dark surfaces */
+  --cth-shadow-hard: 4px 4px 0 rgba(0, 0, 0, 0.55);
+}

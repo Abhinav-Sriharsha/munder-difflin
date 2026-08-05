@@ -14,6 +14,7 @@ import { HivePicker } from '@/components/HivePicker';
 import { QuitWarningModal, type ClosingTimeState } from '@/components/QuitWarningModal';
 import { CompletionToast } from '@/realtime/CompletionToast';
 import { UpdateToast } from '@/components/UpdateToast';
+import { useAppTheme, toggleAppTheme } from '@/design/theme';
 import { SettingsModal } from '@/components/SettingsModal';
 import { PixelPanel } from '@/components/PixelPanel';
 import { PixelButton } from '@/components/PixelButton';
@@ -38,6 +39,7 @@ export function App() {
   const setAddAgentOpen = useStore(s => s.setAddAgentOpen);
   const godStatus = useStore(s => s.godStatus);
   const fullscreenAgentId = useStore(s => s.fullscreenAgentId);
+  const appThemeNow = useAppTheme();
   const fullscreenFilePath = useStore(s => s.fullscreenFilePath);
   const sidebarWidth = useStore(s => s.sidebarWidth);
   const setSidebarWidth = useStore(s => s.setSidebarWidth);
@@ -243,13 +245,62 @@ export function App() {
         }}>
           v{__APP_VERSION__} · {config.autoMode ? 'auto mode on' : 'auto mode off'}
         </span>
+        {/* v0.3.4: theme + fullscreen live HERE (top right), not buried in the
+            terminal header — and the theme darkens the whole app, terminals
+            included (design/theme.ts + tokens.css dark block). */}
+        <button
+          className="cth-titlebar-nodrag"
+          onClick={() => {
+            const next = toggleAppTheme();
+            // Mirror into the harness config: every agent (re)spawned from now
+            // on gets the matching `theme` in its per-session Claude settings,
+            // so the TUI's truecolor palette fits the terminal. Scoped to
+            // harness agents — the user's global Claude theme is never touched.
+            void window.cth.updateConfig({ terminalTheme: next });
+          }}
+          title={appThemeNow === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'}
+          aria-label="Toggle dark mode"
+          style={{
+            marginLeft: 'auto',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 28, height: 28, padding: 0,
+            background: 'var(--cth-paper-100)',
+            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+            border: 'none', borderRadius: 2, cursor: 'pointer',
+            color: 'var(--cth-ink-900)', fontSize: 14, lineHeight: 1
+          }}
+        >
+          {appThemeNow === 'dark' ? '☀' : '☾'}
+        </button>
+        <button
+          className="cth-titlebar-nodrag"
+          onClick={() => {
+            if (fullscreenAgentId) { useStore.getState().setFullscreen(null); return; }
+            const all = useStore.getState().agents;
+            const target = all.find((x) => x.id === useStore.getState().selectedId && x.ptyId)
+              ?? all.find((x) => x.isGod && x.ptyId)
+              ?? all.find((x) => x.ptyId);
+            if (target) useStore.getState().setFullscreen(target.id);
+          }}
+          title={fullscreenAgentId ? 'Exit fullscreen (Esc)' : 'Fullscreen terminal — selected agent'}
+          aria-label="Toggle fullscreen terminal"
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 28, height: 28, padding: 0,
+            background: 'var(--cth-paper-100)',
+            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+            border: 'none', borderRadius: 2, cursor: 'pointer',
+            color: 'var(--cth-ink-900)'
+          }}
+        >
+          <Icon name={fullscreenAgentId ? 'minimize' : 'expand'} size={1} style={{ width: 16, height: 16 }} />
+        </button>
         <button
           className="cth-titlebar-nodrag"
           onClick={() => setIdeOpen(true)}
           title="Open IDE — file editor + git diff"
           aria-label="Open IDE"
           style={{
-            marginLeft: 'auto',
             display: 'inline-flex', alignItems: 'center', gap: 5,
             height: 28, padding: '0 9px',
             background: 'var(--cth-paper-100)',

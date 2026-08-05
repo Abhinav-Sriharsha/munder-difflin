@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AgentCard } from './AgentCard';
 import { PixelButton } from './PixelButton';
 import { Icon } from './Icon';
@@ -22,12 +22,34 @@ export function AgentStrip({ config }: AgentStripProps) {
   const reorderAgents = useStore(s => s.reorderAgents);
   const setAgentNote = useStore(s => s.setAgentNote);
   // Shared with the fullscreen roster so both show one restore in progress.
-  const { restoring, autoRestoring, restoreNote, restoreTeam } = useRestoreTeam(config);
+  const { restoring, autoRestoring, restoreTeam } = useRestoreTeam(config);
+  // ONE restore control (bottom-right): a button whose dropdown OPENS UPWARD and
+  // lists last session's agents with per-agent dismiss. The menu is position:
+  // fixed (anchored off the button's rect) because the strip scrolls with
+  // overflow hidden — an absolute child would be clipped.
+  const [restoreMenuOpen, setRestoreMenuOpen] = useState(false);
+  const [restoreMenuPos, setRestoreMenuPos] = useState<{ right: number; bottom: number } | null>(null);
+  const restoreBtnRef = useRef<HTMLSpanElement>(null);
+  const restoreBusy = restoring || autoRestoring;
+  useEffect(() => {
+    if (restorableAgents.length === 0 || restoreBusy) setRestoreMenuOpen(false);
+  }, [restorableAgents.length, restoreBusy]);
+  const toggleRestoreMenu = (anchor: HTMLElement | null) => {
+    if (restoreMenuOpen) { setRestoreMenuOpen(false); return; }
+    const rect = anchor?.getBoundingClientRect();
+    if (!rect) return;
+    setRestoreMenuPos({
+      right: Math.max(8, window.innerWidth - rect.right),
+      bottom: Math.max(8, window.innerHeight - rect.top + 6)
+    });
+    setRestoreMenuOpen(true);
+  };
   // Drag-to-reorder the roster: dragId = the card being dragged, overId = the card
   // currently hovered as a drop target (drives the insertion-line cue).
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
-  const [noteHoverId, setNoteHoverId] = useState<string | null>(null);
+  // Note editing is EXPLICIT (✎ toggles the editor) — nothing appears on hover.
+  const [noteEditId, setNoteEditId] = useState<string | null>(null);
   // Each worker's actively-DOING ledger tasks, polled from hive/tasks.json —
   // rendered as a sticky note on the avatar card (click → task detail).
   const [doingByAgent, setDoingByAgent] = useState<Record<string, string[]>>({});
@@ -88,8 +110,6 @@ export function AgentStrip({ config }: AgentStripProps) {
             setOverId(null);
           }}
           onDragEnd={() => { setDragId(null); setOverId(null); }}
-          onMouseEnter={() => setNoteHoverId(a.id)}
-          onMouseLeave={() => setNoteHoverId((id) => id === a.id ? null : id)}
           style={{
             position: 'relative',
             flexShrink: 0,
@@ -123,7 +143,10 @@ export function AgentStrip({ config }: AgentStripProps) {
               if (first) openTaskDetail(first);
             }}
           />
-          {noteHoverId === a.id && !dragId && (
+          {/* Private note — VISIBLE by default when one exists (this used to be
+              fullscreen-only + hover-gated). Editing is explicit: the ✎ button
+              opens the editor in place; Esc / ✎ again closes it. */}
+          {noteEditId === a.id && !dragId ? (
             <div
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
@@ -144,11 +167,13 @@ export function AgentStrip({ config }: AgentStripProps) {
                   silently drops the newlines the moment the user edits here,
                   which would eat every bullet but the first. */}
               <textarea
+                autoFocus
                 draggable={false}
                 rows={1}
                 wrap="off"
                 value={a.note ?? ''}
                 onChange={(e) => setAgentNote(a.id, e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') setNoteEditId(null); }}
                 placeholder="private note…"
                 aria-label={`Note for ${a.name}`}
                 title={a.note || undefined}
@@ -161,93 +186,64 @@ export function AgentStrip({ config }: AgentStripProps) {
                   lineHeight: '18px', color: 'var(--cth-ink-900)'
                 }}
               />
-            </div>
-          )}
-        </div>
-      ))}
-      {autoRestoring && (
-        // The team comes back on its own at boot, so SAY so — terminals opening
-        // by themselves with no explanation reads as the app doing something
-        // you didn't ask for.
-        <span
-          style={{
-            alignSelf: 'center', flexShrink: 0,
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            height: 32, padding: '0 10px',
-            fontFamily: 'var(--cth-font-ui)', fontSize: 12,
-            color: 'var(--cth-ink-900)',
-            background: 'var(--cth-status-working)',
-            boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
-          }}
-          title="Your previous session's agents are being respawned with their original ids, so memory and inboxes reattach."
-        >
-          <Icon name="play" /> restoring your team…
-        </span>
-      )}
-      {restorableAgents.length > 0 && (
-        <span
-          style={{ alignSelf: 'center', flexShrink: 0 }}
-          title={`Respawn from last session: ${restorableAgents.map((a: Agent) => a.name).join(', ')} — same ids, memory and inboxes reattach automatically`}
-        >
-          <PixelButton
-            variant="primary"
-            size="lg"
-            onClick={restoreTeam}
-            disabled={restoring}
-          >
-            <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', whiteSpace: 'nowrap' }}>
-              <Icon name="play" /> {restoring ? 'restoring…' : `restore team (${restorableAgents.length})`}
-            </span>
-          </PixelButton>
-        </span>
-      )}
-      {/* Per-agent dismiss: drop one worker from the restore list for good. Wires
-          straight to the store's removeRestorableAgent (filters + persistRestorable
-          → cth.restorableAgents), so a dismissed agent never reappears after reload. */}
-      {restorableAgents.length > 0 && (
-        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-          {restorableAgents.map((a: Agent) => (
-            <span
-              key={a.id}
-              title={`${a.name} — restorable from last session`}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                flexShrink: 0, height: 24, padding: '0 4px 0 8px',
-                fontFamily: 'var(--cth-font-ui)', fontSize: 12,
-                color: 'var(--cth-ink-700)', background: 'var(--cth-paper-100)',
-                boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
-              }}
-            >
-              {a.name}
               <button
-                onClick={() => useStore.getState().removeRestorableAgent(a.id)}
-                title={`Dismiss ${a.name} — remove permanently from the restore list`}
-                aria-label={`Dismiss ${a.name}`}
+                onClick={() => setNoteEditId(null)}
+                title="Done"
+                aria-label="Close note editor"
                 style={{
+                  flexShrink: 0, width: 18, height: 18, padding: 0, lineHeight: 1,
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  width: 16, height: 16, padding: 0, lineHeight: 1,
-                  fontFamily: 'var(--cth-font-ui)', fontSize: 12,
+                  fontFamily: 'var(--cth-font-ui)', fontSize: 11,
                   color: 'var(--cth-ink-500)', background: 'transparent',
                   border: 'none', cursor: 'pointer'
                 }}
               >✕</button>
-            </span>
-          ))}
-        </span>
-      )}
-      {restoreNote && (
-        <span
-          style={{
-            alignSelf: 'center', flexShrink: 0, maxWidth: 360,
-            fontFamily: 'var(--cth-font-ui)', fontSize: 12,
-            color: 'var(--cth-ink-500)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-          }}
-          title={restoreNote}
-        >
-          {restoreNote}
-        </span>
-      )}
+            </div>
+          ) : !dragId && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute', left: 60, right: 7, bottom: 7, height: a.note ? 22 : 0, zIndex: 5,
+                display: 'flex', alignItems: 'center', gap: 4,
+                pointerEvents: 'none'
+              }}
+            >
+              {a.note && (
+                <span
+                  title={a.note}
+                  style={{
+                    flex: 1, minWidth: 0, padding: '1px 5px',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    background: 'var(--cth-paper-100)',
+                    boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
+                    fontFamily: 'var(--cth-font-mono)', fontSize: 11,
+                    lineHeight: '18px', color: 'var(--cth-ink-700)'
+                  }}
+                >
+                  {a.note.split('\n')[0]}
+                  {a.note.includes('\n') ? ` (+${a.note.split('\n').filter(Boolean).length - 1})` : ''}
+                </span>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); setNoteEditId(a.id); }}
+                title={a.note ? 'Edit private note' : 'Add private note'}
+                aria-label={`Edit note for ${a.name}`}
+                style={{
+                  pointerEvents: 'auto',
+                  position: a.note ? 'static' : 'absolute', right: 0, bottom: 0,
+                  flexShrink: 0, width: 20, height: 20, padding: 0, lineHeight: 1,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, color: 'var(--cth-ink-500)',
+                  background: 'var(--cth-paper-100)',
+                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
+                  border: 'none', cursor: 'pointer'
+                }}
+              >✎</button>
+            </div>
+          )}
+        </div>
+      ))}
       <PixelButton
         variant="secondary"
         size="lg"
@@ -258,6 +254,99 @@ export function AgentStrip({ config }: AgentStripProps) {
           <Icon name="plus" /> add agent
         </span>
       </PixelButton>
+      {/* ONE restore control, pinned to the strip's right edge. Busy (manual OR
+          boot auto-restore) collapses to a single disabled "restoring your
+          team…"; otherwise the button opens an upward dropdown listing last
+          session's agents (per-agent ✕ dismiss + restore all). No outcome note
+          is rendered afterwards — the restored agents appearing IS the outcome. */}
+      {(restorableAgents.length > 0 || restoreBusy) && (
+        <span
+          ref={restoreBtnRef}
+          style={{ alignSelf: 'center', flexShrink: 0, marginLeft: 'auto' }}
+          title={restoreBusy
+            ? "Your previous session's agents are being respawned with their original ids, so memory and inboxes reattach."
+            : `Previous session: ${restorableAgents.map((a: Agent) => a.name).join(', ')}`}
+        >
+          <PixelButton
+            variant="primary"
+            size="lg"
+            disabled={restoreBusy}
+            onClick={() => toggleRestoreMenu(restoreBtnRef.current)}
+          >
+            <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', whiteSpace: 'nowrap' }}>
+              <Icon name="play" />
+              {restoreBusy ? 'restoring your team…' : `restore team (${restorableAgents.length}) ▴`}
+            </span>
+          </PixelButton>
+        </span>
+      )}
+      {restoreMenuOpen && restoreMenuPos && restorableAgents.length > 0 && (
+        <>
+          {/* click-away backdrop */}
+          <div
+            onClick={() => setRestoreMenuOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 349, background: 'transparent' }}
+          />
+          <div style={{
+            position: 'fixed', right: restoreMenuPos.right, bottom: restoreMenuPos.bottom,
+            zIndex: 350, minWidth: 240, maxHeight: '50vh', overflowY: 'auto',
+            background: 'var(--cth-cream-50)',
+            boxShadow: '0 0 0 2px var(--cth-ink-900), 3px 4px 0 0 rgba(26,19,32,0.22)',
+            padding: 8, display: 'flex', flexDirection: 'column', gap: 6,
+            fontFamily: 'var(--cth-font-ui)'
+          }}>
+            <span style={{
+              fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+              color: 'var(--cth-ink-500)', textTransform: 'uppercase'
+            }}>
+              previous session
+            </span>
+            {/* Per-agent dismiss wires straight to removeRestorableAgent
+                (filters + persistRestorable), so a dismissed agent never
+                reappears after reload. */}
+            {restorableAgents.map((a: Agent) => (
+              <span
+                key={a.id}
+                title={`${a.name} — restorable from last session`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  height: 26, padding: '0 4px 0 8px',
+                  fontSize: 13, color: 'var(--cth-ink-900)',
+                  background: 'var(--cth-paper-100)',
+                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
+                }}
+              >
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {a.name}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--cth-ink-500)', whiteSpace: 'nowrap' }}>
+                  {a.description ? a.description.slice(0, 24) : ''}
+                </span>
+                <button
+                  onClick={() => useStore.getState().removeRestorableAgent(a.id)}
+                  title={`Dismiss ${a.name} — remove permanently from the restore list`}
+                  aria-label={`Dismiss ${a.name}`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 18, height: 18, padding: 0, lineHeight: 1,
+                    fontSize: 12, color: 'var(--cth-ink-500)',
+                    background: 'transparent', border: 'none', cursor: 'pointer'
+                  }}
+                >✕</button>
+              </span>
+            ))}
+            <PixelButton
+              variant="primary"
+              size="sm"
+              onClick={() => { setRestoreMenuOpen(false); void restoreTeam(); }}
+            >
+              <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', whiteSpace: 'nowrap' }}>
+                <Icon name="play" /> restore all ({restorableAgents.length})
+              </span>
+            </PixelButton>
+          </div>
+        </>
+      )}
     </div>
   );
 }
