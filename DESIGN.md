@@ -85,9 +85,13 @@ Saturated and warm. Each avatar gets one — the strip badge, the agent's chat s
 | `status-idle` | `#A899B5` | Agent at desk, awaiting |
 | `status-thinking` | `#4ECDC4` | Reasoning + en route to a station |
 | `status-working` | `#FFD93D` | At a station, using a tool |
+| `status-waiting` | `#6C8EF5` | Worker stalled on god or another agent |
 | `status-blocked` | `#FF6B6B` | Notification fired, needs user |
 | `status-success` | `#6BCF7F` | Just finished |
 | `status-ghost` | `#D9CFE0` | Pane closed, fading out |
+| `status-compacting` | `#9B7EDE` | Boxing up context (PreCompact/PostCompact) |
+| `status-looping` | `#FF9F43` | Circuit breaker armed — runaway |
+| `status-typing` | `#E8A33D` | **Not an agent state.** *You* have unsent text on that agent's prompt, which is holding its message queue |
 
 ### 3.5 World (the floor itself)
 
@@ -271,13 +275,21 @@ Destructive: fill = coral, text = cream-50
 
 ```
 Props:
-  status    'idle' | 'thinking' | 'working' | 'blocked' | 'success' | 'ghost'
+  status    'idle' | 'thinking' | 'working' | 'waiting' | 'blocked' | 'success'
+            | 'ghost' | 'compacting' | 'looping' | 'typing'
   label     string
   icon?     IconName
 
 Anatomy: 8 px tall pixel dot + space-1 + lowercase Pixelify Sans 14 px.
 Color: status palette. Background: status-color at 20% opacity over cream-100.
 ```
+
+Labels are not the token names — they read from the *user's* side. `blocked` shows
+"needs you" (reserved for the god agent waiting on you), `waiting` stays "waiting"
+(honest about the worker being stalled on another agent), and `typing` shows
+**"your draft"** — it is your text on the prompt, not the agent's, and it is why
+that agent's message queue is not draining. See
+[`docs/message-queue.md`](./docs/message-queue.md).
 
 ### 7.4 `<AgentCard>` (bottom strip)
 

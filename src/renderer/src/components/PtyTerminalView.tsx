@@ -2,24 +2,25 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import '@xterm/xterm/css/xterm.css';
 import { Icon } from './Icon';
-import { acquireTerminal, attachTerminal } from './terminalPool';
+import { acquireTerminal, attachTerminal, detachTerminal, reflowTerminal } from './terminalPool';
+import {
+  DEFAULT_TERMINAL_FONT_SIZE,
+  MAX_TERMINAL_FONT_SIZE,
+  MIN_TERMINAL_FONT_SIZE,
+  getTerminalFontSize,
+  setTerminalFontSize,
+  useTerminalFontSize
+} from './terminalFontSize';
 
-const DEFAULT_FONT_SIZE = 14;
-const MIN_FONT_SIZE = 8;
-const MAX_FONT_SIZE = 40;
+// Zoom lives in ./terminalFontSize so anything outside the terminal (the message
+// composer) can scale with it too; these aliases keep the call sites below short.
+const DEFAULT_FONT_SIZE = DEFAULT_TERMINAL_FONT_SIZE;
+const MIN_FONT_SIZE = MIN_TERMINAL_FONT_SIZE;
+const MAX_FONT_SIZE = MAX_TERMINAL_FONT_SIZE;
 
-const LS_FONT_SIZE = 'cth.ptyFontSize';
 const LS_THEME = 'cth.ptyTheme';
 
 type PtyTheme = 'light' | 'dark';
-
-function loadFontSize(): number {
-  try {
-    const n = parseInt(window.localStorage.getItem(LS_FONT_SIZE) ?? '', 10);
-    if (!Number.isNaN(n) && n >= MIN_FONT_SIZE && n <= MAX_FONT_SIZE) return n;
-  } catch { /* noop */ }
-  return DEFAULT_FONT_SIZE;
-}
 
 function loadTheme(): PtyTheme {
   try {
@@ -131,7 +132,7 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
   onStreamDataRef.current = onStreamData;
   const onUserPromptRef = useRef(onUserPrompt);
   onUserPromptRef.current = onUserPrompt;
-  const [fontSize, setFontSize] = useState(loadFontSize);
+  const fontSize = useTerminalFontSize();
   const fontSizeRef = useRef(fontSize);
   const [ptyTheme, setPtyTheme] = useState<PtyTheme>(loadTheme);
   const ptyThemeRef = useRef(ptyTheme);
@@ -240,14 +241,35 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
     const onWinResize = () => tryFit(false);
     window.addEventListener('resize', onWinResize);
 
+    // Self-heal after a display wake. Closing the laptop lid sleeps the GPU,
+    // which loses the WebGL context and leaves xterm's cached cell-height (and
+    // the viewport scroll-area derived from it) stale — the full buffer is still
+    // there but only part is scrollable until a re-measure (the user otherwise
+    // has to zoom to force a fit). The ResizeObserver/resize listeners DON'T fire
+    // on lid-open because the window's pixel size is unchanged, so we re-fit
+    // explicitly when the page becomes visible / regains focus. reflowTerminal
+    // re-measures + refits WITHOUT scrolling, so a user reading history isn't
+    // yanked to the bottom. rAF lets the waking layout settle first; if the host
+    // is still unsized the reflow no-ops and the next focus/visibility catches it.
+    const onWake = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      requestAnimationFrame(() => reflowTerminal(ptyId));
+    };
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('focus', onWake);
+
     return () => {
       retries.forEach(clearTimeout);
       ro.disconnect();
       window.removeEventListener('resize', onWinResize);
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('focus', onWake);
       // Detach (but DON'T dispose) the terminal — it keeps running in the pool.
+      // detachTerminal also releases the WebGL lease, so a terminal nobody is
+      // looking at stops holding a GPU context that an on-screen one needs.
       entry.onData = undefined;
       entry.onPrompt = undefined;
-      if (entry.host.parentElement === container) container.removeChild(entry.host);
+      detachTerminal(entry, container);
     };
   }, [ptyId]);
 
@@ -260,7 +282,6 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
   // Apply font-size (zoom) changes to the pooled terminal and re-fit cols/rows.
   useEffect(() => {
     fontSizeRef.current = fontSize;
-    try { window.localStorage.setItem(LS_FONT_SIZE, String(fontSize)); } catch { /* noop */ }
     const entry = acquireTerminal(ptyId, THEMES[ptyThemeRef.current], fontSize);
     entry.term.options.fontSize = fontSize;
     try {
@@ -315,9 +336,8 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
     void window.cth.writePty(ptyId, paths.join(' ') + ' ');
   };
 
-  const zoom = (delta: number) =>
-    setFontSize((s) => Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, s + delta)));
-  const resetZoom = () => setFontSize(DEFAULT_FONT_SIZE);
+  const zoom = (delta: number) => setTerminalFontSize(getTerminalFontSize() + delta);
+  const resetZoom = () => setTerminalFontSize(DEFAULT_FONT_SIZE);
 
   // Keyboard zoom: Cmd/Ctrl + '=' / '-' / '0'
   useEffect(() => {

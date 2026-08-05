@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PixelPanel } from './PixelPanel';
 import { PixelBadge, StatusKind } from './PixelBadge';
+import { useHasTerminalDraft } from './terminalPool';
 import { SpritePortrait } from './SpritePortrait';
 import { RealtimeMichaelToggle } from './RealtimeMichaelToggle';
 import { CostHud } from '@/realtime/CostHud';
@@ -12,6 +13,10 @@ export interface AgentCardProps {
   character: OfficeCharacterName;
   accent: AccentColorName;
   status: StatusKind;
+  /** This agent's pty, if it has one. Only used to notice that the USER has
+   *  unsent text on its prompt — which holds the agent's queue, and otherwise
+   *  looks identical to an idle agent with nothing to do. */
+  ptyId?: string;
   project: string;
   action?: string;
   /** Context gauge: 0..8 segments filled (session context ÷ context limit). */
@@ -28,16 +33,18 @@ export interface AgentCardProps {
    *  sticky note stuck to the card. Clicking it opens the first task's detail. */
   doingCount?: number;
   onTaskNoteClick?: () => void;
+  draggable?: boolean; // must sit on the <button> itself — Chromium won't start a drag on an ancestor from inside a form control
 }
 
 const fmtK = (n: number): string => `${Math.round(n / 1000)}k`;
 
 export function AgentCard({
-  name, character, accent, status, project, action, progress = 0,
+  name, character, accent, status, ptyId, project, action, progress = 0,
   contextTokens, contextLimit, selected, isGod, onClick,
-  doingCount = 0, onTaskNoteClick
+  doingCount = 0, onTaskNoteClick, draggable
 }: AgentCardProps) {
   const [hover, setHover] = useState(false);
+  const typing = useHasTerminalDraft(ptyId);
   // The god is always framed (stands out from the row); others only when selected.
   const framed = isGod || selected;
 
@@ -67,6 +74,7 @@ export function AgentCard({
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      draggable={draggable}
       className="cth-titlebar-nodrag"
       style={{
         width, minWidth: width, height,
@@ -135,7 +143,7 @@ export function AgentCard({
                 color: 'var(--cth-ink-900)',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
               }}>{name.toUpperCase()}</span>
-              <PixelBadge status={status} />
+              <PixelBadge status={typing ? 'typing' : status} />
             </div>
 
             {isGod ? (

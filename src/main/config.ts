@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import {
   autoModeFlagForProvider,
+  defaultCommandForProvider,
   inferAgentProvider,
   providerPreset,
   type AgentProvider
@@ -19,8 +20,10 @@ export interface ScheduledMission {
   to: string;
   body: string;
   enabled: boolean;
-  /** When true, the scheduler also sends `/compact` to every live terminal when
-   *  this mission fires — keeping each agent's context lean on a cadence. */
+  /** When true, the scheduler asks the renderer to `/compact` live terminals when
+   *  this mission fires — but only agents whose context has filled past a
+   *  threshold (30% for ~250k windows, 20% for ~1M windows) are compacted, so
+   *  small/idle sessions are left alone instead of compacting on every tick. */
   autoCompact?: boolean;
   lastFiredAt?: number;
   /** Mission flavor. Absent ⇒ 'dispatch' (the classic interval-dispatch mission,
@@ -194,6 +197,9 @@ export interface HarnessConfig {
    *  tokens exceed its cap the breaker trips that agent alone (independent of the
    *  floor budget). Set from each agent's card in the Command Center. */
   agentTokenCaps?: Record<string, number>;
+  /** Agent ids whose automatic inbox/queue delivery is paused. Pending messages
+   *  stay durable until the operator explicitly resumes delivery. */
+  autoDeliveryPausedAgents?: string[];
   /** Passed to every spawned agent as `--max-turns <n>` when set; unset = no cap
    *  (Claude Code's default). A coarse runaway guard independent of the breaker. */
   maxTurns?: number;
@@ -335,6 +341,10 @@ const DEFAULTS: HarnessConfig = {
   defaultCommand: 'claude',
   godProvider: 'claude',
   godModel: 'claude-opus-4-8',
+  // Global default model for every agent that hasn't picked one explicitly — wins
+  // over the role-based tiers (modelForRole) in the spawn handler, so all agents
+  // (incl. god) default to Fable 5. A per-agent model choice still overrides it.
+  defaultModel: 'claude-fable-5',
   // Seeded from the MCP catalog so the consent defaults never drift from it
   // (safe-readonly ON, write/secret OFF).
   mcpDefaults: defaultMcpDefaults(),
@@ -452,17 +462,18 @@ export function modelForRole(
   return MODEL_WORKER;
 }
 
-/** Auto-suggested command string given current autoMode preference.
- *  Provider-aware: Claude gets --permission-mode bypassPermissions; Codex gets
- *  --full-auto; custom providers receive no extra flags. */
+/** Auto-suggested command string given current autoMode preference. */
 export function commandForAutoMode(
   config: HarnessConfig,
   provider?: AgentProvider
 ): string {
-  if (!config.autoMode) return config.defaultCommand;
   const p = provider ?? inferAgentProvider(config.defaultCommand);
+  const base = p === 'claude' || p === 'custom'
+    ? config.defaultCommand
+    : defaultCommandForProvider(p, config.defaultCommand);
+  if (!config.autoMode) return base;
   const flag = autoModeFlagForProvider(p);
-  return flag ? `${config.defaultCommand} ${flag}` : config.defaultCommand;
+  return flag ? `${base} ${flag}` : base;
 }
 
 /** Ensure harnessHome exists on disk. */

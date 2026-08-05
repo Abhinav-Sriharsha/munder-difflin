@@ -1,8 +1,9 @@
 /**
  * Agent providers — the CLI a worker runs on. The app is no longer Claude-only:
- * a worker can run Claude Code, the OpenAI Codex CLI (`codex`), or the
- * Antigravity CLI (`agy`, Gemini models), or any custom command. Each provider
- * declares how to build its spawn command (model flag, auto-mode flag) and
+ * a worker can run Claude Code, the OpenAI Codex CLI (`codex`), Kimi Code
+ * (`kimi`), xAI Grok (`grok`), the Antigravity CLI (`agy`, Gemini models), or
+ * any custom command.
+ * Each provider declares how to build its spawn command (model/auto-mode flags) and
  * whether it accepts the hive's Claude-specific identity injection
  * (`--append-system-prompt` + `--settings`).
  *
@@ -14,6 +15,7 @@
 import type { CmdGroup } from './claudeCommands';
 import { COMMAND_GROUPS as CLAUDE_COMMAND_GROUPS } from './claudeCommands';
 import { CODEX_COMMAND_GROUPS } from './codexCommands';
+import { GROK_COMMAND_GROUPS } from './grokCommands';
 
 // NOTE: 'claw' (claw-code) was removed as a selectable provider — its upstream is
 // an unmaintained "museum exhibit" repo, not a production CLI. Re-add a supported
@@ -22,6 +24,8 @@ import { CODEX_COMMAND_GROUPS } from './codexCommands';
 export type AgentProvider =
   | 'claude'
   | 'codex'
+  | 'grok'
+  | 'kimi'
   | 'antigravity'
   | 'qwen'
   | 'opencode'
@@ -45,7 +49,7 @@ export type AgentProvider =
  *               and `inboxDelivery` is how mail reaches it ('terminal' work-order
  *               handoff today; 'serve' reserved for a future HTTP push path). */
 export type BridgeDescriptor =
-  | { kind: 'hooks'; shim: 'agy' | 'codex' | 'pi' | 'opencode' }
+  | { kind: 'hooks'; shim: 'agy' | 'codex' | 'pi' | 'opencode' | 'grok' }
   | {
       kind: 'proxy';
       api: 'openai' | 'anthropic';
@@ -78,19 +82,21 @@ export interface AgentProviderPreset {
    *  env only. Gates the Claude-specific spawn injection in hive.ensureAgent.
    *  NOTE: this gates the *Claude-only* flag path specifically — it is NOT the
    *  same as "participates in the hive". A non-hiveAware provider can still be a
-   *  full hive citizen (live status + Stop→inbox-drain) via a `hookBridge`. */
+   *  full hive citizen (live status + guarded idle delivery) via a `hookBridge`. */
   hiveAware: boolean;
   /** Which config-file lifecycle-hook bridge a NON-hiveAware provider uses to get
-   *  the same live status + Stop→inbox-drain that Claude gets from `--settings`:
+   *  the same live status that Claude gets from `--settings`:
    *    - 'agy'   → installAgyHooks() writes ~/.gemini/.../hooks.json (translating
    *                shim, because agy's stdin/stdout shape differs from Claude's).
-   *    - 'codex' → installCodexHooks() writes a per-agent CODEX_HOME/hooks.json and
+   *    - 'codex' → installCodexHooks() writes a per-agent CODEX_HOME config and
    *                reuses the Claude `cth-hook` shim verbatim (Codex's hook payload
    *                + response contract are already Claude-shaped).
+   *    - 'grok'  → installGrokHooks() installs an AGENT_ID-scoped adapter for
+   *                Grok's camelCase lifecycle payloads.
    *  Claude leaves this undefined (it uses its native `--settings` path, gated by
    *  hiveAware); `custom` leaves it undefined (no bridge → no hooks). This is the
    *  single switch hive.ensureAgent dispatches on to wire the bridge. */
-  hookBridge?: 'agy' | 'codex';
+  hookBridge?: 'agy' | 'codex' | 'grok';
   /** Structured bridge descriptor (the forward-looking replacement for the legacy
    *  `hookBridge`). Set explicitly only for PROXY-tier providers (qwen) that
    *  have no hook file to install; agy/codex leave it undefined and `bridgeOf`
@@ -104,10 +110,10 @@ export interface AgentProviderPreset {
    *  Advisory + user-overridable. */
   recommendedOrchestratorModel?: string;
   /** Whether the router may DELIVER inbox mail to this provider (vs bouncing it
-   *  to the god). Requires a way for the agent to actually drain its inbox: Claude
-   *  via its Stop hook, and Antigravity/Codex via their `hookBridge` Stop→drain.
-   *  A provider with no inbox-drain path (custom) can't, so its mail still bounces.
-   *  Distinct from hiveAware: agy/codex are NOT hiveAware (no Claude injection)
+   *  to the god). Requires lifecycle status so the renderer can deliver only at a
+   *  safe idle prompt: Claude natively, Antigravity/Codex/Grok via hook bridges.
+   *  A hookless custom provider cannot expose safe-idle state, so mail bounces.
+   *  Distinct from hiveAware: agy/codex/grok are NOT hiveAware (no Claude injection)
    *  but CAN receive inbox via their bridge. */
   canReceiveInbox: boolean;
   /** For non-hive-aware CLIs that still take an INITIAL prompt to orient the
@@ -126,6 +132,10 @@ export interface AgentProviderPreset {
    *  (through the SAME per-pty write-chain as the inbox-wake nudge, so they can't
    *  collide). Absent/undefined = today's flag-or-positional behavior. (ondev-b) */
   seedDelivery?: 'type-into-tui';
+  /** This CLI accepts the initial hive prompt as a trailing positional argument.
+   *  Codex does; Kimi/custom do not, so they must spawn bare when no prompt flag
+   *  exists instead of receiving an invalid positional argument. */
+  positionalInitialPrompt?: boolean;
   /** Flag to resume a prior session on respawn, given the recorded session id
    *  (Claude `--resume <sid>`, Antigravity `--conversation <id>`). undefined = no
    *  resume support, spawn fresh. */
@@ -138,6 +148,7 @@ export interface AgentProviderPreset {
   installCommand?: string;
   /** Optional docs URL surfaced as a manual-setup hint in the missing-CLI banner. */
   docsUrl?: string;
+  resumeSubcommand?: string; // CLIs that resume via a subcommand instead of a flag (Codex: `codex resume [OPTIONS] [SESSION_ID]`)
 }
 
 export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
@@ -162,7 +173,7 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
   },
   {
     id: 'codex',
-    label: 'Codex',
+    label: 'Codex · GPT',
     defaultCommand: 'codex',
     commandGroups: CODEX_COMMAND_GROUPS,
     // Full claude-parity auto mode: skip ALL approval prompts AND drop the sandbox,
@@ -195,15 +206,56 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     // inbox-wake nudge remains as a harmless fallback for an idle worker).
     canReceiveInbox: true,
     initialPromptFlag: undefined,
+    positionalInitialPrompt: true,
     // Codex's long-context coding model for the orchestrator role. // TODO-verify
     // the exact codex CLI model id (couldn't install the codex CLI to confirm).
     recommendedOrchestratorModel: 'gpt-5-codex',
-    // Codex has no stable session-resume CLI flag in the curated reference; spawn
-    // fresh on respawn (the protocol is re-injected as the initial prompt anyway).
+    // Codex resumes via a SUBCOMMAND, not a flag: `codex resume [OPTIONS]
+    // [SESSION_ID]`. A `--resume <id>` flag does not exist, which is why restarts
+    // used to silently start a brand-new session instead of continuing.
     resumeFlag: undefined,
+    resumeSubcommand: 'resume',
     // Official OpenAI Codex CLI install (npm global). Used by the missing-CLI auto-install.
     installCommand: 'npm install -g @openai/codex',
     docsUrl: 'https://github.com/openai/codex'
+  },
+  {
+    id: 'grok',
+    label: 'Grok · xAI',
+    defaultCommand: 'grok',
+    commandGroups: GROK_COMMAND_GROUPS,
+    // Grok documents bypassPermissions as the CLI/config spelling of its
+    // always-approve mode. Deny rules and lifecycle gates still take precedence.
+    autoModeFlag: '--permission-mode bypassPermissions',
+    autoFlag: '--permission-mode bypassPermissions',
+    supportsModel: true,
+    modelFlag: '--model',
+    hiveAware: false,
+    // Grok supports Claude-compatible lifecycle events but sends camelCase
+    // payloads. The bridge normalizes them before forwarding to HookServer.
+    hookBridge: 'grok',
+    canReceiveInbox: true,
+    // `grok [PROMPT]` accepts the initial hive protocol as a positional prompt.
+    positionalInitialPrompt: true,
+    // Grok resumes interactively with `grok --resume <session-id-or-title>`.
+    resumeFlag: '--resume'
+  },
+  {
+    id: 'kimi',
+    label: 'Kimi Code',
+    defaultCommand: 'kimi',
+    commandGroups: [],
+    // Kimi --auto handles every approval and does not stop to ask questions,
+    // matching Munder Difflin's autonomous Claude/Codex default.
+    autoModeFlag: '--auto',
+    autoFlag: '--auto',
+    supportsModel: true,
+    modelFlag: '--model',
+    hiveAware: false,
+    // Kimi's interactive TUI has no positional initial-prompt form. It supports
+    // lifecycle hooks, but Munder Difflin does not yet install a Kimi hook bridge,
+    // so mail must bounce rather than being delivered with no drain path.
+    canReceiveInbox: false
   },
   {
     id: 'antigravity',
@@ -413,6 +465,8 @@ export function isAgentProvider(value: unknown): value is AgentProvider {
   return (
     value === 'claude' ||
     value === 'codex' ||
+    value === 'grok' ||
+    value === 'kimi' ||
     value === 'antigravity' ||
     value === 'qwen' ||
     value === 'opencode' ||
@@ -441,9 +495,8 @@ export function isHiveAwareProvider(provider: AgentProvider | undefined): boolea
 }
 
 /** Whether the router may deliver inbox mail to this provider (else bounce to
- *  the god). True for any provider that can actually drain its inbox — Claude
- *  (Stop hook), Antigravity and Codex (their `hookBridge` Stop→drain); false for
- *  hookless custom commands. */
+ *  the god). True when lifecycle status supports guarded idle delivery; false
+ *  for hookless custom commands. */
 export function canReceiveInbox(provider: AgentProvider | undefined): boolean {
   return providerPreset(provider ?? 'claude').canReceiveInbox;
 }
@@ -462,6 +515,8 @@ export function inferAgentProvider(command: string | undefined, explicit?: unkno
   if (normalized) return normalized;
   const bin = commandBinary(command);
   if (bin === 'codex') return 'codex';
+  if (bin === 'grok') return 'grok';
+  if (bin === 'kimi') return 'kimi';
   if (bin === 'agy' || bin === 'antigravity') return 'antigravity';
   if (bin === 'qwen') return 'qwen';
   if (bin === 'opencode') return 'opencode';

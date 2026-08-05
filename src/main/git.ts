@@ -209,6 +209,25 @@ export async function getDiff(
   };
 }
 
+/** The MAIN working tree of the repository `cwd` belongs to.
+ *
+ *  For a normal checkout that's just the repo root. For a linked worktree it is
+ *  the original repo, NOT the worktree directory — an isolated agent's cwd is
+ *  `<harnessHome>/worktrees/<agent-id>`, whose basename is the agent id and says
+ *  nothing about which project it's working on. `--git-common-dir` resolves to
+ *  the shared `.git` of the main checkout from anywhere in the worktree family.
+ *  Returns null when `cwd` isn't a git repo (or git is unavailable). */
+export async function mainRepoRoot(cwd: string): Promise<string | null> {
+  const res = await runGit(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  if (!res.ok) return null;
+  const gitDir = res.stdout.trim();
+  if (!gitDir) return null;
+  // `<repo>/.git` → `<repo>`. A bare repo has no working tree to name, so its
+  // own path is the best answer we have.
+  const stripped = gitDir.replace(/[\\/]\.git[\\/]?$/, '');
+  return stripped || gitDir;
+}
+
 /** Derive a safe `agent/<id>` branch name from a worktree path's basename. */
 function agentBranchFor(wtPath: string): string {
   const base = wtPath.split(/[\\/]/).filter(Boolean).pop() ?? 'agent';

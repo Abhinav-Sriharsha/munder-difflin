@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
 import { SpritePortrait } from './SpritePortrait';
@@ -195,6 +195,11 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
     // the CLI default. This is what makes that Settings field live (Dwight NIT-1).
     const nextModel = isClaudeProvider(id) ? config.defaultModel : config.providerDefaultModels?.[id];
     setModel(nextModel);
+    const nextPreset = providerPreset(id);
+    if (!isClaudeProvider(id) && !nextPreset.resumeFlag && !nextPreset.resumeSubcommand) {
+      setResumeSessionId('');
+      setFolderNote(undefined);
+    }
     if (id === 'custom') {
       setCommand(command.trim() || config.defaultCommand || '');
       return;
@@ -224,6 +229,19 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
       setTimeout(() => setCopiedPrompt(false), 1500);
     } catch { /* clipboard blocked — the textarea below is selectable as a fallback */ }
   };
+
+  // Close only the modal on Esc. Capture prevents the fullscreen terminal's
+  // window-level handler from also closing the view underneath.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
 
   // Zero-step resume: when a session id is entered, look up the cwd it originally
   // ran in (from the transcript) and pre-fill the Folder so the user doesn't have
@@ -394,11 +412,9 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
         position: 'fixed', inset: 0,
         background: 'rgba(26, 19, 32, 0.6)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        // Dialog tier (matches SettingsModal / QuitWarningModal at 300). Must sit
-        // ABOVE FullscreenTerminal (250) and the fullscreen file/kanban overlays
-        // (280): the "+ agent" button is reachable from fullscreen, so a lower
-        // z-index made this modal open BEHIND the fullscreen view.
-        zIndex: 300
+        // Must sit above fullscreen terminal/file overlays (250/280) and their
+        // hover popovers. The fullscreen Add Agent button uses this same modal.
+        zIndex: 500
       }}
     >
       <div onClick={(e) => e.stopPropagation()} style={{ width: 940, maxWidth: '95vw' }}>

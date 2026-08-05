@@ -1,17 +1,22 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, powerMonitor, powerSaveBlocker, screen, shell, Notification } from 'electron';
 import { spawn } from 'node:child_process';
-import { rmSync, existsSync, readFileSync, readdirSync, statSync, cpSync, writeFileSync, unlinkSync, mkdirSync, renameSync, createWriteStream } from 'node:fs';
+import {
+  rmSync, existsSync, readFileSync, readdirSync, statSync, cpSync, writeFileSync,
+  unlinkSync, mkdirSync, renameSync, createWriteStream, copyFileSync, lstatSync,
+  readlinkSync, symlinkSync
+} from 'node:fs';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
-import { join, resolve, sep, basename } from 'node:path';
+import { join, resolve, sep, basename, dirname } from 'node:path';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
+import { resolveCommand as resolveCliCommand } from './shellEnv';
 import {
   readConfig, writeConfig, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
 } from './config';
 import { listDir, readFileText, writeFileText } from './fs';
 import {
-  getBranch, getStatus, getLog, getBranches, getAheadBehind, isRepo, getDiff,
+  getBranch, getStatus, getLog, getBranches, getAheadBehind, isRepo, getDiff, mainRepoRoot,
   addWorktree, removeWorktree, worktreeHasUnintegratedWork, worktreeIsGcSafe
 } from './git';
 import { HiveManager, type AgentMeta, type HiveMessage, type HiveTask } from './hive';
@@ -35,6 +40,7 @@ import { TelemetryCollector } from './telemetry';
 import { IntegrationBroker } from './integrationBroker';
 import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
+import { RosterStore } from './roster';
 import { ControlRegistry } from './control';
 import { fetchHireManifest, readHireManifestFile } from './hire';
 import { parseHireDeepLink, type HireManifest } from '../shared/hire';
@@ -48,6 +54,13 @@ import {
   type AgentProvider,
   type ProviderInstallInfo
 } from '../shared/agentProvider';
+import {
+  CODEX_REMOTE_SOCKET_RELATIVE,
+  codexRemoteAliasPath,
+  codexRemoteEndpoint,
+  codexRemoteSocketFits,
+  withCodexRemoteArgs
+} from '../shared/codexRemote';
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
 
@@ -65,6 +78,121 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const ptyManager = new PtyManager();
+
+function runCodexDaemonCommand(
+  executable: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  timeoutMs = 20_000
+): Promise<{ ok: boolean; error?: string }> {
+  return new Promise((resolveResult) => {
+    let settled = false;
+    let stderr = '';
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(executable, args, {
+        env,
+        stdio: ['ignore', 'ignore', 'pipe'],
+        windowsHide: true
+      });
+    } catch (e) {
+      resolveResult({ ok: false, error: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+    let timer: NodeJS.Timeout;
+    const finish = (result: { ok: boolean; error?: string }): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveResult(result);
+    };
+    child.stderr?.on('data', (chunk) => {
+      if (stderr.length < 8_000) stderr += String(chunk);
+    });
+    child.once('error', (e) => finish({ ok: false, error: e.message }));
+    child.once('exit', (code) => {
+      finish(code === 0
+        ? { ok: true }
+        : { ok: false, error: stderr.trim() || `Codex exited with code ${code ?? 'unknown'}` });
+    });
+    timer = setTimeout(() => {
+      try { child.kill(); } catch { /* already exited */ }
+      finish({ ok: false, error: `Codex daemon command timed out after ${timeoutMs}ms` });
+    }, timeoutMs);
+  });
+}
+
+/** Start/enable one managed remote-control daemon for this isolated Codex home,
+ * then point the TUI at its app-server socket. Failure is non-fatal: the worker
+ * still starts as a normal local Codex session. */
+async function enableCodexRemoteForSpawn(
+  opts: SpawnOptions & { hive?: AgentMeta },
+  agentId: string
+): Promise<boolean> {
+  if (process.platform === 'win32') return false;
+  const realHome = opts.env?.CODEX_HOME;
+  if (!realHome) return false;
+  try {
+    const alias = codexRemoteAliasPath(realHome, agentId);
+    // Bail before touching the filesystem if even the short alias would exceed
+    // sun_path — the daemon would start and then die on bind, and the warning
+    // below names the real reason instead of a generic readiness timeout.
+    if (!codexRemoteSocketFits(alias)) {
+      console.warn('[codex-remote] socket path exceeds sun_path; starting local TUI:', alias);
+      return false;
+    }
+    const aliasRoot = dirname(alias);
+    mkdirSync(aliasRoot, { recursive: true });
+    if (existsSync(alias)) {
+      const st = lstatSync(alias);
+      if (!st.isSymbolicLink() || resolve(dirname(alias), readlinkSync(alias)) !== resolve(realHome)) {
+        console.warn('[codex-remote] short home alias is occupied; starting local TUI:', alias);
+        return false;
+      }
+    } else {
+      symlinkSync(realHome, alias, 'dir');
+    }
+
+    const socket = join(alias, CODEX_REMOTE_SOCKET_RELATIVE);
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      ...(opts.env ?? {}),
+      CODEX_HOME: alias
+    };
+    // shellEnv's resolver mirrors PtyManager's (which is private + returns
+    // {path, found}); the daemon just needs the best executable path.
+    const executable = resolveCliCommand(opts.command);
+    const started = await runCodexDaemonCommand(
+      executable,
+      ['app-server', 'daemon', 'start'],
+      env
+    );
+    if (!started.ok) {
+      console.warn('[codex-remote] daemon start failed; starting local TUI:', started.error);
+      return false;
+    }
+    const enabled = await runCodexDaemonCommand(
+      executable,
+      ['app-server', 'daemon', 'enable-remote-control'],
+      env
+    );
+    if (!enabled.ok) {
+      console.warn('[codex-remote] enable failed; starting local TUI:', enabled.error);
+      return false;
+    }
+    if (!existsSync(socket)) {
+      console.warn('[codex-remote] daemon returned without a control socket; starting local TUI');
+      return false;
+    }
+    opts.env = { ...(opts.env ?? {}), CODEX_HOME: alias };
+    opts.args = withCodexRemoteArgs(opts.args ?? [], codexRemoteEndpoint(alias));
+    return true;
+  } catch (e) {
+    console.warn('[codex-remote] setup failed; starting local TUI:',
+      e instanceof Error ? e.message : e);
+    return false;
+  }
+}
 /** Live PTY id → its hive agent id, recorded at spawn. The pty:kill handler only
  *  gets the PTY id, so this lets a closed tab archive the right registry agent. */
 const ptyToAgent = new Map<string, string>();
@@ -1800,9 +1928,68 @@ function buildMissingCliScript(bin: string, provider: AgentProvider): string {
 }
 
 // ─── IPC: pty lifecycle ─────────────────────────────────────────────────────
+/** Codex stores its rollout transcripts under a PER-AGENT CODEX_HOME
+ *  (<hive>/agents/<id>/.codex/sessions/<Y>/<M>/<D>/rollout-*-<sessionId>.jsonl).
+ *  A NEWLY added agent gets an empty CODEX_HOME, so `codex resume <sid>` finds
+ *  nothing and silently opens a BLANK session — which is exactly what the Add
+ *  Agent "resume session" field looked like it was doing. Find the agent whose
+ *  CODEX_HOME owns this rollout and RETURN that home so the resumed agent can be
+ *  pointed at it (the rollout AND its state_5.sqlite index live there together). */
+function findCodexHomeForSession(sessionId: string, siblingsRoot: string): string | null {
+  try {
+    if (!sessionId || !/^[0-9a-fA-F][0-9a-fA-F-]{15,}$/.test(sessionId)) return null;
+    let fallbackHome: string | null = null;
+    // Walk each sibling agent's CODEX_HOME (<agent>/.codex) looking for the
+    // rollout that owns this session. We RETURN that home rather than copy the
+    // rollout out of it: Codex indexes sessions in its state_5.sqlite, so a lone
+    // rollout file in a fresh home is invisible to `codex resume`. Pointing the
+    // resumed agent at the OWNING home gives it the rollout AND the index.
+    let agents: Array<{ name: string; isDirectory(): boolean }>;
+    try {
+      agents = readdirSync(siblingsRoot, { withFileTypes: true }) as unknown as Array<{ name: string; isDirectory(): boolean }>;
+    } catch { return null; }
+    for (const a of agents) {
+      if (!a.isDirectory()) continue;
+      const home = join(siblingsRoot, a.name, '.codex');
+      const sessions = join(home, 'sessions');
+      if (!existsSync(sessions)) continue;
+      const stack = [sessions];
+      let hasRollout = false;
+      while (stack.length && !hasRollout) {
+        const d = stack.pop() as string;
+        let ents: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
+        try {
+          ents = readdirSync(d, { withFileTypes: true }) as unknown as Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
+        } catch { continue; }
+        for (const e of ents) {
+          const pth = join(d, e.name);
+          if (e.isDirectory()) stack.push(pth);
+          else if (e.isFile() && e.name.endsWith('.jsonl') && e.name.includes(sessionId)) { hasRollout = true; break; }
+        }
+      }
+      if (!hasRollout) continue;
+      // Prefer the home whose Codex state DB actually INDEXES this session — a
+      // fresh/seeded home may carry only a stray rollout copy (no index), which
+      // `codex resume` can't open. Match the id as raw bytes in state_5.sqlite
+      // (+ its WAL). Homes with the rollout but no index are a last-resort fallback.
+      const idBuf = Buffer.from(sessionId);
+      let indexed = false;
+      for (const db of ['state_5.sqlite', 'state_5.sqlite-wal']) {
+        try { if (readFileSync(join(home, db)).includes(idBuf)) { indexed = true; break; } } catch { /* no db */ }
+      }
+      if (indexed) return home;
+      if (!fallbackHome) fallbackHome = home;
+    }
+    return fallbackHome;
+  } catch (e) {
+    console.error('[resume] findCodexHomeForSession failed:', e);
+    return null;
+  }
+}
+
 /** Spawn options shared by the `pty:spawn` IPC handler and the god-triggered
  *  ephemeral-worker watcher. */
-type AgentSpawnOptions = SpawnOptions & { hive?: AgentMeta; isolate?: boolean; resume?: boolean; resumeSessionId?: string; provider?: AgentProvider; noAutoInstall?: boolean };
+type AgentSpawnOptions = SpawnOptions & { hive?: AgentMeta; isolate?: boolean; resume?: boolean; requireResume?: boolean; resumeSessionId?: string; provider?: AgentProvider; noAutoInstall?: boolean };
 
 ipcMain.handle('pty:spawn', async (evt, opts: AgentSpawnOptions) => {
   if (!opts || typeof opts.id !== 'string' || typeof opts.cwd !== 'string' || typeof opts.command !== 'string') {
@@ -1822,7 +2009,7 @@ ipcMain.handle('pty:spawn', async (evt, opts: AgentSpawnOptions) => {
  *  (null → the primary window). Behavior-identical to the prior inline handler. */
 async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebContents | null): Promise<{ ok: boolean; error?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string }> {
   // Which CLI is this? Explicit wins; else inferred from the binary
-  // (claude/codex/agy). Non-Claude providers skip every Claude-only spawn step
+  // (claude/codex/grok/agy). Non-Claude providers skip every Claude-only spawn step
   // below. Persist the resolved provider onto opts (+ hive meta) so the registry
   // record and downstream provider-aware steps agree on one value.
   const provider = inferAgentProvider(opts.command, opts.provider ?? opts.hive?.provider);
@@ -1971,6 +2158,17 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
         : cfg.defaultModel ?? modelForRole(opts.hive, cfg);
       if (m) args.push('--model', m);
     }
+    // Name the Remote Control session after the agent (Michael, Jim, Dev1…) so it
+    // is identifiable in claude.ai / the mobile app. Otherwise Claude defaults the
+    // prefix to the machine hostname (e.g. "vyapaks-macbook-pro-…"), which is
+    // opaque when several agents run at once — especially with remoteControlAtStartup
+    // on, where RC auto-enables for every session. Slugify the friendly name into a
+    // single safe token; Claude still appends its own random suffix for uniqueness.
+    if (!args.includes('--remote-control-session-name-prefix')) {
+      const label = (opts.hive.name || opts.hive.id || '')
+        .trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+      if (label) args.push('--remote-control-session-name-prefix', label);
+    }
     // Coarse runaway cap.
     if (typeof cfg.maxTurns === 'number' && cfg.maxTurns > 0 && !args.includes('--max-turns')) {
       args.push('--max-turns', String(cfg.maxTurns));
@@ -2000,20 +2198,58 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     opts.args = args;
   }
   // Idempotent session resume on respawn (#6.6a) — provider-aware: Claude
-  // `--resume <sid>`, Antigravity `--conversation <id>`. The recorded session id
-  // comes from hook payloads (agy's conversationId flows through the bridge), so
+  // `--resume <sid>`, Grok `--resume <sid>`, Antigravity `--conversation <id>`.
+  // The recorded session id comes from hook payloads, so
   // a restored worker continues its prior CLI session. Only when requested AND a
   // prior id exists for this agent.
   // Claude resume — incl. transcript seeding + only-attach-when-present — is
   // handled in the Claude-only block above; this generic flag path covers the
   // other CLIs (it must not blindly attach `--resume` when the seed failed).
-  if (opts.hive && opts.resume === true && !claudeProvider) {
-    const rf = providerPreset(provider).resumeFlag;
-    const sid = hive.lastSession(opts.hive.id);
-    if (rf && sid) {
+  if (opts.hive && !claudeProvider) {
+    const preset = providerPreset(provider);
+    const rf = preset.resumeFlag;
+    const rsub = preset.resumeSubcommand;
+    // An id typed into Add Agent's "resume session" field wins; otherwise fall
+    // back to this agent's own recorded session (restart-in-place). Previously
+    // resumeSessionId was read ONLY in the Claude branch, so a Codex agent
+    // silently ignored it and started a brand-new empty session.
+    const typedSid = typeof opts.resumeSessionId === 'string' ? opts.resumeSessionId.trim() : '';
+    const sid = typedSid || (opts.resume === true ? hive.lastSession(opts.hive.id) : undefined);
+    if (sid && rf) {
       const args = opts.args ?? [];
-      if (!args.includes(rf)) { args.push(rf, sid); opts.args = args; }
+      if (!args.includes(rf)) { args.push(rf, sid); opts.args = args; didResume = true; }
+    } else if (sid && rsub) {
+      // Subcommand form (Codex): `codex resume [OPTIONS] [SESSION_ID]` — the
+      // subcommand MUST be argv[0], the id trails the flags. Codex indexes
+      // sessions in state_5.sqlite, so a fresh agent's empty CODEX_HOME can't
+      // resume by id. If this agent's own home already has the session, resume in
+      // place; otherwise point CODEX_HOME at the agent home that OWNS it (that
+      // home has both the rollout and the sqlite index).
+      const myHome = (opts.env ?? {}).CODEX_HOME;
+      const agentsRoot = myHome ? dirname(dirname(myHome)) : '';
+      const ownerHome = agentsRoot ? findCodexHomeForSession(sid, agentsRoot) : null;
+      if (!ownerHome) {
+        console.warn(`[resume] codex session "${sid}" not found in any agent CODEX_HOME - starting fresh`);
+        if (typedSid) resumeNotFound = true;
+      } else {
+        if (ownerHome !== myHome) opts.env = { ...(opts.env ?? {}), CODEX_HOME: ownerHome };
+        const args = opts.args ?? [];
+        // Positional order matters: `codex resume [OPTIONS] [SESSION_ID] [PROMPT]`.
+        // The hive identity prompt rides in `args` as a POSITIONAL (codex has no
+        // prompt flag), so the id must come BEFORE it — appending the id last made
+        // codex read the prompt as SESSION_ID ("No saved session found with ID
+        // You are \"Dev2\"…") and the id as the prompt.
+        if (args[0] !== rsub) { opts.args = [rsub, sid, ...args]; didResume = true; }
+        console.log('[resume] codex resume', sid, 'in', ownerHome);
+      }
     }
+  }
+  if (opts.requireResume === true && !didResume) {
+    return {
+      ok: false,
+      error: 'Existing session could not be resumed; no replacement process was started.',
+      ...(resumeNotFound ? { resumeNotFound: true } : {})
+    };
   }
   // Remember which agent owns this PTY so closing the tab can archive it. A
   // live terminal means active — ensureAgent above already cleared `archived`.
@@ -2083,6 +2319,13 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     }
     opts.env = { ...(opts.env ?? {}), ...extra };
   }
+  // Codex Remote is daemon-based (there is no `/remote-control` slash command).
+  // Start/enable the daemon under this agent's isolated CODEX_HOME and connect
+  // the TUI to it so the thread is visible in ChatGPT mobile. Best-effort: an
+  // unavailable/older Codex install still gets a normal local terminal.
+  if (provider === 'codex' && opts.hive?.id) {
+    await enableCodexRemoteForSpawn(opts, opts.hive.id);
+  }
   const res = ptyManager.spawn(opts, owner);
   syncKeepAwake(); // arm the power-save blocker while ≥1 agent PTY is alive (#18)
   // Hand the resolved worktree path back to the renderer so it can persist it on
@@ -2099,6 +2342,10 @@ ipcMain.handle('pty:write', (_evt, id: string, data: string) => {
 ipcMain.handle('pty:resize', (_evt, id: string, cols: number, rows: number) => {
   if (typeof id !== 'string' || typeof cols !== 'number' || typeof rows !== 'number') return { ok: false, error: 'invalid args' };
   return ptyManager.resize(id, cols, rows);
+});
+ipcMain.handle('pty:redraw', (_evt, id: string) => {
+  if (typeof id !== 'string') return { ok: false, error: 'invalid id' };
+  return ptyManager.redraw(id);
 });
 ipcMain.handle('pty:kill', (_evt, id: string) => {
   if (typeof id !== 'string') return { ok: false, error: 'invalid id' };
@@ -2270,7 +2517,11 @@ ipcMain.handle('config:changeHome', async (_evt, payload: unknown) => {
 
   if (mode === 'move' && oldHome) {
     try {
-      for (const sub of ['hive', 'palace']) {
+      // roster.json + its backups ride along with hive/palace: the roster is the
+      // renderer's half of the same state, and leaving it behind would move the
+      // agents' sessions and memory to the new home while their names, notes and
+      // worktree paths stayed at the old one.
+      for (const sub of ['hive', 'palace', 'roster.json', 'roster-backups']) {
         const src = join(oldHome, sub);
         if (!existsSync(src)) continue;
         // cpSync copies the whole tree incl. .git and is cross-device safe (unlike
@@ -2320,6 +2571,13 @@ ipcMain.handle('git:isRepo', (_evt, cwd: unknown) => {
   if (typeof cwd !== 'string') return false;
   return isRepo(cwd);
 });
+
+// The repo a cwd belongs to, following a linked worktree back to its main
+// checkout — the renderer groups the agent roster by this.
+ipcMain.handle('git:mainRepo', (_evt, cwd: unknown) => {
+  if (typeof cwd !== 'string' || !cwd) return null;
+  return mainRepoRoot(cwd);
+});
 ipcMain.handle('git:branch', (_evt, cwd: unknown) => {
   if (typeof cwd !== 'string') return { error: 'invalid cwd' };
   return getBranch(cwd);
@@ -2347,6 +2605,16 @@ ipcMain.handle('git:diff', (_evt, cwd: unknown, relPath: unknown) => {
   }
   return getDiff(cwd, relPath);
 });
+
+// ─── IPC: roster mirror (shared between dev and a packaged build) ───────────
+// The renderer's store is built synchronously at module load, before any async
+// IPC could resolve, so the read is `ipcMain.on` + `returnValue` — one blocking
+// round trip at boot, in exchange for the roster being correct on first paint
+// instead of flashing an empty floor and then filling in.
+const roster = new RosterStore(() => readConfig().harnessHome);
+ipcMain.on('roster:readSync', (evt) => { evt.returnValue = roster.read(); });
+ipcMain.handle('roster:read', () => roster.read());
+ipcMain.handle('roster:write', (_evt, snap: unknown) => roster.write(snap));
 
 // ─── IPC: hive (multi-agent coordination) ───────────────────────────────────
 ipcMain.handle('hive:registry', () => hive.registry());
@@ -2574,6 +2842,12 @@ ipcMain.handle('app:resetAll', () => {
     try { rmSync(dir, { recursive: true, force: true }); }
     catch (e) { console.error('[reset] rm', dir, e); }
   }
+  // The roster is the renderer's half of the same state, so it retires with the
+  // hive — archived into roster-backups/ rather than deleted, and cleared as the
+  // active file so re-selecting this folder later doesn't resurrect agents whose
+  // sessions and memory are gone.
+  try { roster.archive(); }
+  catch (e) { console.error('[reset] roster.archive:', e); }
   // Back to first-run defaults, then relaunch clean so all in-memory services
   // re-bootstrap from scratch and the renderer lands on onboarding.
   resetConfig();
@@ -2670,6 +2944,15 @@ ipcMain.handle('control:setBreakerState', (_evt, state: unknown) => {
 ipcMain.handle('control:pause', (_evt, agentId: unknown, on: unknown) => {
   if (typeof agentId !== 'string') return null;
   control.pause(agentId, on === true);
+  return control.snapshot(agentId);
+});
+ipcMain.handle('control:autoDelivery', (_evt, agentId: unknown, paused: unknown) => {
+  if (typeof agentId !== 'string') return null;
+  const on = paused === true;
+  control.pauseAutoDelivery(agentId, on);
+  const current = new Set(readConfig().autoDeliveryPausedAgents ?? []);
+  if (on) current.add(agentId); else current.delete(agentId);
+  writeConfig({ autoDeliveryPausedAgents: Array.from(current).sort() });
   return control.snapshot(agentId);
 });
 ipcMain.handle('control:resume', (_evt, agentId: unknown) => {
@@ -3413,6 +3696,7 @@ ipcMain.handle('workers:stop', (_evt, workerId: string): { ok: boolean; error?: 
 function bootstrapHiveServices(): void {
   if (!hive.enabled()) return;
   hive.ensureHive();
+  control.replaceAutoDeliveryPauses(readConfig().autoDeliveryPausedAgents ?? []);
   archiveOrphanedAgents(); // #57/#58: archive stale archived:false entries with no live PTY
   hive.startRouter();
   startEphemeralWorkerWatcher(); // poll HIVE_ROOT/spawn-requests → ephemeral workers

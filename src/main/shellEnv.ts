@@ -9,6 +9,51 @@ import { spawnSync } from 'node:child_process';
 
 let cachedPath: string | null = null;
 
+/** script → captured output, memoised for the process lifetime. Every capture
+ *  boots a full interactive login shell (rc files and all) — hundreds of ms of
+ *  BLOCKING spawnSync on the main process — and shell PATH / binary locations
+ *  don't change mid-session. Only successful captures are cached, so a null
+ *  (shell failed / fence missing) stays retryable. */
+const shellCapture = new Map<string, string>();
+
+/** Run `script` in the user's INTERACTIVE login shell and return only what the
+ *  script itself printed.
+ *
+ *  An interactive shell is required to pick up nvm/asdf/brew PATH edits, but it
+ *  also runs the user's rc files, which are free to print. Some zsh setups emit
+ *  `Restored session: <date>` from a session-save plugin BEFORE the script's
+ *  own output, which silently poisons every value read back: a plain `.trim()`
+ *  on `echo "$PATH"` yields `"Restored session: …\n/opt/homebrew/bin:…"` and
+ *  that whole string gets handed to every agent as its PATH. Fencing the output
+ *  between two markers makes rc-file chatter (before, after, or both)
+ *  impossible to mistake for a result. Returns null when the shell fails or the
+ *  fence never appears. */
+export function captureFromLoginShell(script: string): string | null {
+  const cached = shellCapture.get(script);
+  if (cached !== undefined) return cached;
+  const value = captureFromLoginShellUncached(script);
+  if (value !== null) shellCapture.set(script, value);
+  return value;
+}
+
+function captureFromLoginShellUncached(script: string): string | null {
+  const mark = '__MD_SHELL_FENCE__';
+  try {
+    const res = spawnSync(
+      process.env.SHELL ?? '/bin/zsh',
+      ['-ilc', `printf %s ${mark}; ${script}; printf %s ${mark}`],
+      { encoding: 'utf8', timeout: 3000 }
+    );
+    const out = res.stdout ?? '';
+    const start = out.indexOf(mark);
+    const end = out.lastIndexOf(mark);
+    if (start < 0 || end <= start) return null;
+    return out.slice(start + mark.length, end);
+  } catch {
+    return null;
+  }
+}
+
 /** The user's interactive-shell PATH, queried once and cached for the session. */
 export function userShellPath(): string {
   if (cachedPath !== null) return cachedPath;
@@ -17,15 +62,11 @@ export function userShellPath(): string {
     cachedPath = process.env.PATH || '';
     return cachedPath;
   }
-  try {
-    const res = spawnSync(process.env.SHELL ?? '/bin/zsh', ['-ilc', 'echo -n "$PATH"'], {
-      encoding: 'utf8',
-      timeout: 3000
-    });
-    cachedPath = res.stdout.trim() || process.env.PATH || '';
-  } catch {
-    cachedPath = process.env.PATH || '';
-  }
+  const shellPath = captureFromLoginShell('printf %s "$PATH"')?.trim();
+  // A PATH is a single colon-joined line. Anything multi-line is rc-file noise
+  // that slipped the fence — fall back rather than hand the agent a corrupt
+  // PATH it would carry into every subprocess it spawns.
+  cachedPath = shellPath && !shellPath.includes('\n') ? shellPath : process.env.PATH || '';
   return cachedPath;
 }
 
@@ -54,14 +95,11 @@ export function resolveCommand(command: string): string {
     for (const c of winCandidates) if (existsSync(c)) return c;
     return command;
   }
-  try {
-    const res = spawnSync(process.env.SHELL ?? '/bin/zsh', ['-ilc', `which ${command}`], {
-      encoding: 'utf8',
-      timeout: 3000
-    });
-    const path = res.stdout.trim().split('\n').pop();
+  const which = captureFromLoginShell(`which ${command}`);
+  if (which) {
+    const path = which.trim().split('\n').map((l) => l.trim()).filter(Boolean).pop();
     if (path && existsSync(path)) return path;
-  } catch { /* fall through */ }
+  }
   const candidates = [
     `/opt/homebrew/bin/${command}`,
     `/usr/local/bin/${command}`,

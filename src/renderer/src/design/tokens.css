@@ -33,6 +33,7 @@
   --cth-status-ghost:    #D9CFE0;
   --cth-status-compacting: #9B7EDE; /* #5C — mid-/compact, "boxing up context" */
   --cth-status-looping:    #FF9F43; /* #5C — circuit-breaker armed (runaway) */
+  --cth-status-typing:     #E8A33D; /* unsent text on the prompt — queue is held */
 
   /* Spacing */
   --cth-space-0: 0px;

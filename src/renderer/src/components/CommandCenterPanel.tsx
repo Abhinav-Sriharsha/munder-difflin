@@ -9,14 +9,27 @@ import { TasksKanban } from './TasksKanban';
 import { AskMeTab } from './AskMeTab';
 import { SchedulesTab } from './SchedulesTab';
 import { WorkersTab } from './WorkersTab';
-import { acquireTerminal, resetTerminal } from './terminalPool';
+import { acquireTerminal, disposeTerminal, resetTerminal } from './terminalPool';
+import { terminalInstanceKey } from './terminalRecovery';
 import { Icon } from './Icon';
 import { MemoryGraphPanel } from './MemoryGraphPanel';
 import { useFleetTelemetry } from '@/hooks/useTelemetry';
 import { COMMAND_GROUPS } from '@shared/claudeCommands';
 import { useStore, type Agent } from '@/store/store';
 import { usePtyParser } from '@/hooks/usePtyParser';
-import { buildSpawnCommand, modelsForProvider, tokenizeCommand, inferAgentProvider, isClaudeProvider, AGENT_PROVIDER_PRESETS, type AgentProvider } from '@/store/config';
+import {
+  buildSpawnCommand,
+  decodeProviderModel,
+  encodeProviderModel,
+  inferAgentProvider,
+  isClaudeProvider,
+  modelProvidersForAgent,
+  modelsForProvider,
+  providerPreset,
+  tokenizeCommand,
+  AGENT_PROVIDER_PRESETS,
+  type AgentProvider
+} from '@/store/config';
 import { canReceiveInbox } from '@shared/agentProvider';
 
 /** Michael's control surface. Shown instead of the plain terminal/files panel
@@ -56,7 +69,11 @@ const TABS: { key: CCTab; label: string; icon: Parameters<typeof Icon>[0]['name'
   { key: 'workers', label: 'workers', icon: 'gear' }
 ];
 
-export function CommandCenterPanel({ agent }: { agent: Agent }) {
+/** @param fullscreen this instance IS the fullscreen overlay, so it owns the pty
+ *  and renders the real terminal. The docked instance renders the "open in
+ *  fullscreen" placeholder instead — two live xterms on one pty fight over its
+ *  cols/rows and corrupt the display. */
+export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent; fullscreen?: boolean }) {
   const [tab, setTab] = useState<CCTab>('terminal');
   // External tab requests (the office task board → 'tasks', the boss-room
   // calendar → 'schedules'). seq-keyed so clicking again re-opens the tab even
@@ -82,7 +99,8 @@ export function CommandCenterPanel({ agent }: { agent: Agent }) {
   const setFullscreen = useStore((s) => s.setFullscreen);
   const fullscreenAgentId = useStore((s) => s.fullscreenAgentId);
   const onPtyStream = usePtyParser(agent.id);
-  const isFullscreenedHere = fullscreenAgentId === agent.id;
+  // True only for the DOCKED panel while the overlay holds this agent.
+  const isFullscreenedHere = fullscreenAgentId === agent.id && !fullscreen;
 
   return (
     <PixelPanel
@@ -154,7 +172,7 @@ export function CommandCenterPanel({ agent }: { agent: Agent }) {
             <>
               <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
                 <PtyTerminalView
-                  key={agent.ptyId}
+                  key={terminalInstanceKey(agent.ptyId, agent.terminalGeneration)}
                   ptyId={agent.ptyId}
                   onStreamData={onPtyStream}
                   onUserPrompt={(t) => {
@@ -164,9 +182,9 @@ export function CommandCenterPanel({ agent }: { agent: Agent }) {
                     }
                     void window.cth.historyAdd({ agentId: agent.id, cwd: agent.cwd, text: t });
                   }}
-                  onToggleFullscreen={() => setFullscreen(agent.id)}
-                  fullscreen={false}
-                  embedded
+                  onToggleFullscreen={() => setFullscreen(fullscreen ? null : agent.id)}
+                  fullscreen={fullscreen}
+                  embedded={!fullscreen}
                 />
               </div>
               <MessageQueueComposer agent={agent} />
@@ -215,6 +233,11 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
   const [restarting, setRestarting] = useState<string | null>(null);
   const [engineProvider, setEngineProvider] = useState<AgentProvider>('claude');
   const [engineModel, setEngineModel] = useState<string | undefined>(undefined);
+  const [restartErrors, setRestartErrors] = useState<Record<string, string>>({});
+  // The harness's own default model (Settings → default model). Michael and every
+  // new agent spawn on this, so the picker marks it — otherwise the only entry
+  // reading "default" was the CLI's, which is a different thing entirely.
+  const [defaultModel, setDefaultModel] = useState<string | undefined>(undefined);
   const [dispatchTo, setDispatchTo] = useState<string>(''); // '' = Michael decides
   const [dispatchText, setDispatchText] = useState('');
   const [dispatchMsg, setDispatchMsg] = useState<string | null>(null);
@@ -231,6 +254,7 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
       setAgentTokenCaps(c.agentTokenCaps ?? {});
       setEngineProvider(c.godProvider ?? 'claude');
       setEngineModel(c.godModel);
+      setDefaultModel(c.defaultModel);
     }).catch(() => { /* noop */ });
   }, []);
 
@@ -247,23 +271,81 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
   // hatch for a corrupted/garbled terminal (e.g. xterm reflow after dragging the
   // window between displays of different sizes). With `resume` unset it's the
   // old behavior: a model change that starts a fresh session.
-  const restartWithModel = async (a: Agent, model: string | undefined, opts: { resume?: boolean; provider?: AgentProvider } = {}) => {
+  const restartWithModel = async (
+    a: Agent,
+    model: string | undefined,
+    opts: {
+      resume?: boolean;
+      provider?: AgentProvider;
+      /** Resume if we can, start fresh if we can't, instead of refusing.
+       *  "Restart & Continue" wants the hard failure — continuing is the entire
+       *  point, so silently starting a blank session would be worse than an
+       *  error. A model change wants the soft one: the user asked to change
+       *  model, and an agent with no recorded session still has to get one. */
+      resumeOptional?: boolean;
+    } = {}
+  ) => {
     if (!a.ptyId) return;
     setRestarting(a.id);
+    setRestartErrors((errors) => ({ ...errors, [a.id]: '' }));
     try {
       const cfg = await window.cth.getConfig();
-      await window.cth.killPty(a.ptyId);
-      // Soft-reset the pooled terminal in place rather than disposing it: the
-      // same ptyId is reused, so its data subscription, opened xterm and keyboard
-      // wiring all survive the restart. (Disposing dropped the live terminal while
-      // the view — keyed on the unchanged ptyId — never re-attached a replacement,
-      // leaving a dead pane that swallowed every keystroke.)
-      resetTerminal(a.ptyId);
       // Respawn on the same CLI this agent already runs on (inferred from its
       // command if not explicitly tagged) so an Antigravity/Codex worker stays
       // on its own binary. tokenizeCommand keeps quoted model labels one arg.
       // opts.provider overrides the inferred provider — used when changing GOD's engine.
-      const provider = opts.provider ?? inferAgentProvider(a.command, a.provider);
+      const previousProvider = inferAgentProvider(a.command, a.provider);
+      const provider = opts.provider ?? previousProvider;
+      let resume = opts.resume === true && provider === previousProvider;
+      if (opts.resume && !resume && !opts.resumeOptional) {
+        throw new Error('Cannot resume a session through a different provider.');
+      }
+      let resumeSessionId: string | undefined;
+      if (resume) {
+        // A precondition miss is fatal for an explicit "continue", and merely
+        // means "start fresh" for an opportunistic one (see resumeOptional).
+        const giveUpOnResume = (reason: string) => {
+          if (!opts.resumeOptional) throw new Error(reason);
+          resume = false;
+          resumeSessionId = undefined;
+        };
+        const registry = await window.cth.hiveRegistry();
+        resumeSessionId = registry.agents[a.id]?.sessionId;
+        if (!resumeSessionId) {
+          giveUpOnResume('No recorded session ID; current process was left running.');
+        } else if (provider === 'claude' && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
+          giveUpOnResume('Session transcript not found; current process was left running.');
+        }
+      }
+      // Capture the live grid before replacing anything. Restart & Continue
+      // recreates only this agent's xterm; model changes retain the old
+      // in-place reset behavior.
+      const oldEntry = acquireTerminal(a.ptyId);
+      let cols = oldEntry.term.cols || 100;
+      let rows = oldEntry.term.rows || 30;
+      try {
+        oldEntry.fit.fit();
+        cols = oldEntry.term.cols;
+        rows = oldEntry.term.rows;
+      } catch { /* host not sized yet */ }
+
+      const killed = await window.cth.killPty(a.ptyId);
+      if (!killed.ok) throw new Error(killed.error ?? 'Could not stop the current process.');
+      if (resume) {
+        // A blank xterm can retain corrupt renderer/DOM/subscription state even
+        // after its PTY is healthy. Throw that one terminal away, acquire its
+        // replacement BEFORE spawning (so startup output has a listener), then
+        // bump the key so React remounts only this agent's terminal card.
+        disposeTerminal(a.ptyId);
+        acquireTerminal(a.ptyId);
+        updateAgent(a.id, {
+          terminalGeneration: (a.terminalGeneration ?? 0) + 1,
+          status: 'idle',
+          action: 'recreating terminal…'
+        });
+      } else {
+        resetTerminal(a.ptyId);
+      }
       const command = buildSpawnCommand(cfg, model, provider);
       const [exe, ...args] = tokenizeCommand(command.trim());
       const hive = a.isGod
@@ -271,21 +353,54 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
         : a.isAssistant
         ? { id: a.id, name: a.name, cwd: a.cwd, provider, isAssistant: true, role: "Michael's prep assistant" }
         : { id: a.id, name: a.name, cwd: a.cwd, provider, role: a.description };
-      // Spawn the replacement at the terminal's REAL grid, not the fixed 100×30
-      // default. A size mismatch makes the Claude TUI's absolute cursor moves land
-      // in the wrong cells, so the screen renders as scattered/overlapping text.
-      const entry = acquireTerminal(a.ptyId);
-      let cols = 100, rows = 30;
-      try { entry.fit.fit(); cols = entry.term.cols; rows = entry.term.rows; } catch { /* host not sized yet */ }
-      const res = await window.cth.spawnPty({ id: a.ptyId, cwd: a.cwd, command: exe, args, provider, cols, rows, hive, resume: opts.resume });
+      const res = await window.cth.spawnPty({
+        id: a.ptyId,
+        cwd: a.cwd,
+        command: exe,
+        args,
+        provider,
+        cols,
+        rows,
+        hive,
+        resume,
+        resumeSessionId,
+        requireResume: resume
+      });
+      if (!res.ok) throw new Error(res.error ?? 'Restart failed.');
+      if (resume && res.resumed !== true) {
+        throw new Error('Resume was refused; no replacement session was accepted.');
+      }
       if (res.ok) {
-        // On a pure resume the model is unchanged — don't overwrite it.
-        const patch = opts.resume
-          ? { status: 'idle' as const, action: 'continuing…' }
-          : { command: command.trim(), provider, model, status: 'idle' as const, action: 'restarting…' };
+        // Record the model even on a resume. A same-provider model change now
+        // RESUMES the session (that is the point — you keep the conversation and
+        // just swap the model), so "resume ⇒ the model is unchanged" stopped
+        // being true. Skipping the patch left the live process on the new model
+        // while the selector and the persisted agent kept the old one, and the
+        // next restore relaunched the old command. `command` is rebuilt from the
+        // selected model above, so on a genuine no-change restart this is a no-op.
+        const patch = resume
+          ? {
+              command: command.trim(),
+              provider,
+              model,
+              status: 'idle' as const,
+              action: 'continuing…'
+            }
+          : {
+              command: command.trim(),
+              provider,
+              model,
+              status: 'idle' as const,
+              action: provider === previousProvider ? 'restarting…' : `switching to ${providerPreset(provider).label}…`
+            };
         updateAgent(a.id, patch);
       }
-    } catch { /* noop */ } finally {
+    } catch (error) {
+      setRestartErrors((errors) => ({
+        ...errors,
+        [a.id]: error instanceof Error ? error.message : String(error)
+      }));
+    } finally {
       setRestarting(null);
     }
   };
@@ -398,6 +513,8 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
 
       <Section title="AGENTS">
         {agents.map((a) => {
+          const agentProvider = inferAgentProvider(a.command, a.provider);
+          const agentPreset = providerPreset(agentProvider);
           const sample = samples[a.id];
           const breaker = breakers[a.id];
           const armed = !!breaker && (breaker.level === 'constrained' || breaker.level === 'stopped');
@@ -412,6 +529,8 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
           const hasSpark = sparkSeries.some((v) => v > 0);
           const rateVal = Math.round(rate[a.id] ?? 0);
           const rateLabel = rateVal > 0 ? `${fmtTokens(rateVal)}/m` : 'rate';
+          const currentModelKnown = modelsForProvider(agentProvider)
+            .some((model) => model.id === a.model);
           return (
           <div key={a.id} style={{
             display: 'flex', flexDirection: 'column', gap: 4,
@@ -498,42 +617,85 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
                 </span>
               )}
             </div>
-            {/* Non-god agents get the per-agent model picker + restart controls here.
-                The GOD agent's model lives in the engine row below (provider+model+apply),
-                so we DON'T render this second selector for it — one model picker, not two. */}
-            {!a.isGod && (isClaudeProvider(inferAgentProvider(a.command, a.provider)) ? <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {/* Non-god agents get the cross-provider model picker + restart controls
+                here. The GOD agent's model lives in the engine row below
+                (provider+model+apply), so we DON'T render this second selector for
+                it — one model picker, not two. */}
+            {!a.isGod && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <Select
-                value={a.model ?? ''}
+                value={encodeProviderModel(agentProvider, a.model)}
                 disabled={restarting === a.id}
-                onChange={(v) => restartWithModel(a, v || undefined)}
+                onChange={(value) => {
+                  const choice = decodeProviderModel(value);
+                  if (!choice) return;
+                  // Switching model within the SAME provider continues the
+                  // conversation — that's the whole point of switching mid-task
+                  // ("this got hard, go up a tier"), and starting fresh threw
+                  // away the context that made the switch necessary.
+                  // `resume` is best-effort: restartWithModel already refuses it
+                  // across providers, and falls back to a fresh session when no
+                  // session id or transcript is recorded.
+                  void restartWithModel(a, choice.model, {
+                    provider: choice.provider,
+                    resume: choice.provider === agentProvider,
+                    resumeOptional: true
+                  });
+                }}
               >
-                {modelsForProvider(inferAgentProvider(a.command, a.provider)).map((m) => (
-                  <option key={m.label} value={m.id ?? ''}>{m.label}</option>
+                {(!agentPreset.supportsModel || !currentModelKnown) && (
+                  <option value={encodeProviderModel(agentProvider, a.model)}>
+                    {agentPreset.label} · {a.model ?? 'current'}
+                  </option>
+                )}
+                {modelProvidersForAgent(a.isGod).map((preset) => (
+                  <optgroup key={preset.id} label={preset.label}>
+                    {modelsForProvider(preset.id).map((model) => {
+                      // `defaultModel` is a Claude model id, so it can only mark
+                      // an entry in the Claude group.
+                      const isHarnessDefault = preset.id === 'claude'
+                        && !!defaultModel && model.id === defaultModel;
+                      return (
+                        <option
+                          key={`${preset.id}:${model.id ?? 'cli-default'}`}
+                          value={encodeProviderModel(preset.id, model.id)}
+                        >
+                          {model.label}{isHarnessDefault ? ' · default' : ''}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
                 ))}
               </Select>
               <span style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>
-                {restarting === a.id ? 'restarting…' : 'model (restarts agent)'}
+                {restarting === a.id
+                  ? 'restarting…'
+                  : `${agentPreset.label} model (restarts agent)`}
               </span>
               {/* Restart & Continue — kill + respawn keeping the SAME model and
                   resuming the prior conversation (--resume). Use this to redraw a
                   garbled TUI (e.g. after dragging the window across displays)
                   without losing the thread. */}
-              <span style={{ flex: 1 }} />
-              <PixelButton
-                variant="secondary"
-                size="sm"
-                disabled={restarting === a.id}
-                onClick={() => restartWithModel(a, a.model, { resume: true })}
-              >
-                <span title="Kill and respawn this agent, resuming its current conversation — fixes a corrupted/garbled terminal without losing context">
-                  restart &amp; continue
-                </span>
-              </PixelButton>
-            </div> : (
-              <div style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>
-                provider: {inferAgentProvider(a.command, a.provider)}
+              {(agentProvider === 'claude' || agentPreset.resumeFlag || agentPreset.resumeSubcommand) && <>
+                <span style={{ flex: 1 }} />
+                <PixelButton
+                  variant="secondary"
+                  size="sm"
+                  disabled={restarting === a.id}
+                  onClick={() => restartWithModel(a, a.model, { resume: true })}
+                >
+                  <span title="Kill and respawn this agent, resuming its current conversation — fixes a corrupted/garbled terminal without losing context">
+                    restart &amp; continue
+                  </span>
+                </PixelButton>
+              </>}
+            </div>
+            )}
+            {restartErrors[a.id] && (
+              <div style={{ fontSize: 11, color: 'var(--cth-coral)' }}>
+                {restartErrors[a.id]}
               </div>
-            ))}
+            )}
             {a.isGod && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, color: 'var(--cth-ink-500)', flexShrink: 0 }}>engine:</span>

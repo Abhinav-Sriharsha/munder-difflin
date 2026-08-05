@@ -13,10 +13,24 @@ export type IntegrationRecordView = Omit<IntegrationRecord, 'secretRef'> & { has
 // Injected at build time from package.json (see electron.vite.config.ts).
 declare const __APP_VERSION__: string;
 
+/** The renderer's roster as mirrored to `<harnessHome>/roster.json`. The agent
+ *  entries stay `unknown` here for the same reason main leaves them opaque: the
+ *  store owns that shape, and repeating it in the bridge would mean editing two
+ *  files every time an agent gains a field. */
+export interface RosterSnapshot {
+  version: 1;
+  savedAt: string;
+  agents: unknown[];
+  archived: unknown[];
+  restorable: unknown[];
+  queues: Record<string, unknown[]>;
+  selectedId: string | null;
+}
+
 export interface HiveAgentMeta {
   id: string;
   name: string;
-  /** Which CLI this agent runs on (claude/codex/antigravity/custom); defaults claude. */
+  /** Which CLI this agent runs on (claude/codex/grok/antigravity/custom); defaults claude. */
   provider?: AgentProvider;
   role?: string;
   capabilities?: string[];
@@ -64,7 +78,12 @@ export interface HiveRegistry {
   godId: string | null;
   /** `archived` agents have had their terminal closed — retained + flagged, not
    *  deleted; only live-PTY agents are 'active'. */
-  agents: Record<string, HiveAgentMeta & { status: string; lastSeen: number; archived?: boolean }>;
+  agents: Record<string, HiveAgentMeta & {
+    status: string;
+    lastSeen: number;
+    archived?: boolean;
+    sessionId?: string;
+  }>;
 }
 
 /** One row of the consolidated voice read-layer directory (`hive:agentDirectory`):
@@ -175,10 +194,12 @@ export interface SpawnPtyOptions {
   /** When true (and cwd is a git repo), spawn the agent in its own git worktree. */
   isolate?: boolean;
   /** When true, continue the agent's prior CLI session if one was recorded
-   *  (provider-aware: Claude `--resume`, Antigravity `--conversation`). For
+   *  (provider-aware: Claude/Grok `--resume`, Antigravity `--conversation`). For
    *  Claude the main process looks up the session id from the hive registry and
    *  seeds its transcript into the cwd's project dir (#1 — restore on restart). */
   resume?: boolean;
+  /** Fail before spawning when a requested resume cannot be attached. */
+  requireResume?: boolean;
   /** Explicit Claude session id to resume (#2 — Add Agent "resume session"). The
    *  main process seeds that session's `.jsonl` into the target cwd's project dir
    *  (copying it from wherever it lives) and launches `claude --resume <id>`. */
@@ -269,6 +290,7 @@ export interface HarnessConfig {
   costCapUsd?: number;
   costCapTokens?: number;
   agentTokenCaps?: Record<string, number>;
+  autoDeliveryPausedAgents?: string[];
   maxTurns?: number;
   circuitBreaker?: CircuitBreakerConfig;
   /** Enterprise Knowledge Graph (multimodal context for agents). Default OFF. */
@@ -427,6 +449,7 @@ export interface ClosingTimeEvent {
 export interface AgentControlSnapshot {
   paused: boolean;
   halted: boolean;
+  autoDeliveryPaused: boolean;
   gatedTools: string[];
   pendingSteers: number;
 }
@@ -511,9 +534,18 @@ const api = {
     ipcRenderer.invoke('pty:write', id, data),
   resizePty: (id: string, cols: number, rows: number): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('pty:resize', id, cols, rows),
+  redrawPty: (id: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('pty:redraw', id),
   killPty: (id: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('pty:kill', id),
-  listPtys: (): Promise<Array<{ id: string; cwd: string; command: string; pid: number; lastOutputAt: number }>> =>
+  listPtys: (): Promise<Array<{
+    id: string;
+    cwd: string;
+    command: string;
+    pid: number;
+    lastOutputAt: number;
+    hasOutput: boolean;
+  }>> =>
     ipcRenderer.invoke('pty:list'),
   /** Resolve a Claude session id to the cwd it originally ran in (Add Agent
    *  resume auto-fill), or null if the id is invalid/unknown. */
@@ -583,6 +615,9 @@ const api = {
 
   // ─── Git ─────────────────────────────────────────────────────────────────
   gitIsRepo: (cwd: string): Promise<boolean> => ipcRenderer.invoke('git:isRepo', cwd),
+  /** Absolute path of the MAIN working tree `cwd` belongs to — a linked worktree
+   *  resolves to the original repo, not to itself. null when not a git repo. */
+  gitMainRepo: (cwd: string): Promise<string | null> => ipcRenderer.invoke('git:mainRepo', cwd),
   gitBranch: (cwd: string) =>
     ipcRenderer.invoke('git:branch', cwd) as Promise<{ current: string | null; detached: boolean } | { error: string }>,
   gitStatus: (cwd: string) =>
@@ -845,6 +880,9 @@ const api = {
   /** Pause/unpause an agent — paused → its tool calls are denied at PreToolUse. */
   controlPause: (agentId: string, on: boolean): Promise<AgentControlSnapshot | null> =>
     ipcRenderer.invoke('control:pause', agentId, on),
+  /** Pause/resume automatic inbox and queued-message delivery for one agent. */
+  controlAutoDelivery: (agentId: string, paused: boolean): Promise<AgentControlSnapshot | null> =>
+    ipcRenderer.invoke('control:autoDelivery', agentId, paused),
   /** Clear pause + halt so the agent can run again. */
   controlResume: (agentId: string): Promise<AgentControlSnapshot | null> =>
     ipcRenderer.invoke('control:resume', agentId),
@@ -1068,7 +1106,19 @@ const api = {
     taskId: string,
     timeoutMs?: number
   ): Promise<{ summary: string; targetAgentId: string; taskId?: string } | { timedOut: true; taskId: string }> =>
-    ipcRenderer.invoke('realtime:waitFor', taskId, timeoutMs)
+    ipcRenderer.invoke('realtime:waitFor', taskId, timeoutMs),
+  // ─── Roster mirror (agents + notes + queues, shared dev ↔ packaged) ─────────
+  /** Read the roster file beside the hive. SYNCHRONOUS on purpose: the zustand
+   *  store is created at module load, so an async read would arrive after the
+   *  first render and the floor would flash empty. One blocking round trip at
+   *  boot. `null` = no file (or unreadable) — the caller then uses localStorage. */
+  rosterReadSync: (): RosterSnapshot | null => {
+    try { return ipcRenderer.sendSync('roster:readSync') ?? null; } catch { return null; }
+  },
+  /** Mirror the roster to disk. Debounced by the caller; main keeps the previous
+   *  contents as a backup and refuses a first write that would empty a full file. */
+  rosterWrite: (snap: RosterSnapshot): Promise<{ ok: boolean; skipped?: string; error?: string }> =>
+    ipcRenderer.invoke('roster:write', snap)
 };
 
 contextBridge.exposeInMainWorld('cth', api);
