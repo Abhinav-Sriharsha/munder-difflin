@@ -1,9 +1,53 @@
-# Munder Difflin v0.3.3
+# Munder Difflin v0.3.4
 
-**A local hive of Claude Code, Antigravity, Codex & Copilot agents that run themselves** — messaging,
+**A local hive of Claude Code, Antigravity, Codex, Grok & Copilot agents that run themselves** — messaging,
 routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-first and open source.
 
 ### → [**munderdiffl.in**](https://munderdiffl.in/) — see it in action, then grab a build below
+
+---
+
+## What's new in 0.3.4 — *The queue you can trust, two new engines & auto-update*
+
+**A community release.** The headline terminal/queue reliability wave is by
+[**@gts-47**](https://github.com/gts-47) (Vyapak Goyal), with major fixes by
+[**@qschmick**](https://github.com/qschmick).
+
+- **Auto-update.** The app now checks GitHub releases, downloads the new version in the background,
+  and offers a **"restart to update"** toast — installation is always your click; nothing restarts on
+  its own. Toggle in Settings → General. (Starts working for installs **on 0.3.4+** — grab this one
+  from the site once more.)
+- **One delivery gate for every automatic writer.** The message queue kept breaking because multiple
+  loops each decided when it was safe to type into a terminal. Now a single drain loop owns that
+  decision — and automation **never wipes your draft or closes your menus**: a user draft or open
+  picker holds delivery (visible as a new **"your draft"** badge), and expired blocks type *after*
+  your text instead of over it. The full contract is written down in
+  [`docs/message-queue.md`](https://github.com/chaitanyagiri/munder-difflin/blob/main/docs/message-queue.md). *(gts-47)*
+- **Blank-terminal pane fixed at all three roots** — WebGL contexts are leased per attached terminal
+  (Chromium silently kills the oldest past ~16 live contexts, which is exactly what a big
+  restore-team did), the initial-redraw latch only arms on success, and the repaint marker survives a
+  failed refresh. *(gts-47)*
+- **xAI Grok + Kimi Code join the engine roster** — Grok as a full hive citizen (lifecycle-hook
+  adapter, guarded inbox delivery, `--resume`), Kimi as a worker engine. Plus **Fable 5 and
+  Sonnet 5** in the Claude picker (Fable 5 is the new default), and the two "default" entries are
+  finally tellable-apart. *(gts-47)*
+- **A fullscreen agent roster rail** — repo-grouped (worktree-aware), inline notes, drag-to-reorder,
+  restore-team built in; **Remote Control sessions are named after the agent**; the **roster is
+  shared between dev and packaged builds**; restore-team runs in parallel and on open. *(gts-47)*
+- **Codex resume actually resumes** (subcommand + session-owner `CODEX_HOME` detection) and Codex
+  workers get **Codex Remote** — threads visible in ChatGPT mobile. *(gts-47)*
+- **Killed processes actually die** — every kill path escalates to a process-group kill, so trapped
+  SIGHUPs and reparented MCP servers no longer leak PIDs
+  ([#110](https://github.com/chaitanyagiri/munder-difflin/pull/110), qschmick). Also from qschmick:
+  the **breaker false-positive storm on idle/compacting agents** is gone
+  ([#112](https://github.com/chaitanyagiri/munder-difflin/pull/112)), warm usage reads are **~350×
+  faster** ([#111](https://github.com/chaitanyagiri/munder-difflin/pull/111)), and spawns no longer
+  freeze the app ([#114](https://github.com/chaitanyagiri/munder-difflin/pull/114)).
+- **Scheduled auto-compact is now opt-in (default OFF)** with a switch in Settings → General and the
+  Schedules tab — and it's provider-aware when on.
+
+Full details in the
+[CHANGELOG](https://github.com/chaitanyagiri/munder-difflin/blob/main/CHANGELOG.md).
 
 ---
 
