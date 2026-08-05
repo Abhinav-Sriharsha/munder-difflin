@@ -186,10 +186,10 @@ export interface HarnessConfig {
    *  later delete makes the mission reappear DISABLED on next boot (compaction is
    *  required, so it's never silently lost — only user-disabled). */
   compactMaintenanceSeeded?: boolean;
-  /** Hard dollar ceiling across all active agents before the circuit breaker
-   *  trips. UNSET by default (Lane A #6.6b decision): the breaker trips on
-   *  behavioral signals; the $-cap is purely opt-in. Legacy — the UI now sets a
-   *  token cap instead (see costCapTokens); both are enforced if present. */
+  /** DEPRECATED (v0.3.4): config-file only, no UI anywhere. Hard dollar ceiling
+   *  across all active agents. Still enforced if present so legacy configs keep
+   *  their guard, but the token cap (costCapTokens) is the real budget —
+   *  scheduled for removal next release. */
   costCapUsd?: number;
   /** Hard TOKEN ceiling (total tokens across all active agents) before the
    *  breaker trips. The user-facing budget — set in Settings. Opt-in like the
@@ -246,7 +246,8 @@ export interface HarnessConfig {
   autoUpdate?: boolean;
   /** Multi-window "floors": expose a New Floor action that opens additional
    *  windows, each an independent office with isolated renderer state (its own
-   *  session partition) and per-window PTY routing. OFF by default (opt-in) —
+   *  session partition) and per-window PTY routing. ON by default (v0.3.4: code
+   *  and comment disagreed; the shipped behavior — enabled — wins) —
    *  the window/PTY-ownership plumbing is always active and single-window-safe,
    *  but the New Floor entry points (app menu item + IPC) only appear when on.
    *  The on-disk hive (god orchestration under harnessHome) stays process-global;
@@ -393,7 +394,10 @@ const DEFAULTS: HarnessConfig = {
   reflectRecentKeep: 12,
   reflectMinBytes: 16_384,
   // Enterprise Knowledge Graph — opt-in; dark until the user enables it.
-  knowledgeGraph: { enabled: true }
+  // v0.3.4 fix: default OFF, matching the field's own documentation ("Default
+  // OFF / dark until enabled") — the true default contradicted it. Existing
+  // installs keep their persisted value.
+  knowledgeGraph: { enabled: false }
 };
 
 function configPath(): string {

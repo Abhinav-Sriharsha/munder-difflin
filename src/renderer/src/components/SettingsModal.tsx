@@ -1,5 +1,5 @@
 import { useState, useEffect, type CSSProperties } from 'react';
-import type { HarnessConfig } from '@/store/config';
+import { AGENT_MODELS, type HarnessConfig } from '@/store/config';
 import { useStore } from '@/store/store';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
@@ -112,8 +112,11 @@ function clearLocalState(): void {
   } catch { /* noop */ }
 }
 
-type Section = 'General' | 'AI Engines' | 'MCP' | 'Integrations' | 'Danger Zone';
-const NAV_SECTIONS: Section[] = ['General', 'AI Engines', 'MCP', 'Integrations', 'Danger Zone'];
+// v0.3.4 redesign: six tabs, one topic each. 'AI Engines' folded into
+// Agents & Models; MCP + Slack + webhook + REST live together in Connections;
+// voice gets its own tab; Danger Zone became a red row at the bottom of General.
+type Section = 'General' | 'Agents & Models' | 'Autonomy & Budgets' | 'Connections' | 'Voice' | 'Memory & Knowledge';
+const NAV_SECTIONS: Section[] = ['General', 'Agents & Models', 'Autonomy & Budgets', 'Connections', 'Voice', 'Memory & Knowledge'];
 
 export function SettingsModal({ config, onClose }: SettingsModalProps) {
   const [confirming, setConfirming] = useState(false);
@@ -140,6 +143,55 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
     catch { setNotifications(!next); /* revert on failure */ }
   };
 
+  // ─── v0.3.4 redesign: settings that were onboarding-trapped or UI-less ────
+  const cfgX = config as HarnessConfig & {
+    strongKeepalive?: boolean; audience?: string; autoMode?: boolean;
+    defaultModel?: string; maxTurns?: number; semanticMemory?: boolean;
+  };
+  const [keepAwake, setKeepAwake] = useState<boolean>(cfgX.strongKeepalive === true);
+  const toggleKeepAwake = async () => {
+    const next = !keepAwake;
+    setKeepAwake(next);
+    try { await window.cth.updateConfig({ strongKeepalive: next } as Partial<HarnessConfig>); }
+    catch { setKeepAwake(!next); }
+  };
+  const [simpleMode, setSimpleMode] = useState<boolean>(cfgX.audience === 'non-technical');
+  const toggleSimpleMode = async () => {
+    const next = !simpleMode;
+    setSimpleMode(next);
+    try { await window.cth.updateConfig({ audience: next ? 'non-technical' : 'technical' } as Partial<HarnessConfig>); }
+    catch { setSimpleMode(!next); }
+  };
+  const [autoModeOn, setAutoModeOn] = useState<boolean>(cfgX.autoMode !== false);
+  const toggleAutoMode = async () => {
+    const next = !autoModeOn;
+    setAutoModeOn(next);
+    try { await window.cth.updateConfig({ autoMode: next } as Partial<HarnessConfig>); }
+    catch { setAutoModeOn(!next); }
+  };
+  const [defaultModelSel, setDefaultModelSel] = useState<string>(cfgX.defaultModel ?? 'claude-fable-5');
+  const [defaultModelNote, setDefaultModelNote] = useState('');
+  const saveDefaultModel = async (id: string) => {
+    setDefaultModelSel(id);
+    try {
+      await window.cth.updateConfig({ defaultModel: id } as Partial<HarnessConfig>);
+      setDefaultModelNote('saved — applies to newly spawned agents');
+      setTimeout(() => setDefaultModelNote(''), 2200);
+    } catch { setDefaultModelNote('save failed'); }
+  };
+  const [maxTurnsVal, setMaxTurnsVal] = useState<string>(cfgX.maxTurns != null ? String(cfgX.maxTurns) : '');
+  const saveMaxTurns = async () => {
+    const n = maxTurnsVal.trim() === '' ? undefined : Number(maxTurnsVal);
+    await window.cth.updateConfig({ maxTurns: Number.isFinite(n as number) && (n as number) > 0 ? Math.round(n as number) : undefined } as Partial<HarnessConfig>);
+  };
+  const [semMemOn, setSemMemOn] = useState<boolean>(cfgX.semanticMemory !== false);
+  const toggleSemMem = async () => {
+    const next = !semMemOn;
+    setSemMemOn(next);
+    try { await window.cth.updateConfig({ semanticMemory: next } as Partial<HarnessConfig>); }
+    catch { setSemMemOn(!next); }
+  };
+
   // --- circuit-breaker config (Lane A #6 canonical fields, widened view) ---
   // Drives Jim's real breaker: floor-wide TOKEN budget (costCapTokens) + output-
   // token velocity ceiling (circuitBreaker.tokenVelocityPerMin). The token cap
@@ -152,14 +204,25 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
   const [agentBudget, setAgentBudget] = useState(breakerCfg.costCapTokens != null ? String(breakerCfg.costCapTokens) : '');
   const [velocityCeiling, setVelocityCeiling] = useState(breakerCfg.circuitBreaker?.tokenVelocityPerMin != null ? String(breakerCfg.circuitBreaker.tokenVelocityPerMin) : '');
   const [budgetNote, setBudgetNote] = useState('');
+  // v0.3.4: the four previously UI-less breaker fields get controls.
+  const [brkEnabled, setBrkEnabled] = useState<boolean>(breakerCfg.circuitBreaker?.enabled !== false);
+  const [brkHardStop, setBrkHardStop] = useState<boolean>(breakerCfg.circuitBreaker?.hardStop === true);
+  const [brkRepeated, setBrkRepeated] = useState(breakerCfg.circuitBreaker?.repeatedToolLimit != null ? String(breakerCfg.circuitBreaker.repeatedToolLimit) : '');
+  const [brkErrStorm, setBrkErrStorm] = useState(breakerCfg.circuitBreaker?.errorStormLimit != null ? String(breakerCfg.circuitBreaker.errorStormLimit) : '');
   const saveBudget = async () => {
     const tokens = agentBudget.trim() === '' ? undefined : Number(agentBudget);
     const vel = velocityCeiling.trim() === '' ? undefined : Number(velocityCeiling);
+    const rep = brkRepeated.trim() === '' ? undefined : Number(brkRepeated);
+    const storm = brkErrStorm.trim() === '' ? undefined : Number(brkErrStorm);
     await window.cth.updateConfig({
       costCapTokens: Number.isFinite(tokens as number) ? (tokens as number) : undefined,
       circuitBreaker: {
         ...(breakerCfg.circuitBreaker ?? {}),
-        tokenVelocityPerMin: Number.isFinite(vel as number) ? (vel as number) : undefined
+        enabled: brkEnabled,
+        hardStop: brkHardStop,
+        tokenVelocityPerMin: Number.isFinite(vel as number) ? (vel as number) : undefined,
+        repeatedToolLimit: Number.isFinite(rep as number) ? Math.round(rep as number) : undefined,
+        errorStormLimit: Number.isFinite(storm as number) ? Math.round(storm as number) : undefined
       }
     } as Partial<HarnessConfig>);
     setBudgetNote('saved');
@@ -272,7 +335,9 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
   // Talk (Realtime Michael) is gated on the OpenAI key — read the live presence
   // boolean so the Realtime Michael section can show its enabled/disabled status.
   const hasOpenAiKey = useStore((s) => s.hasOpenAiKey);
-  const [freeflowEnabled, setFreeflowEnabled] = useState(slackCfg.freeflowEnabled ?? false);
+  // v0.3.4 fix: the config default is ON ('now on by default', 0.2.7) — seeding
+  // with `?? false` displayed OFF while the feature was actually running.
+  const [freeflowEnabled, setFreeflowEnabled] = useState(slackCfg.freeflowEnabled !== false);
   const [groqKey, setGroqKey] = useState(slackCfg.groqApiKey ?? '');
   const [freeflowModel, setFreeflowModel] = useState(slackCfg.freeflowModel ?? 'whisper-large-v3-turbo');
   const [showGroqKey, setShowGroqKey] = useState(false);
@@ -305,7 +370,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
       setWebhookPort(String(cc.webhookPort ?? 3849));
       const kgOn = (cc as { knowledgeGraph?: { enabled?: boolean } }).knowledgeGraph?.enabled === true;
       setKgEnabled(kgOn);
-      setFreeflowEnabled(cc.freeflowEnabled ?? false);
+      setFreeflowEnabled(cc.freeflowEnabled !== false);
       setGroqKey(cc.groqApiKey ?? '');
       setFreeflowModel(cc.freeflowModel ?? 'whisper-large-v3-turbo');
       setIdleDisconnectMs((c as HarnessConfig).realtimeIdleDisconnectMs ?? 180_000);
@@ -500,12 +565,6 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
     }
   };
 
-  const rows: Array<[string, string]> = [
-    ['Auto mode', config.autoMode ? 'on' : 'off'],
-    ['Semantic memory', config.semanticMemory ? 'on' : 'off'],
-    ['Command', config.defaultCommand]
-  ];
-
   const modalTitle = changeHome
     ? 'CHANGE HOME FOLDER'
     : confirming
@@ -638,7 +697,6 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                 }}>
                   {NAV_SECTIONS.map((section) => {
                     const active = activeSection === section;
-                    const isDanger = section === 'Danger Zone';
                     return (
                       <button
                         key={section}
@@ -650,11 +708,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                           border: 'none',
                           borderLeft: active ? '3px solid var(--cth-lemon)' : '3px solid transparent',
                           background: active ? 'var(--cth-ink-900)' : 'transparent',
-                          color: active
-                            ? 'var(--cth-cream-50)'
-                            : isDanger
-                              ? '#6E1423'
-                              : 'var(--cth-ink-700)',
+                          color: active ? 'var(--cth-cream-50)' : 'var(--cth-ink-700)',
                           fontFamily: 'var(--cth-font-display)',
                           fontSize: 8,
                           lineHeight: '12px',
@@ -699,24 +753,37 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
 
                       <div style={{ height: 1, background: 'var(--cth-ink-300)' }} />
 
-                      {/* Config rows */}
+                      {/* Environment — settings that used to be trapped in onboarding */}
                       <div>
                         <div style={{
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
                         }}>
-                          Configuration
+                          Environment
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {rows.map(([label, value]) => (
-                            <div key={label} style={{ display: 'flex', gap: 12, fontSize: 13, lineHeight: '20px' }}>
-                              <span style={{ width: 160, flexShrink: 0, color: 'var(--cth-ink-500)' }}>{label}</span>
-                              <span style={{
-                                color: 'var(--cth-ink-900)', wordBreak: 'break-all',
-                                fontFamily: label === 'Command' ? 'var(--cth-font-mono, monospace)' : undefined
-                              }}>{value}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>Keep Mac awake while agents run</span>
+                              <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                                Blocks display sleep so schedules and terminals keep firing on time. Costs battery — best on AC.
+                              </span>
                             </div>
-                          ))}
+                            <PixelButton variant={keepAwake ? 'primary' : 'secondary'} size="sm" onClick={toggleKeepAwake}>
+                              {keepAwake ? 'on' : 'off'}
+                            </PixelButton>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>Explain things simply</span>
+                              <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                                Agents brief you in plain language instead of engineering shorthand.
+                              </span>
+                            </div>
+                            <PixelButton variant={simpleMode ? 'primary' : 'secondary'} size="sm" onClick={toggleSimpleMode}>
+                              {simpleMode ? 'on' : 'off'}
+                            </PixelButton>
+                          </div>
                         </div>
                       </div>
 
@@ -799,9 +866,101 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         </div>
                       </div>
 
+                      {/* Office Theme — TV-show office maps (experimental; flag tvShowOffices, default off) */}
+                      <OfficeThemePicker config={config} />
+                    </>
+                  )}
+
+                  {/* AGENTS & MODELS — what powers the office */}
+                  {activeSection === 'Agents & Models' && (
+                    <>
+                      <div>
+                        <div style={{
+                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
+                        }}>
+                          Default agent model
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                            Every newly spawned Claude agent (Michael included) starts on this model unless picked per-agent.
+                            Marked “· default” in the model pickers.
+                          </span>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {AGENT_MODELS.map((m) => (
+                              <button
+                                key={m.label}
+                                onClick={() => { if (m.id) void saveDefaultModel(m.id); }}
+                                style={{
+                                  padding: '3px 8px 1px', border: 'none', cursor: 'pointer',
+                                  fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)',
+                                  background: defaultModelSel === m.id ? 'var(--cth-sky-light)' : 'var(--cth-cream-100)',
+                                  boxShadow: defaultModelSel === m.id ? 'inset 0 0 0 1.5px var(--cth-ink-500)' : 'inset 0 0 0 1px var(--cth-ink-100)'
+                                }}
+                              >{m.label}</button>
+                            ))}
+                          </div>
+                          {defaultModelNote && <span style={{ fontSize: 12, color: 'var(--cth-mint)' }}>{defaultModelNote}</span>}
+                        </div>
+                      </div>
+
                       <div style={{ height: 1, background: 'var(--cth-ink-300)' }} />
 
-                      {/* Circuit breaker */}
+                      <AiEnginesSettings config={config} />
+
+                      <div style={{ height: 1, background: 'var(--cth-ink-300)' }} />
+
+                      {/* Advanced */}
+                      <div>
+                        <div style={{
+                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
+                        }}>
+                          Advanced
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 13, color: 'var(--cth-ink-900)' }}>Max turns per run</span>
+                          <input
+                            type="number" min="1" step="10" value={maxTurnsVal}
+                            onChange={(e) => setMaxTurnsVal(e.target.value)}
+                            onBlur={() => void saveMaxTurns()}
+                            placeholder="unlimited"
+                            style={{ ...slackInputStyle, width: 120 }}
+                          />
+                          <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>blank = unlimited</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* AUTONOMY & BUDGETS — the safety tab */}
+                  {activeSection === 'Autonomy & Budgets' && (
+                    <>
+                      <div>
+                        <div style={{
+                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
+                        }}>
+                          Autonomy
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                              {autoModeOn ? 'Autonomous — agents act without asking' : 'Ask-first — agents pause for tool approval'}
+                            </span>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              Applies to newly spawned agents (each agent's command can still override).
+                            </span>
+                          </div>
+                          <PixelButton variant={autoModeOn ? 'primary' : 'secondary'} size="sm" onClick={toggleAutoMode}>
+                            {autoModeOn ? 'autonomous' : 'ask-first'}
+                          </PixelButton>
+                        </div>
+                      </div>
+
+                      <div style={{ height: 1, background: 'var(--cth-ink-300)' }} />
+
+                      {/* Circuit breaker — the FULL unit (v0.3.4: all fields have UI) */}
                       <div>
                         <div style={{
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
@@ -810,9 +969,15 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                           Circuit breaker
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                            Guard against runaway spend. Blank = off. The breaker steers, then constrains, then stops an agent that crosses these.
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              Guard against runaway agents and spend. The breaker steers, then constrains, then stops an agent that crosses these.
+                            </span>
+                            <PixelButton variant={brkEnabled ? 'primary' : 'secondary'} size="sm"
+                              onClick={() => { setBrkEnabled(!brkEnabled); }}>
+                              {brkEnabled ? 'on' : 'off'}
+                            </PixelButton>
+                          </div>
                           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...slackLabelStyle }}>
                               floor token budget
@@ -835,11 +1000,66 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                                 style={{ ...slackInputStyle, width: 180 }}
                               />
                             </label>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...slackLabelStyle }}>
+                              repeated-tool limit
+                              <input
+                                type="number" min="0" step="5" value={brkRepeated}
+                                onChange={(e) => setBrkRepeated(e.target.value)}
+                                placeholder="default"
+                                style={{ ...slackInputStyle, width: 140 }}
+                              />
+                            </label>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...slackLabelStyle }}>
+                              error-storm limit
+                              <input
+                                type="number" min="0" step="5" value={brkErrStorm}
+                                onChange={(e) => setBrkErrStorm(e.target.value)}
+                                placeholder="default"
+                                style={{ ...slackInputStyle, width: 140 }}
+                              />
+                            </label>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>Hard stop</span>
+                              <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                                When tripped, KILL the agent instead of just constraining it. Off = steer-first (recommended).
+                              </span>
+                            </div>
+                            <PixelButton variant={brkHardStop ? 'destructive' : 'secondary'} size="sm"
+                              onClick={() => { setBrkHardStop(!brkHardStop); }}>
+                              {brkHardStop ? 'kill on trip' : 'steer first'}
+                            </PixelButton>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <PixelButton variant="secondary" size="sm" onClick={saveBudget}>save</PixelButton>
                             {budgetNote && <span style={{ fontSize: 12, color: 'var(--cth-mint)' }}>{budgetNote}</span>}
                           </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* MEMORY & KNOWLEDGE */}
+                  {activeSection === 'Memory & Knowledge' && (
+                    <>
+                      <div>
+                        <div style={{
+                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
+                        }}>
+                          Semantic memory
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>Cross-session recall</span>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              Agents' markdown memory is indexed for instant search. The embedding model lives in the Memory panel.
+                            </span>
+                          </div>
+                          <PixelButton variant={semMemOn ? 'primary' : 'secondary'} size="sm" onClick={toggleSemMem}>
+                            {semMemOn ? 'on' : 'off'}
+                          </PixelButton>
                         </div>
                       </div>
 
@@ -882,23 +1102,18 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                           </div>
                         )}
                       </div>
-
-                      {/* Office Theme — TV-show office maps (experimental; flag tvShowOffices, default off) */}
-                      <OfficeThemePicker config={config} />
                     </>
                   )}
 
-                  {/* MCP DEFAULTS */}
-                  {activeSection === 'AI Engines' && (
-                    <AiEnginesSettings config={config} />
+                  {/* CONNECTIONS — everything external (MCP + Slack + webhook + REST) */}
+                  {activeSection === 'Connections' && (
+                    <>
+                      <McpDefaultsSettings config={config} />
+                      <div style={{ height: 1, background: 'var(--cth-ink-300)' }} />
+                    </>
                   )}
 
-                  {activeSection === 'MCP' && (
-                    <McpDefaultsSettings config={config} />
-                  )}
-
-                  {/* INTEGRATIONS */}
-                  {activeSection === 'Integrations' && (
+                  {activeSection === 'Connections' && (
                     <>
                       {/* Connected-services registry (generic, registry-driven).
                           Leads the section; the hardcoded Slack/Webhook/Free Flow
@@ -1214,8 +1429,12 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                         )}
                       </div>
 
-                      <div style={{ height: 2, background: 'var(--cth-ink-300)' }} />
+                    </>
+                  )}
 
+                  {/* VOICE — Free Flow dictation + Realtime Michael (v0.3.4: its own tab) */}
+                  {activeSection === 'Voice' && (
+                    <>
                       {/* Free Flow (voice dictation) */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         <div style={{
@@ -1386,8 +1605,8 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                     </>
                   )}
 
-                  {/* DANGER ZONE */}
-                  {activeSection === 'Danger Zone' && (
+                  {/* Danger — a red row at the bottom of General (was its own tab) */}
+                  {activeSection === 'General' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                       <div style={{
                         fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
