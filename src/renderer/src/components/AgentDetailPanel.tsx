@@ -9,7 +9,6 @@ import { MessageQueueComposer } from './MessageQueueComposer';
 import { CommandCenterPanel } from './CommandCenterPanel';
 import { disposeTerminal } from './terminalPool';
 import { SidebarTabs } from './SidebarTabs';
-import { FilesTab } from './FilesTab';
 import { ThreadsPanel } from './ThreadsPanel';
 import { ToolWaterfall } from './ToolWaterfall';
 import { AgentControlStrip } from './AgentControlStrip';
@@ -117,6 +116,13 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
             }}>{agent.project}</span>
           </div>
         </div>
+        {/* v0.3.4: the IDE lives at agent level (replaces the old files tab) —
+            opens the full-window Monaco editor rooted at this agent's workspace. */}
+        <PixelButton variant="secondary" size="sm" onClick={() => useStore.getState().setIdeOpen(true)}>
+          <span title={`Open the IDE — file editor + git diff for ${agent.project}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Icon name="code" /> IDE
+          </span>
+        </PixelButton>
         <PixelButton variant="secondary" size="sm" onClick={openTerminal} disabled={openTerminalState === 'opening'}>
           <span title={`open Terminal.app at ${agent.cwd}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <Icon name="terminal" />
@@ -180,10 +186,6 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
               This agent has no live terminal. Spawn an agent through "add agent" to use the terminal tab.
             </EmptyTab>
           )
-        )}
-
-        {sidebarTab === 'files' && (
-          <FilesTab cwd={agent.cwd} />
         )}
 
         {sidebarTab === 'messages' && (

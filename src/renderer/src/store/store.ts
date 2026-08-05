@@ -115,7 +115,9 @@ export interface QueuedMessage {
   instruction?: string;
 }
 
-export type SidebarTab = 'terminal' | 'files' | 'messages' | 'traces';
+// 'files' retired in v0.3.4 (the per-agent IDE button superseded it) — a
+// persisted 'files' selection falls back to 'terminal' on load.
+export type SidebarTab = 'terminal' | 'messages' | 'traces';
 
 /** Lifecycle of the god agent ("Michael") bootstrap on launch.
  *  'booting' until his PTY is confirmed live, then 'ready' (or 'failed' if the
@@ -491,7 +493,7 @@ const initialSidebarWidth = (() => {
 const initialSidebarTab: SidebarTab = (() => {
   try {
     const v = window.localStorage.getItem(LS_SIDEBAR_TAB);
-    if (v === 'files' || v === 'terminal' || v === 'messages' || v === 'traces') return v;
+    if (v === 'terminal' || v === 'messages' || v === 'traces') return v;
   } catch { /* noop */ }
   return 'terminal';
 })();

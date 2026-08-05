@@ -295,23 +295,8 @@ export function App() {
         >
           <Icon name={fullscreenAgentId ? 'minimize' : 'expand'} size={1} style={{ width: 16, height: 16 }} />
         </button>
-        <button
-          className="cth-titlebar-nodrag"
-          onClick={() => setIdeOpen(true)}
-          title="Open IDE — file editor + git diff"
-          aria-label="Open IDE"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            height: 28, padding: '0 9px',
-            background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
-            border: 'none', borderRadius: 2, cursor: 'pointer',
-            color: 'var(--cth-ink-900)',
-            fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '14px'
-          }}
-        >
-          <Icon name="code" size={1} style={{ width: 16, height: 16 }} /> IDE
-        </button>
+        {/* v0.3.4: the IDE button moved to agent level — every agent's header
+            (sidebar detail, god Command Center, fullscreen) carries it. */}
         <button
           className="cth-titlebar-nodrag cth-settings-btn"
           onClick={() => setSettingsOpen(true)}

@@ -101,6 +101,24 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
   const onPtyStream = usePtyParser(agent.id);
   // True only for the DOCKED panel while the overlay holds this agent.
   const isFullscreenedHere = fullscreenAgentId === agent.id && !fullscreen;
+  // v0.3.4: ONE floor-wide auto-delivery switch, moved off the per-agent
+  // control strips — toggling applies to every live agent, god included.
+  // Seeded from the god's own control state (the floor is kept in sync by
+  // this single control, so any agent's state reflects the floor's).
+  const [floorDeliveryPaused, setFloorDeliveryPaused] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    window.cth.controlSnapshot(agent.id)
+      .then((s) => { if (alive && s) setFloorDeliveryPaused(s.autoDeliveryPaused); })
+      .catch(() => { /* none */ });
+    return () => { alive = false; };
+  }, [agent.id]);
+  const toggleFloorDelivery = async () => {
+    const next = !floorDeliveryPaused;
+    setFloorDeliveryPaused(next);
+    const all = useStore.getState().agents;
+    await Promise.all(all.map((a) => window.cth.controlAutoDelivery(a.id, next).catch(() => null)));
+  };
 
   return (
     <PixelPanel
@@ -130,6 +148,24 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
             <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>runs the floor</span>
           </div>
         </div>
+        {/* v0.3.4: floor-wide auto-delivery lives HERE (one switch for every
+            agent's queue), and the IDE opens from agent level, not the toolbar. */}
+        <PixelButton
+          variant={floorDeliveryPaused ? 'primary' : 'secondary'}
+          size="sm"
+          onClick={() => { void toggleFloorDelivery(); }}
+        >
+          <span title={floorDeliveryPaused
+            ? 'Automatic queue delivery is PAUSED for every agent — messages stay queued until resumed'
+            : 'Automatic queue delivery is ON for every agent — click to pause the whole floor'}>
+            {floorDeliveryPaused ? 'delivery paused' : 'auto-delivery on'}
+          </span>
+        </PixelButton>
+        <PixelButton variant="secondary" size="sm" onClick={() => useStore.getState().setIdeOpen(true)}>
+          <span title="Open the IDE — file editor + git diff" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Icon name="code" /> IDE
+          </span>
+        </PixelButton>
       </div>
 
       {/* Tab bar — an auto-fit grid of equal-width cells. The tabs wrap onto

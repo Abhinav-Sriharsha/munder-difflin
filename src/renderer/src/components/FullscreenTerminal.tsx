@@ -286,22 +286,8 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
           >
             <Icon name="minimize" size={1} style={{ width: 16, height: 16 }} />
           </button>
-          <button
-            onClick={() => useStore.getState().setIdeOpen(true)}
-            title="Open IDE — file editor + git diff"
-            aria-label="Open IDE"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              height: 28, padding: '0 9px',
-              background: 'var(--cth-paper-100)',
-              boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
-              border: 'none', borderRadius: 2, cursor: 'pointer',
-              color: 'var(--cth-ink-900)',
-              fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '14px'
-            }}
-          >
-            <Icon name="code" size={1} style={{ width: 16, height: 16 }} /> IDE
-          </button>
+          {/* v0.3.4: IDE moved to agent level — it lives in each agent's
+              header (see Header below), not in this global bar. */}
         </div>
       </div>
 
@@ -604,7 +590,9 @@ function SidebarRow({
           width: scale.portrait, height: Math.round(scale.portrait * 1.3), flexShrink: 0,
           background: `var(--cth-${agent.accent}-light)`,
           boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
-          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          // Anchor the sprite's TOP: the portrait is taller than this tile, and
+          // bottom-anchoring cropped the head — crop feet, not face (v0.3.4).
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
           overflow: 'hidden'
         }}>
           {/* Sprites only scale by whole pixels — doubling past the point where
@@ -770,6 +758,13 @@ function Header({ agent }: { agent: Agent }) {
         fontStyle: 'italic'
       }}>“{agent.description}”</span>
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+        {/* v0.3.4: the IDE opens from agent level — full Monaco editor + git
+            diff over this agent's workspace. */}
+        <PixelButton variant="secondary" size="sm" onClick={() => useStore.getState().setIdeOpen(true)}>
+          <span title="Open the IDE — file editor + git diff" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Icon name="code" /> IDE
+          </span>
+        </PixelButton>
         {/* Voice toggle is ALWAYS reachable in fullscreen — it controls Michael (the
             god orchestrator) globally, not the agent in view, so users can start a
             voice session even while a worker's terminal fills the screen. The cost

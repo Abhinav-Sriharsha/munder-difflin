@@ -41,12 +41,6 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
     if (s) setSnap(s);
     flash('halt requested — stops cleanly at next hook');
   };
-  const toggleAutoDelivery = async () => {
-    const paused = !(snap?.autoDeliveryPaused ?? false);
-    const s = await window.cth.controlAutoDelivery(agentId, paused);
-    if (s) setSnap(s);
-    flash(paused ? 'auto-delivery paused — messages stay queued' : 'auto-delivery resumed');
-  };
   const sendSteer = async () => {
     const t = steer.trim();
     if (!t) return;
@@ -68,13 +62,11 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
           {snap?.paused ? 'resume' : 'pause'}
         </PixelButton>
         <PixelButton variant="destructive" size="sm" onClick={halt}>halt</PixelButton>
-        <PixelButton
-          variant={snap?.autoDeliveryPaused ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={toggleAutoDelivery}
-        >
-          {snap?.autoDeliveryPaused ? 'delivery paused' : 'auto-delivery on'}
-        </PixelButton>
+        {/* v0.3.4: the auto-delivery switch moved to the god's Command Center
+            header — ONE floor-wide control instead of a per-agent toggle. */}
+        {snap?.autoDeliveryPaused && (
+          <span style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>delivery paused (floor)</span>
+        )}
         {snap?.halted && <span style={{ fontSize: 11, color: 'var(--cth-coral)' }}>halting…</span>}
         {!!snap?.pendingSteers && <span style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>{snap.pendingSteers} steer queued</span>}
       </div>
