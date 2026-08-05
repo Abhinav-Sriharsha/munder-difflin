@@ -6,6 +6,7 @@ import { Icon, type IconName } from './Icon';
 // full Monaco editor + file tree, which superseded the read-only browser.
 const TABS: { key: SidebarTab; label: string; icon: IconName }[] = [
   { key: 'terminal', label: 'terminal', icon: 'terminal' },
+  { key: 'git',      label: 'git',      icon: 'code' },
   { key: 'messages', label: 'messages', icon: 'bell' },
   { key: 'traces',   label: 'traces',   icon: 'web' }
 ];

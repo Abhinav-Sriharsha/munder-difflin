@@ -389,6 +389,22 @@ export interface GitDiff {
   isBinary: boolean;
 }
 
+/** v0.3.4 git visualization — mirrors src/main/git.ts GitCommit / GitCommitFile. */
+export interface GitCommitRow {
+  sha: string;
+  shortSha: string;
+  parents: string[];
+  subject: string;
+  author: string;
+  time: number;
+  refs: string[];
+}
+export interface GitFileChange {
+  path: string;
+  status: string;
+  oldPath?: string;
+}
+
 /** Real token usage + estimated USD cost summed from an agent's Claude Code
  *  transcripts under ~/.claude/projects. Reconciler/fallback path — now priced
  *  PER MODEL (not Sonnet-for-everyone). The live path uses AgentUsageSample. */
@@ -639,6 +655,27 @@ const api = {
    *  text sides. Backs the IDE's git-diff (Monaco DiffEditor) view. */
   gitDiff: (cwd: string, relPath: string) =>
     ipcRenderer.invoke('git:diff', cwd, relPath) as Promise<GitDiff | { ok: false; error: string }>,
+  // ── v0.3.4: history / compare / checkout (git visualization) ──
+  gitLogGraph: (cwd: string, n: number, skip?: number) =>
+    ipcRenderer.invoke('git:logGraph', cwd, n, skip ?? 0) as Promise<GitCommitRow[] | { error: string }>,
+  gitCommitFiles: (cwd: string, sha: string) =>
+    ipcRenderer.invoke('git:commitFiles', cwd, sha) as Promise<GitFileChange[] | { error: string }>,
+  gitShowFile: (cwd: string, rev: string, relPath: string) =>
+    ipcRenderer.invoke('git:showFile', cwd, rev, relPath) as Promise<
+      { ok: true; exists: boolean; isBinary: boolean; content: string } | { ok: false; error: string }
+    >,
+  gitCompareRefs: (cwd: string, base: string, head: string, mode?: 'two' | 'three') =>
+    ipcRenderer.invoke('git:compareRefs', cwd, base, head, mode ?? 'three') as Promise<
+      { ahead: number; behind: number; mergeBase: string | null; files: GitFileChange[] } | { error: string }
+    >,
+  gitWorktrees: (cwd: string) =>
+    ipcRenderer.invoke('git:worktrees', cwd) as Promise<
+      Array<{ path: string; head: string; branch: string | null }> | { error: string }
+    >,
+  gitCheckout: (cwd: string, ref: string, detach?: boolean) =>
+    ipcRenderer.invoke('git:checkout', cwd, ref, detach === true) as Promise<
+      { ok: true; detached: boolean } | { ok: false; error: string }
+    >,
 
   // ─── Hive (multi-agent coordination) ─────────────────────────────────────
   hiveRegistry: (): Promise<HiveRegistry> => ipcRenderer.invoke('hive:registry'),

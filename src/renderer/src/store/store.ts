@@ -116,8 +116,9 @@ export interface QueuedMessage {
 }
 
 // 'files' retired in v0.3.4 (the per-agent IDE button superseded it) — a
-// persisted 'files' selection falls back to 'terminal' on load.
-export type SidebarTab = 'terminal' | 'messages' | 'traces';
+// persisted 'files' selection falls back to 'terminal' on load. 'git' added in
+// v0.3.4: at-a-glance branch/status/log without opening the IDE.
+export type SidebarTab = 'terminal' | 'messages' | 'traces' | 'git';
 
 /** Lifecycle of the god agent ("Michael") bootstrap on launch.
  *  'booting' until his PTY is confirmed live, then 'ready' (or 'failed' if the
@@ -500,7 +501,7 @@ const initialSidebarWidth = (() => {
 const initialSidebarTab: SidebarTab = (() => {
   try {
     const v = window.localStorage.getItem(LS_SIDEBAR_TAB);
-    if (v === 'terminal' || v === 'messages' || v === 'traces') return v;
+    if (v === 'terminal' || v === 'messages' || v === 'traces' || v === 'git') return v;
   } catch { /* noop */ }
   return 'terminal';
 })();

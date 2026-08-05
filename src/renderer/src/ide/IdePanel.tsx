@@ -5,6 +5,7 @@ import { Icon } from '@/components/Icon';
 import { MonacoEditor } from './MonacoEditor';
 import { MonacoDiff } from './MonacoDiff';
 import { MarkdownPreview } from '@/markdown/MarkdownPreview';
+import { HistoryPane, ComparePane } from './GitPanes';
 
 // v0.3.4 markdown preview: per-md-tab view mode, defaulted from the last choice.
 type MdView = 'code' | 'split' | 'preview';
@@ -22,8 +23,12 @@ function defaultMdView(): MdView {
 interface GitStatusEntry { path: string; index: string; worktree: string }
 interface GitStatusT { staged: GitStatusEntry[]; unstaged: GitStatusEntry[]; untracked: string[] }
 
-type TabMode = 'edit' | 'diff';
-interface Tab { key: string; rel: string; mode: TabMode }
+type TabMode = 'edit' | 'diff' | 'revdiff';
+interface Tab {
+  key: string; rel: string; mode: TabMode;
+  /** revdiff only: the two sides + a short human label ("a1b2c3d" / "main…feat"). */
+  revA?: string; revB?: string; revLabel?: string;
+}
 
 interface EditBuffer {
   content: string;
@@ -72,6 +77,16 @@ export function IdePanel() {
   const [isRepo, setIsRepo] = useState<boolean | null>(null);
   const [status, setStatus] = useState<GitStatusT | null>(null);
   const [treeWidth, setTreeWidth] = useState(300);
+  // v0.3.4 git visualization: which rail pane is showing, and the repo's MAIN
+  // root (a worktree's history/compare must run against the shared repo).
+  const [railTab, setRailTab] = useState<'changes' | 'history' | 'compare'>('changes');
+  const [gitRoot, setGitRoot] = useState<string | null>(null);
+  useEffect(() => {
+    if (!root) return;
+    let alive = true;
+    void window.cth.gitMainRepo(root).then((r) => { if (alive) setGitRoot(r ?? root); });
+    return () => { alive = false; };
+  }, [root]);
   // Per-markdown-tab view mode (code | split | preview); changing it also
   // updates the sticky default for the next markdown file.
   const [mdViews, setMdViews] = useState<Record<string, MdView>>({});
@@ -130,6 +145,35 @@ export function IdePanel() {
   }, []);
 
   const openEdit = useCallback((rel: string) => { ensureEdit(rel); openTab('edit', rel); }, [ensureEdit, openTab]);
+
+  // v0.3.4: rev-pinned diff tabs (per-commit files + branch compare). Both
+  // sides load through the metadata-guarded git:showFile IPC at the MAIN root.
+  const openRevDiff = useCallback((revA: string, revB: string, rel: string, revLabel: string) => {
+    const repo = gitRoot ?? root;
+    if (!repo) return;
+    const key = `rev::${revA}::${revB}::${rel}`;
+    setTabs((prev) => (prev.some((t) => t.key === key)
+      ? prev
+      : [...prev, { key, rel, mode: 'revdiff', revA, revB, revLabel }]));
+    setActiveKey(key);
+    if (diffDataRef.current[key] && diffDataRef.current[key].status !== 'error') return;
+    setDiffData((p) => ({ ...p, [key]: { status: 'loading', head: '', working: '' } }));
+    void Promise.all([
+      window.cth.gitShowFile(repo, revA, rel),
+      window.cth.gitShowFile(repo, revB, rel)
+    ]).then(([a, b]) => {
+      if (!a.ok || !b.ok) {
+        const error = (!a.ok ? a.error : !b.ok ? (b as { error: string }).error : 'diff failed');
+        setDiffData((p) => ({ ...p, [key]: { status: 'error', head: '', working: '', error } }));
+        return;
+      }
+      if (a.isBinary || b.isBinary) {
+        setDiffData((p) => ({ ...p, [key]: { status: 'binary', head: '', working: '' } }));
+        return;
+      }
+      setDiffData((p) => ({ ...p, [key]: { status: 'ready', head: a.content, working: b.content } }));
+    });
+  }, [gitRoot, root]);
 
   // Entry point from elsewhere in the app ("open in IDE" on the file overlay):
   // consume the queued absolute path once the root is known, open it (preview
@@ -307,13 +351,34 @@ export function IdePanel() {
             display: 'flex', flexDirection: 'column',
             borderRight: '1px solid var(--cth-ink-700)', background: 'var(--cth-cream-50)'
           }}>
-            {/* CHANGES */}
-            <div style={{ flexShrink: 0, maxHeight: '45%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <SectionHeader title="changes" right={
+            {/* Git rail: CHANGES · HISTORY · COMPARE (v0.3.4). History/compare
+                run at the repo's MAIN root so worktree branches all appear. */}
+            <div style={{
+              flexShrink: 0, display: 'flex', gap: 2, padding: '6px 10px 4px',
+              background: 'var(--cth-cream-50)', borderBottom: '1px solid var(--cth-ink-100)'
+            }}>
+              {(['changes', 'history', 'compare'] as const).map((k) => (
+                <button
+                  key={k}
+                  onClick={() => setRailTab(k)}
+                  style={{
+                    padding: '1px 8px', border: 'none', cursor: 'pointer',
+                    fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '14px',
+                    textTransform: 'uppercase', color: 'var(--cth-ink-700)',
+                    background: railTab === k ? 'var(--cth-sky-light)' : 'transparent',
+                    boxShadow: railTab === k ? 'inset 0 0 0 1px var(--cth-ink-300)' : 'none'
+                  }}
+                >{k}</button>
+              ))}
+              <span style={{ flex: 1 }} />
+              {railTab === 'changes' && (
                 <button onClick={() => refreshStatus()} title="Refresh" style={iconBtn}>
                   <Icon name="web" />
                 </button>
-              } />
+              )}
+            </div>
+            {railTab === 'changes' && (
+            <div style={{ flexShrink: 0, maxHeight: '45%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <div style={{ overflow: 'auto', minHeight: 0 }}>
                 {isRepo === false && (
                   <div style={{ padding: '6px 12px', fontSize: 12, color: 'var(--cth-ink-500)' }}>not a git repo</div>
@@ -347,6 +412,13 @@ export function IdePanel() {
                 })}
               </div>
             </div>
+            )}
+            {railTab === 'history' && gitRoot && (
+              <HistoryPane key={gitRoot} gitRoot={gitRoot} onOpenRevDiff={openRevDiff} />
+            )}
+            {railTab === 'compare' && gitRoot && (
+              <ComparePane key={gitRoot} gitRoot={gitRoot} onOpenRevDiff={openRevDiff} />
+            )}
             {/* FILES */}
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--cth-ink-300)' }}>
               <SectionHeader title="files" />
@@ -384,11 +456,12 @@ export function IdePanel() {
                       fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)'
                     }}
                   >
-                    {t.mode === 'diff' && (
+                    {t.mode !== 'edit' && (
                       <span style={{
                         fontFamily: 'var(--cth-font-display)', fontSize: 7, padding: '1px 3px',
-                        background: 'var(--cth-sky-light)', color: 'var(--cth-ink-900)'
-                      }}>DIFF</span>
+                        background: t.mode === 'revdiff' ? 'var(--cth-lilac-light)' : 'var(--cth-sky-light)',
+                        color: 'var(--cth-ink-900)'
+                      }}>{t.mode === 'revdiff' ? (t.revLabel ?? 'REV') : 'DIFF'}</span>
                     )}
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {basename(t.rel)}{dirty ? ' •' : ''}
@@ -463,6 +536,33 @@ export function IdePanel() {
                           }}
                         />
                       )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {activeTab?.mode === 'revdiff' && (() => {
+                const d = diffData[activeTab.key];
+                if (!d || d.status === 'loading') return <Centered>loading diff…</Centered>;
+                if (d.status === 'error') return <Centered tone="error">{d.error}</Centered>;
+                if (d.status === 'binary') return <Centered>binary file — no text diff</Centered>;
+                return (
+                  <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '3px 8px',
+                      background: 'var(--cth-cream-200)', borderBottom: '1px solid var(--cth-ink-700)',
+                      fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-700)'
+                    }}>
+                      <span style={{ fontFamily: 'var(--cth-font-mono)', color: 'var(--cth-ink-500)' }}>
+                        {activeTab.revLabel ?? `${activeTab.revA} → ${activeTab.revB}`}
+                      </span>
+                      <span style={{
+                        flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        fontFamily: 'var(--cth-font-mono)', textAlign: 'right'
+                      }} title={activeTab.rel}>{activeTab.rel}</span>
+                    </div>
+                    <div style={{ flex: 1, minHeight: 0 }}>
+                      <MonacoDiff path={activeTab.rel} original={d.head} modified={d.working} />
                     </div>
                   </div>
                 );

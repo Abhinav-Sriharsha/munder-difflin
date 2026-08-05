@@ -12,6 +12,7 @@ import { SidebarTabs } from './SidebarTabs';
 import { ThreadsPanel } from './ThreadsPanel';
 import { ToolWaterfall } from './ToolWaterfall';
 import { AgentControlStrip } from './AgentControlStrip';
+import { GitTab } from './GitTab';
 import { Icon } from './Icon';
 import { useStore, type Agent } from '@/store/store';
 import { usePtyParser } from '@/hooks/usePtyParser';
@@ -186,6 +187,10 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
               This agent has no live terminal. Spawn an agent through "add agent" to use the terminal tab.
             </EmptyTab>
           )
+        )}
+
+        {sidebarTab === 'git' && (
+          <GitTab cwd={agent.cwd} />
         )}
 
         {sidebarTab === 'messages' && (
