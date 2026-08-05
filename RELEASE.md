@@ -7,11 +7,27 @@ routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-f
 
 ---
 
-## What's new in 0.3.4 — *The queue you can trust, two new engines & auto-update*
+## What's new in 0.3.4 — *Talk to a Michael who knows the floor, see everything in the IDE*
 
-**A community release.** The headline terminal/queue reliability wave is by
-[**@gts-47**](https://github.com/gts-47) (Vyapak Goyal), with major fixes by
-[**@qschmick**](https://github.com/qschmick).
+**A community release plus a four-feature first-party wave.** The terminal/queue
+reliability work is by [**@gts-47**](https://github.com/gts-47) (Vyapak Goyal), with major
+fixes by [**@qschmick**](https://github.com/qschmick).
+
+- **Talk mode grows up.** Michael's voice session opens with a live per-agent floor
+  snapshot and keeps receiving silent floor updates mid-call — ask "what's everyone doing"
+  and he just knows. He can also *do* nearly everything now: resume agents, pause/resume
+  message delivery, gate tools, manage tasks and schedules, clear an agent's context, and
+  change settings from a strict allowlist — destructive actions still require you to say
+  "confirm" out loud. He even knows what version he's running and what's new in it.
+- **Markdown previews.** ⌘-click any `.md` path an agent prints in its terminal → an
+  instant rendered preview. In the IDE, markdown files get a code | split | preview switch
+  that re-renders live as you type. Safe by construction for agent-generated files.
+- **Git time-machine.** The IDE rail gains **History** (a clickable commit graph — pick a
+  commit, see its files, open side-by-side diffs) and **Compare** (two branches,
+  ahead/behind, per-file diffs), plus guarded checkout that refuses to move a dirty tree
+  or yank code from under a working agent.
+- **Settings, redesigned.** Six clear tabs; the default agent model, autonomy mode, and
+  the full circuit breaker finally have controls; dead rows and buried toggles are gone.
 
 - **Auto-update.** The app now checks GitHub releases, downloads the new version in the background,
   and offers a **"restart to update"** toast — installation is always your click; nothing restarts on

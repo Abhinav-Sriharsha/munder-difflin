@@ -6,15 +6,51 @@ All notable changes to this project are documented here. The format is based on
 
 ## [0.3.4] — 2026-08-06
 
-**The queue you can trust, two new engines, and an app that updates itself.** A community
-release: the headline terminal/queue/roster reliability wave is by
-[@gts-47](https://github.com/gts-47) (Vyapak Goyal), with major fixes by
+**The queue you can trust, a Michael who actually knows the floor, and an IDE that shows
+you everything.** A community release: the headline terminal/queue/roster reliability wave
+is by [@gts-47](https://github.com/gts-47) (Vyapak Goyal), with major fixes by
 [@qschmick](https://github.com/qschmick) ([#110](https://github.com/chaitanyagiri/munder-difflin/pull/110),
 [#111](https://github.com/chaitanyagiri/munder-difflin/pull/111),
 [#112](https://github.com/chaitanyagiri/munder-difflin/pull/112),
-[#114](https://github.com/chaitanyagiri/munder-difflin/pull/114)). Plus **xAI Grok and Kimi
-Code as first-class engines**, **auto-update from GitHub releases**, and a **scheduled
+[#114](https://github.com/chaitanyagiri/munder-difflin/pull/114)). Plus four new
+first-party features — **voice Michael with live floor context + full app control**,
+**markdown previews** (IDE and ⌘-click in any terminal), **git history / branch compare /
+safe checkout** in the IDE, and a **redesigned six-tab Settings** — alongside **xAI Grok
+and Kimi Code as first-class engines**, **auto-update from GitHub releases**, a
+**professional type + color recalibration with full-app dark mode**, and a **scheduled
 auto-compact switch (default off)**.
+
+### Added (v0.3.4 feature wave)
+- **Talk mode grows up: live context + full control.** Michael's voice session now opens
+  with a compact per-agent floor snapshot (status, engine, context fill, breaker, inbox,
+  in-flight tasks) and receives silent "(Floor update: …)" notes as things change mid-call
+  — most "what's happening" questions need zero look-ups. New read tools: `get_floor_state`
+  (precise live-floor JSON) and `get_app_info` (app version + release notes — "what's new
+  in this version?" finally has an answer). New voice verbs behind the same safety spine:
+  **resume** (the missing undo for pause/halt), auto-delivery pause/resume, tool gating,
+  delete task, archive/unarchive, **clear an agent's context** (queued through every
+  delivery gate; allowed on god behind confirm), **create schedules**, and **change
+  settings** from a strict main-side allowlist (secrets and dangerous keys refused
+  outright; behavior-changing keys echo old→new and require the distinct confirm word).
+  Model bumped to gpt-realtime-2.1.
+- **Markdown previews everywhere agents write them.** Markdown files in the IDE get a
+  **code | split | preview** switch with live re-render as you type; **⌘-click any `.md`
+  path an agent prints in its terminal** to open a rendered preview instantly (edit toggle
+  + "open in IDE" escalation included). Rendering is safe by construction for untrusted
+  agent output — no raw-HTML pipeline exists, links never navigate the app, and remote
+  images stay blocked.
+- **Git time-machine in the IDE.** The left rail becomes **CHANGES · HISTORY · COMPARE**:
+  a clickable commit graph (topologically ordered, all worktree branches, paginated) where
+  picking a commit lists its files and opens per-file Monaco diffs; branch compare with
+  ahead/behind counts and PR-style or literal modes; and **guarded checkout** — jump to
+  any commit or branch, refused automatically when the tree is dirty or an agent is
+  actively working in it. The slim git status panel also returns as a per-agent sidebar tab.
+- **Settings, redesigned into six tabs** — General · Agents & Models · Autonomy & Budgets ·
+  Connections · Voice · Memory & Knowledge. The default agent model, autonomy mode,
+  keep-Mac-awake, explain-things-simply, and the full circuit breaker (hard-stop included)
+  all get real controls for the first time; dead display-only rows are gone; Danger Zone
+  became a red row in General. Plus config truth fixes: Knowledge Graph genuinely defaults
+  off, and the Free Flow toggle no longer shows OFF while the feature is on.
 
 ### Added
 - **Auto-update.** Packaged builds check GitHub releases on boot and every ~6 hours, download the new
