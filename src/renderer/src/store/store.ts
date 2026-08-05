@@ -142,6 +142,12 @@ interface State {
   addAgentOpen: boolean;
   fullscreenAgentId: string | null;
   fullscreenFilePath: string | null;
+  /** How the fullscreen file overlay renders (v0.3.4): raw editor or rendered
+   *  markdown preview. Preview is the default when opened from a terminal link. */
+  fullscreenFileView: 'edit' | 'preview';
+  /** Absolute path queued for the IDE to open on next mount ("open in IDE"
+   *  escalation from the file overlay). Consumed-and-cleared by IdePanel. */
+  ideInitialFile: string | null;
   /** Whether the full-window IDE panel (file manager + Monaco editor + git diff)
    *  is open. Toggled from the title-bar IDE button; a global feature surface,
    *  independent of the per-agent sidebar Files/Git tabs. */
@@ -227,8 +233,9 @@ interface State {
   pendingHire: HireManifest | null;
   setPendingHire: (m: HireManifest | null) => void;
   setFullscreen: (id: string | null) => void;
-  setFullscreenFile: (path: string | null) => void;
+  setFullscreenFile: (path: string | null, view?: 'edit' | 'preview') => void;
   setIdeOpen: (open: boolean) => void;
+  setIdeInitialFile: (path: string | null) => void;
   setSidebarWidth: (px: number) => void;
   setSidebarTab: (tab: SidebarTab) => void;
   /** Drop persisted agents whose PTY is no longer alive in the main process.
@@ -539,6 +546,8 @@ export const useStore = create<State>((set) => ({
     set((s) => ({ ccTabRequest: { tab, seq: (s.ccTabRequest?.seq ?? 0) + 1 } })),
   fullscreenAgentId: null,
   fullscreenFilePath: null,
+  fullscreenFileView: 'edit',
+  ideInitialFile: null,
   ideOpen: false,
   sidebarWidth: initialSidebarWidth,
   sidebarTab: initialSidebarTab,
@@ -732,8 +741,9 @@ export const useStore = create<State>((set) => ({
   pendingHire: null,
   setPendingHire: (m) => set({ pendingHire: m }),
   setFullscreen: (id) => set({ fullscreenAgentId: id }),
-  setFullscreenFile: (path) => set({ fullscreenFilePath: path }),
+  setFullscreenFile: (path, view) => set({ fullscreenFilePath: path, fullscreenFileView: view ?? 'edit' }),
   setIdeOpen: (open) => set({ ideOpen: open }),
+  setIdeInitialFile: (path) => set({ ideInitialFile: path }),
   setSidebarWidth: (px) => {
     const clamped = Math.min(1200, Math.max(320, Math.round(px)));
     try { window.localStorage.setItem(LS_SIDEBAR_WIDTH, String(clamped)); } catch { /* noop */ }

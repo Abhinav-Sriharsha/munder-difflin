@@ -115,6 +115,7 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
   // following text (e.g. "✅FIX-…"). Match the app's idea of character width.
   term.loadAddon(new Unicode11Addon());
   term.unicode.activeVersion = '11';
+  registerMarkdownLinkProvider(term, ptyId);
   // NOTE: don't open() yet — xterm needs its host connected to the document to
   // measure correctly. We open on first attach (see attachTerminal).
 
@@ -631,4 +632,89 @@ export function disposeTerminal(ptyId: string): void {
   try { entry.term.dispose(); } catch { /* noop */ }
   entry.host.remove();
   pool.delete(ptyId);
+}
+
+// ─── v0.3.4: ⌘-click a markdown path in terminal output → rendered preview ───
+// A custom ILinkProvider (NOT WebLinksAddon, which only matches URLs): detects
+// *.md tokens in the visible buffer line, resolves relative ones against the
+// owning agent's cwd, and on Cmd/Ctrl+click verifies existence via the
+// metadata-only fs:statAbs IPC before opening the fullscreen preview overlay.
+// Plain click stays with the TUI (matches VS Code's terminal convention).
+// The path string is agent output — treated as hostile: it flows only into a
+// read-only stat + the existing read pipeline, and only on an explicit
+// modifier-click.
+const MD_TOKEN_RE = /[A-Za-z0-9_@.~/+-]+\.(?:md|markdown)\b(?::\d+)?/g;
+const mdStatCache = new Map<string, { isFile: boolean; path: string }>();
+
+function resolveMdCandidate(ptyId: string, raw: string): string | null {
+  // strip wrapping quotes/backticks/parens + trailing punctuation + :line
+  const p = raw.replace(/^["'`(]+/, '').replace(/["'`),.;:]+$/, '').replace(/:(\d+)$/, '');
+  if (!/\.(md|markdown)$/i.test(p)) return null;
+  if (p.startsWith('~/') || p.startsWith('/')) return p;
+  // relative → resolve against the owning agent's cwd. Async store import keeps
+  // this module usable in the node test harness (no zustand/react at load).
+  const cwd = storeApi?.getState().agents.find((a) => a.ptyId === ptyId)?.cwd ?? null;
+  if (!cwd) return null;
+  return `${cwd}/${p.replace(/^\.\//, '')}`;
+}
+
+// The store is loaded lazily via dynamic import (resolved once, cached): a
+// static import would drag zustand/react into the node --test transpile of the
+// pure automation helpers that share this file's import graph.
+interface MdStoreShape {
+  getState: () => {
+    agents: Array<{ ptyId?: string; cwd: string }>;
+    setFullscreenFile: (p: string, v?: 'edit' | 'preview') => void;
+  };
+}
+let storeApi: MdStoreShape | null = null;
+void import('@/store/store')
+  .then((m) => { storeApi = (m as unknown as { useStore: MdStoreShape }).useStore; })
+  .catch(() => { /* store unavailable (tests) — link provider stays inert */ });
+
+async function openMdPreview(abs: string): Promise<void> {
+  let hit = mdStatCache.get(abs);
+  if (!hit) {
+    const res = await window.cth.statAbs(abs).catch(() => null);
+    if (!res) return;
+    hit = { isFile: res.exists && res.isFile, path: res.path };
+    if (mdStatCache.size > 500) mdStatCache.clear();
+    mdStatCache.set(abs, hit);
+  }
+  if (!hit.isFile) return;
+  storeApi?.getState().setFullscreenFile(hit.path, 'preview');
+}
+
+function registerMarkdownLinkProvider(term: Terminal, ptyId: string): void {
+  try {
+    term.registerLinkProvider({
+      provideLinks(bufferLineNumber, callback) {
+        const line = term.buffer.active.getLine(bufferLineNumber - 1);
+        const text = line ? line.translateToString(true) : '';
+        if (!text || !/\.(md|markdown)\b/i.test(text)) { callback(undefined); return; }
+        const links: Parameters<typeof callback>[0] = [];
+        const re = new RegExp(MD_TOKEN_RE.source, 'g');
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(text)) !== null) {
+          const raw = m[0];
+          const abs = resolveMdCandidate(ptyId, raw);
+          if (!abs) continue;
+          links!.push({
+            range: {
+              start: { x: m.index + 1, y: bufferLineNumber },
+              end: { x: m.index + raw.length, y: bufferLineNumber }
+            },
+            text: raw,
+            decorations: { underline: true, pointerCursor: true },
+            activate: (event: MouseEvent | undefined) => {
+              // ⌘/Ctrl+click only — a plain click must keep going to the TUI.
+              if (event && !(event.metaKey || event.ctrlKey)) return;
+              void openMdPreview(abs);
+            }
+          });
+        }
+        callback(links && links.length ? links : undefined);
+      }
+    });
+  } catch { /* proposed API unavailable — feature silently off */ }
 }

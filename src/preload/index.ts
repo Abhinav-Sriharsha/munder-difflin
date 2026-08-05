@@ -614,6 +614,10 @@ const api = {
   writeFile: (root: string, rel: string, content: string): Promise<
     { ok: true; path: string } | { ok: false; error: string }
   > => ipcRenderer.invoke('fs:writeFile', root, rel, content),
+  /** v0.3.4: existence check for an absolute path (expands ~) — backs the
+   *  terminal ⌘-click markdown flow. Metadata only, never contents. */
+  statAbs: (p: string): Promise<{ exists: boolean; isFile: boolean; path: string }> =>
+    ipcRenderer.invoke('fs:statAbs', p),
 
   // ─── Git ─────────────────────────────────────────────────────────────────
   gitIsRepo: (cwd: string): Promise<boolean> => ipcRenderer.invoke('git:isRepo', cwd),

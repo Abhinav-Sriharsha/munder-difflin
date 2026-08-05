@@ -15,7 +15,7 @@ import {
   readConfig, writeConfig, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
 } from './config';
-import { listDir, readFileText, writeFileText } from './fs';
+import { listDir, readFileText, writeFileText, statAbs } from './fs';
 import {
   getBranch, getStatus, getLog, getBranches, getAheadBehind, isRepo, getDiff, mainRepoRoot,
   addWorktree, removeWorktree, worktreeHasUnintegratedWork, worktreeIsGcSafe
@@ -2565,6 +2565,13 @@ ipcMain.handle('fs:writeFile', (_evt, root: unknown, rel: unknown, content: unkn
     return { ok: false, error: 'invalid args' };
   }
   return writeFileText(root, rel, content);
+});
+// v0.3.4: existence check for the terminal ⌘-click markdown flow (metadata only).
+ipcMain.handle('fs:statAbs', (_evt, p: unknown) => {
+  if (typeof p !== 'string' || p.length > 4096 || p.includes('\0')) {
+    return { exists: false, isFile: false, path: '' };
+  }
+  return statAbs(p);
 });
 
 // ─── IPC: git ───────────────────────────────────────────────────────────────

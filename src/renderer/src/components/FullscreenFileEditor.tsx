@@ -1,13 +1,21 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { CodeEditor } from './CodeEditor';
+import { MarkdownPreview } from '@/markdown/MarkdownPreview';
 import { useStore } from '@/store/store';
 
 /**
- * Full-window overlay editor. The absolute file path is in store; we derive
- * root + rel by trying registered repos / agent cwds.
+ * Full-window overlay for one file. The absolute path is in store; root + rel
+ * are derived by prefix-matching agent cwds (falling back to the file's parent
+ * dir, so files outside any workspace still open).
+ *
+ * v0.3.4: markdown files get an edit | preview toggle (preview is the default
+ * when opened from a terminal ⌘-click), plus an "open in IDE" escalation that
+ * queues the path for IdePanel and opens it. Preview renders the SAVED file —
+ * switch to edit to change it, save, and the preview picks it up on return.
  */
 export function FullscreenFileEditor() {
   const fullscreenFilePath = useStore(s => s.fullscreenFilePath);
+  const view = useStore(s => s.fullscreenFileView);
   const setFullscreenFile = useStore(s => s.setFullscreenFile);
   const agents = useStore(s => s.agents);
 
@@ -29,8 +37,25 @@ export function FullscreenFileEditor() {
     ? fullscreenFilePath.slice(matchedAgent.cwd.length + 1)
     : fullscreenFilePath.split('/').pop() ?? fullscreenFilePath;
 
+  const isMd = /\.(md|markdown)$/i.test(fullscreenFilePath);
+  const mode: 'edit' | 'preview' = isMd ? view : 'edit';
+
   const copyPath = () => {
     navigator.clipboard.writeText(fullscreenFilePath).catch(() => { /* noop */ });
+  };
+
+  const openInIde = () => {
+    const s = useStore.getState();
+    s.setIdeInitialFile(fullscreenFilePath);
+    s.setFullscreenFile(null);
+    s.setIdeOpen(true);
+  };
+
+  const chip: React.CSSProperties = {
+    padding: '2px 10px', height: 22, border: 'none', cursor: 'pointer',
+    fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)',
+    background: 'var(--cth-cream-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
+    display: 'inline-flex', alignItems: 'center'
   };
 
   return (
@@ -55,16 +80,79 @@ export function FullscreenFileEditor() {
         }}
       >
         MUNDER DIFFLIN · FILE
+        <span
+          className="cth-titlebar-nodrag"
+          style={{
+            fontFamily: 'var(--cth-font-mono)', fontSize: 13, color: 'var(--cth-ink-500)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '38vw'
+          }}
+          title={fullscreenFilePath}
+        >{rel}</span>
+        <span className="cth-titlebar-nodrag" style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+          {isMd && (
+            <span style={{ display: 'inline-flex' }}>
+              {(['edit', 'preview'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setFullscreenFile(fullscreenFilePath, v)}
+                  title={v === 'edit' ? 'Edit the source' : 'Rendered preview (of the saved file)'}
+                  style={{
+                    ...chip,
+                    background: mode === v ? 'var(--cth-sky-light)' : 'var(--cth-cream-100)',
+                    boxShadow: mode === v ? 'inset 0 0 0 1px var(--cth-ink-500)' : 'inset 0 0 0 1px var(--cth-ink-100)'
+                  }}
+                >{v}</button>
+              ))}
+            </span>
+          )}
+          <button onClick={openInIde} title="Open this file in the full IDE" style={chip}>open in IDE</button>
+          <button onClick={() => setFullscreenFile(null)} title="Close (Esc)" style={chip}>✕</button>
+        </span>
       </div>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <CodeEditor
-          root={root}
-          filePath={rel}
-          fullscreen
-          onToggleFullscreen={() => setFullscreenFile(null)}
-          onCopyPath={copyPath}
-        />
+      <div style={{ flex: 1, minHeight: 0, overflow: mode === 'preview' ? 'auto' : 'hidden' }}>
+        {mode === 'preview' ? (
+          <SavedFilePreview root={root} rel={rel} />
+        ) : (
+          <CodeEditor
+            root={root}
+            filePath={rel}
+            fullscreen
+            onToggleFullscreen={() => setFullscreenFile(null)}
+            onCopyPath={copyPath}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+/** Reads the saved file and renders it as markdown. Untrusted input is fine —
+ *  MarkdownPreview has no HTML sink. */
+function SavedFilePreview({ root, rel }: { root: string; rel: string }) {
+  const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; content: string; error?: string }>({
+    status: 'loading', content: ''
+  });
+  useEffect(() => {
+    let alive = true;
+    setState({ status: 'loading', content: '' });
+    window.cth.readFile(root, rel).then((res) => {
+      if (!alive) return;
+      setState(res.ok
+        ? { status: 'ready', content: res.content }
+        : { status: 'error', content: '', error: res.error });
+    });
+    return () => { alive = false; };
+  }, [root, rel]);
+
+  if (state.status === 'loading') {
+    return <div style={{ padding: 24, fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-ink-500)' }}>loading…</div>;
+  }
+  if (state.status === 'error') {
+    return <div style={{ padding: 24, fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-coral)' }}>{state.error}</div>;
+  }
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center' }}>
+      <MarkdownPreview source={state.content} baseRel={rel} />
     </div>
   );
 }

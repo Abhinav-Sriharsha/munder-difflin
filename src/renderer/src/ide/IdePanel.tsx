@@ -1,9 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '@/store/store';
 import { FileTree } from '@/components/FileTree';
 import { Icon } from '@/components/Icon';
 import { MonacoEditor } from './MonacoEditor';
 import { MonacoDiff } from './MonacoDiff';
+import { MarkdownPreview } from '@/markdown/MarkdownPreview';
+
+// v0.3.4 markdown preview: per-md-tab view mode, defaulted from the last choice.
+type MdView = 'code' | 'split' | 'preview';
+const LS_MD_VIEW = 'cth.ide.mdView';
+const isMarkdown = (rel: string) => /\.(md|markdown)$/i.test(rel);
+function defaultMdView(): MdView {
+  try {
+    const v = window.localStorage.getItem(LS_MD_VIEW);
+    if (v === 'code' || v === 'split' || v === 'preview') return v;
+  } catch { /* noop */ }
+  return 'split';
+}
 
 // ─── Local mirrors of the main-side git shapes (kept renderer-local like GitTab) ──
 interface GitStatusEntry { path: string; index: string; worktree: string }
@@ -59,6 +72,13 @@ export function IdePanel() {
   const [isRepo, setIsRepo] = useState<boolean | null>(null);
   const [status, setStatus] = useState<GitStatusT | null>(null);
   const [treeWidth, setTreeWidth] = useState(300);
+  // Per-markdown-tab view mode (code | split | preview); changing it also
+  // updates the sticky default for the next markdown file.
+  const [mdViews, setMdViews] = useState<Record<string, MdView>>({});
+  const setMdView = useCallback((rel: string, v: MdView) => {
+    setMdViews((p) => ({ ...p, [rel]: v }));
+    try { window.localStorage.setItem(LS_MD_VIEW, v); } catch { /* noop */ }
+  }, []);
 
   // Refs so window/editor handlers always see current values without rebinding.
   const tabsRef = useRef(tabs); tabsRef.current = tabs;
@@ -110,6 +130,22 @@ export function IdePanel() {
   }, []);
 
   const openEdit = useCallback((rel: string) => { ensureEdit(rel); openTab('edit', rel); }, [ensureEdit, openTab]);
+
+  // Entry point from elsewhere in the app ("open in IDE" on the file overlay):
+  // consume the queued absolute path once the root is known, open it (preview
+  // for markdown), then clear the queue slot so a later IDE open starts fresh.
+  useEffect(() => {
+    if (!root) return;
+    const abs = useStore.getState().ideInitialFile;
+    if (!abs) return;
+    useStore.getState().setIdeInitialFile(null);
+    const prefix = root.endsWith('/') ? root : `${root}/`;
+    if (!abs.startsWith(prefix)) return; // different workspace — tree still lets them browse
+    const rel = abs.slice(prefix.length);
+    ensureEdit(rel);
+    openTab('edit', rel);
+    if (isMarkdown(rel)) setMdViews((p) => ({ ...p, [rel]: 'preview' }));
+  }, [root, ensureEdit, openTab]);
   const openDiff = useCallback((rel: string) => { ensureDiff(rel, true); openTab('diff', rel); }, [ensureDiff, openTab]);
 
   const closeTab = useCallback((key: string) => {
@@ -391,6 +427,8 @@ export function IdePanel() {
                 const buf = editBuffers[activeTab.rel];
                 if (!buf || buf.status === 'loading') return <Centered>loading…</Centered>;
                 if (buf.status === 'error') return <Centered tone="error">{buf.error}</Centered>;
+                const md = isMarkdown(activeTab.rel);
+                const view: MdView = md ? (mdViews[activeTab.rel] ?? defaultMdView()) : 'code';
                 return (
                   <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <EditorBar
@@ -399,14 +437,32 @@ export function IdePanel() {
                       saveState={buf.saveState}
                       onSave={() => void save(activeTab.rel)}
                       onCopy={() => copyAbs(activeTab.rel)}
+                      mdView={md ? view : undefined}
+                      onMdView={md ? (v) => setMdView(activeTab.rel, v) : undefined}
                     />
-                    <div style={{ flex: 1, minHeight: 0 }}>
-                      <MonacoEditor
-                        path={activeTab.rel}
-                        value={buf.content}
-                        onChange={(v) => onEditChange(activeTab.rel, v)}
-                        onSave={() => void save(activeTab.rel)}
-                      />
+                    <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+                      {view !== 'preview' && (
+                        <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                          <MonacoEditor
+                            path={activeTab.rel}
+                            value={buf.content}
+                            onChange={(v) => onEditChange(activeTab.rel, v)}
+                            onSave={() => void save(activeTab.rel)}
+                          />
+                        </div>
+                      )}
+                      {md && view !== 'code' && (
+                        <MdPane
+                          rel={activeTab.rel}
+                          source={buf.content}
+                          split={view === 'split'}
+                          onOpenMarkdownLink={(target) => {
+                            ensureEdit(target);
+                            openTab('edit', target);
+                            setMdViews((p) => ({ ...p, [target]: 'preview' }));
+                          }}
+                        />
+                      )}
                     </div>
                   </div>
                 );
@@ -462,8 +518,10 @@ function SectionHeader({ title, right }: { title: string; right?: React.ReactNod
   );
 }
 
-function EditorBar({ rel, dirty, saveState, onSave, onCopy }: {
+function EditorBar({ rel, dirty, saveState, onSave, onCopy, mdView, onMdView }: {
   rel: string; dirty: boolean; saveState: EditBuffer['saveState']; onSave: () => void; onCopy: () => void;
+  /** Set only for markdown files — renders the code|split|preview switch. */
+  mdView?: MdView; onMdView?: (v: MdView) => void;
 }) {
   return (
     <div style={{
@@ -475,11 +533,45 @@ function EditorBar({ rel, dirty, saveState, onSave, onCopy }: {
       <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--cth-font-mono)' }} title={rel}>
         {rel}{dirty ? ' •' : ''}
       </span>
+      {mdView && onMdView && (
+        <span style={{ display: 'inline-flex', gap: 0 }}>
+          {(['code', 'split', 'preview'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => onMdView(v)}
+              title={v === 'code' ? 'Source only' : v === 'split' ? 'Source + preview' : 'Rendered preview'}
+              style={{
+                ...textBtn,
+                background: mdView === v ? 'var(--cth-sky-light)' : 'var(--cth-cream-100)',
+                boxShadow: mdView === v ? 'inset 0 0 0 1px var(--cth-ink-500)' : 'inset 0 0 0 1px var(--cth-ink-100)'
+              }}
+            >{v}</button>
+          ))}
+        </span>
+      )}
       <button onClick={onCopy} title="Copy absolute path" style={textBtn}>copy path</button>
       <button onClick={onSave} disabled={!dirty || saveState === 'saving'} title="Save (Cmd/Ctrl+S)"
         style={{ ...textBtn, opacity: dirty ? 1 : 0.5 }}>
         {saveState === 'saving' ? '...' : saveState === 'saved' ? 'saved' : saveState === 'error' ? 'err' : 'save'}
       </button>
+    </div>
+  );
+}
+
+/** Markdown preview pane — renders the LIVE edit buffer (deferred so fast typing
+ *  never blocks the editor). In split view it takes the right half behind a
+ *  hairline divider; in preview view it fills the body. */
+function MdPane({ rel, source, split, onOpenMarkdownLink }: {
+  rel: string; source: string; split: boolean; onOpenMarkdownLink: (rel: string) => void;
+}) {
+  const deferred = useDeferredValue(source);
+  return (
+    <div style={{
+      flex: 1, minWidth: 0, minHeight: 0, overflow: 'auto',
+      background: 'var(--cth-paper-100)',
+      borderLeft: split ? '1px solid var(--cth-ink-100)' : 'none'
+    }}>
+      <MarkdownPreview source={deferred} baseRel={rel} onOpenMarkdownLink={onOpenMarkdownLink} />
     </div>
   );
 }
