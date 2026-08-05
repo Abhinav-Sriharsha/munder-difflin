@@ -239,6 +239,24 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
     finally { setKgBusy(false); }
   };
 
+  // ─── Scheduled auto-compact — the compact-maintenance mission's enabled flag.
+  // The mission itself stays the single source of truth (SchedulesTab edits the
+  // same field); this is just a General-section shortcut. Default OFF (v0.3.4).
+  const [autoCompactOn, setAutoCompactOn] = useState<boolean>(
+    (config.missions ?? []).some((m) => m.id === 'compact-maintenance' && m.enabled)
+  );
+  const toggleAutoCompact = async () => {
+    const next = !autoCompactOn;
+    setAutoCompactOn(next);
+    try {
+      const cfg = await window.cth.getConfig();
+      const missions = (cfg.missions ?? []).map((m) =>
+        m.id === 'compact-maintenance' ? { ...m, enabled: next } : m
+      );
+      await window.cth.updateConfig({ missions });
+    } catch { setAutoCompactOn(!next); }
+  };
+
   // --- Free Flow (voice dictation → message queue) ---
   const setFreeflowEnabledStore = useStore((s) => s.setFreeflowEnabled);
   const setHasGroqKeyStore = useStore((s) => s.setHasGroqKey);
@@ -718,6 +736,37 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                             onClick={toggleNotifications}
                           >
                             {notifications ? 'on' : 'off'}
+                          </PixelButton>
+                        </div>
+                      </div>
+
+                      <div style={{ height: 1, background: 'var(--cth-ink-300)' }} />
+
+                      {/* Scheduled auto-compact (compact-maintenance mission) */}
+                      <div>
+                        <div style={{
+                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
+                        }}>
+                          Maintenance
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                              Scheduled auto-compact
+                            </span>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              Queue /compact for every agent on a schedule (hourly by default; interval
+                              in the Schedules tab). Off by default — long-running agents may overflow
+                              their context without it.
+                            </span>
+                          </div>
+                          <PixelButton
+                            variant={autoCompactOn ? 'primary' : 'secondary'}
+                            size="sm"
+                            onClick={toggleAutoCompact}
+                          >
+                            {autoCompactOn ? 'on' : 'off'}
                           </PixelButton>
                         </div>
                       </div>

@@ -86,17 +86,20 @@ export const HEARTBEAT_MISSION: ScheduledMission = {
  *  ops standup so editing/replacing a standup can never silently disable
  *  compaction again (the bug this fixes). It fires ONLY the auto-compact signal —
  *  `kind:'compact'` makes syncMissions skip the hive.send dispatch (empty to/body).
- *  Shipped ENABLED: auto-compact is REQUIRED for long-running agents — without it
- *  each agent's terminal context grows until it overflows and the agent fails. It
- *  is the SINGLE source of truth for compaction (migration drops autoCompact off
- *  other missions), and it's persistent: deleting it makes it reappear DISABLED. */
+ *  Shipped DISABLED (v0.3.4 founder decision): scheduled compaction is opt-in.
+ *  Turn it on in Settings → General or the Schedules tab; the Schedules warning
+ *  panel explains the risk of leaving it off for long-running agents. It is the
+ *  SINGLE source of truth for compaction (migration drops autoCompact off other
+ *  missions), and it's persistent: deleting it makes it reappear DISABLED.
+ *  Existing installs keep whatever enabled state the user already has
+ *  (compactMaintenanceSeeded guards re-seeding). */
 export const COMPACT_MAINTENANCE_MISSION: ScheduledMission = {
   id: 'compact-maintenance',
   label: 'Auto-compact (maintenance)',
   intervalMs: 3_600_000,
   to: '',
   body: '',
-  enabled: true,
+  enabled: false,
   autoCompact: true,
   kind: 'compact'
 };
