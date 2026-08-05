@@ -31,6 +31,8 @@ directories:
 files:
   - out/**
   - package.json
+  # v0.3.4: shipped so the voice get_app_info tool can read release notes.
+  - CHANGELOG.md
   - "!**/*.{md,map,ts,tsx}"
   - "!**/{.eslintrc,.prettierrc,tsconfig*.json,electron.vite.config.*}"
 

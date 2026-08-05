@@ -858,6 +858,20 @@ export function useHive(config: HarnessConfig | null): void {
     return () => { offSpawn?.(); offArchive?.(); };
   }, [config?.onboardingComplete]);
 
+  // 5c) v0.3.4 voice bridge: main stages queue insertions (clear_context) and
+  //     pushes them here, so delivery rides EVERY existing gate — idle-only,
+  //     boot grace, draft/picker safety, auto-delivery pause. Main owns the
+  //     confirm policy; this is just the enqueue.
+  useEffect(() => {
+    if (!config?.onboardingComplete) return;
+    return window.cth.onRealtimeEnqueue?.((evt) => {
+      if (!evt?.agentId || typeof evt.text !== 'string' || !evt.text.trim()) return;
+      const { agents, enqueueMessage } = useStore.getState();
+      if (!agents.some((a) => a.id === evt.agentId)) return;
+      enqueueMessage(evt.agentId, evt.text.trim());
+    });
+  }, [config?.onboardingComplete]);
+
   // 6) Auto-compact (scheduled standup). Main fires this per tick; we queue a
   //    /compact for each live agent so the drain (#4) delivers it only when the
   //    agent is idle — never jamming a working terminal. Deduped: if a /compact

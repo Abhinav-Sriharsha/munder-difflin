@@ -11,6 +11,7 @@ import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
 import { resolveCommand as resolveCliCommand } from './shellEnv';
 import { initAutoUpdater } from './updater';
+import { RealtimeFloorWatcher } from './realtimeFloorWatcher';
 import {
   readConfig, writeConfig, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
@@ -3319,13 +3320,57 @@ registerRealtimeActionIpc({
   // preserves the scheduler's stamps; edit_schedule is deliberate + rare.
   saveMissions: (missions) => { writeConfig({ missions }); },
   // rt-12: register each voice dispatch so the watcher can detect its completion.
-  trackDispatch: (d) => { try { completionWatcher.track({ ...d, kind: 'dispatch' }); } catch { /* watcher unavailable */ } }
+  trackDispatch: (d) => { try { completionWatcher.track({ ...d, kind: 'dispatch' }); } catch { /* watcher unavailable */ } },
+  // ── v0.3.4 full-control extensions ──
+  controlResume: (id) => control.resume(id),
+  controlAutoDelivery: (id, paused) => control.pauseAutoDelivery(id, paused),
+  controlGateTool: (id, toolName, on) => control.gateTool(id, toolName, on),
+  setArchived: (id, archived) => {
+    if (!hive.enabled()) return { ok: false, error: 'hive disabled' };
+    hive.setArchived(id, archived);
+    try { liveWebContents()?.send(archived ? 'hive:agentArchived' : 'hive:agentSpawned', { id }); } catch { /* window gone */ }
+    return { ok: true };
+  },
+  // clear_context: hand the text to the renderer's queue so delivery rides every
+  // existing gate (idle-only, boot grace, draft/picker safety).
+  enqueueToAgent: (id, text) => {
+    try { liveWebContents()?.send('realtime:enqueue', { agentId: id, text }); } catch { /* window gone */ }
+  },
+  getConfigValue: (key) => (readConfig() as unknown as Record<string, unknown>)[key],
+  patchConfig: (patch) => { writeConfig(patch as Partial<HarnessConfig>); }
 });
 
 // rt-12 seam: push detected completions to the live floor; bridge live-flag, queue
 // drain (closed-session warm-start), and wait_for over IPC. Then start polling.
 completionWatcher.onCompletion((evt) => { try { liveWebContents()?.send('realtime:completion', evt); } catch { /* window gone */ } });
-ipcMain.handle('realtime:setSessionLive', (_e, live: unknown) => { completionWatcher.setSessionLive(live === true); return { ok: true }; });
+// v0.3.4: the floor delta watcher shares the session-live flag — while a voice
+// session is open it pushes coalesced floor updates the renderer injects as
+// silent conversation items (snapshot-at-connect + append-only deltas).
+const floorWatcher = new RealtimeFloorWatcher({
+  enabled: () => hive.enabled(),
+  registry: () => hive.registry(),
+  tasks: () => hive.tasks(),
+  ptys: () => ptyManager.list().map((p) => ({ id: p.id, lastOutputAt: p.lastOutputAt })),
+  push: (text) => { try { liveWebContents()?.send('realtime:floorDelta', { text }); } catch { /* window gone */ } }
+});
+floorWatcher.start();
+ipcMain.handle('realtime:setSessionLive', (_e, live: unknown) => {
+  completionWatcher.setSessionLive(live === true);
+  floorWatcher.setSessionLive(live === true);
+  return { ok: true };
+});
+// v0.3.4: app self-knowledge for the voice get_app_info tool — version + the
+// newest CHANGELOG sections. Read-only; ships CHANGELOG.md with the app.
+ipcMain.handle('app:info', () => {
+  let changelog = '';
+  for (const p of [join(app.getAppPath(), 'CHANGELOG.md'), join(process.cwd(), 'CHANGELOG.md')]) {
+    try { changelog = readFileSync(p, 'utf8'); if (changelog) break; } catch { /* try next */ }
+  }
+  const top = changelog
+    ? changelog.split(/\n## /).slice(1, 3).map((s) => `## ${s}`).join('\n').slice(0, 8000)
+    : '';
+  return { version: app.getVersion(), changelog: top };
+});
 ipcMain.handle('realtime:drainCompletions', () => completionWatcher.drainQueuedCompletions());
 ipcMain.handle('realtime:waitFor', (_e, taskId: unknown, timeoutMs: unknown) =>
   typeof taskId === 'string'

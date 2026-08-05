@@ -69,6 +69,20 @@ export interface RealtimeActionDeps {
   /** rt-12: register a voice dispatch with the completion watcher so the engine can
    *  detect it finishing and speak the notice. Optional — wired in index.ts. */
   trackDispatch?(d: { correlationId: string; targetAgentId: string; objective?: string; dispatchedAt: number; dispatchMessageId?: string }): void;
+  // ── v0.3.4 full-control extensions ──
+  controlResume(agentId: string): void;
+  controlAutoDelivery(agentId: string, paused: boolean): void;
+  controlGateTool(agentId: string, tool: string, on: boolean): void;
+  setArchived(agentId: string, archived: boolean): { ok: boolean; error?: string };
+  /** clear_context: push text into the agent's renderer message queue, so
+   *  delivery rides EVERY existing gate (idle-only, boot grace, draft/picker
+   *  safety, auto-delivery pause). */
+  enqueueToAgent(agentId: string, text: string): void;
+  /** update_setting: non-secret config snapshot + patch. The per-key policy
+   *  table in THIS file is the only path from voice to config — never expose a
+   *  raw patch. */
+  getConfigValue(key: string): unknown;
+  patchConfig(patch: Record<string, unknown>): void;
 }
 
 /** The result every action / confirm / cancel returns to the renderer tool, which
@@ -94,7 +108,50 @@ const VERBS: Record<string, { tier: Tier; confirmWord: string; agentTargeted: bo
   kill: { tier: 'destructive', confirmWord: 'kill', agentTargeted: true },
   pause: { tier: 'destructive', confirmWord: 'pause', agentTargeted: true },
   halt: { tier: 'destructive', confirmWord: 'halt', agentTargeted: true },
-  edit_schedule: { tier: 'destructive', confirmWord: 'schedule', agentTargeted: false }
+  edit_schedule: { tier: 'destructive', confirmWord: 'schedule', agentTargeted: false },
+  // ── v0.3.4 full-control extensions ──
+  resume: { tier: 'soft', confirmWord: 'resume', agentTargeted: true },
+  auto_delivery: { tier: 'soft', confirmWord: 'delivery', agentTargeted: true },
+  gate_tool: { tier: 'soft', confirmWord: 'gate', agentTargeted: true },
+  delete_task: { tier: 'soft', confirmWord: 'delete', agentTargeted: false },
+  unarchive: { tier: 'soft', confirmWord: 'unarchive', agentTargeted: true },
+  clear_context: { tier: 'destructive', confirmWord: 'clear', agentTargeted: true },
+  archive: { tier: 'destructive', confirmWord: 'archive', agentTargeted: true },
+  create_schedule: { tier: 'destructive', confirmWord: 'schedule', agentTargeted: false },
+  update_setting: { tier: 'destructive', confirmWord: 'setting', agentTargeted: false }
+};
+
+/** v0.3.4 update_setting policy — the ONLY settings voice can touch, each with
+ *  a tier and typed validation. Everything not listed (harnessHome, every
+ *  secret-bearing key, provider base URLs, integrations, …) is refused
+ *  outright: the raw config carries credentials and dangerous keys, and the
+ *  unvalidated config:update IPC must never be reachable from speech. */
+const SETTING_POLICY: Record<string, {
+  tier: 'soft' | 'confirm';
+  type: 'boolean' | 'number' | 'string';
+  min?: number; max?: number; values?: string[];
+}> = {
+  // soft: cosmetic / low-blast, instantly reversible
+  notifications: { tier: 'soft', type: 'boolean' },
+  tvShowOffices: { tier: 'soft', type: 'boolean' },
+  officeTheme: { tier: 'soft', type: 'string', values: ['office', 'friends', 'brooklyn99', 'siliconvalley', 'got', 'hogwarts'] },
+  terminalTheme: { tier: 'soft', type: 'string', values: ['light', 'dark'] },
+  freeflowEnabled: { tier: 'soft', type: 'boolean' },
+  strongKeepalive: { tier: 'soft', type: 'boolean' },
+  autoUpdate: { tier: 'soft', type: 'boolean' },
+  realtimeIdleDisconnectMs: { tier: 'soft', type: 'number', min: 30_000, max: 3_600_000 },
+  // confirm: behavior-changing — echo old→new + distinct token
+  autoMode: { tier: 'confirm', type: 'boolean' },
+  defaultModel: { tier: 'confirm', type: 'string' },
+  godProvider: { tier: 'confirm', type: 'string' },
+  godModel: { tier: 'confirm', type: 'string' },
+  maxConcurrentWorkers: { tier: 'confirm', type: 'number', min: 1, max: 16 },
+  costCapTokens: { tier: 'confirm', type: 'number', min: 0, max: 1_000_000_000 },
+  maxTurns: { tier: 'confirm', type: 'number', min: 1, max: 1000 },
+  slackEnabled: { tier: 'confirm', type: 'boolean' },
+  webhookEnabled: { tier: 'confirm', type: 'boolean' },
+  semanticMemory: { tier: 'confirm', type: 'boolean' },
+  multiWindow: { tier: 'confirm', type: 'boolean' }
 };
 
 const PENDING_TTL_MS = 120_000;
@@ -389,6 +446,67 @@ function execUpdateTask(deps: RealtimeActionDeps, a: Record<string, unknown>): A
   return { ok: true, spoken: `Updated "${card.title}"${status ? ` to ${status}` : ''}.` };
 }
 
+// ─── v0.3.4 soft executors ──────────────────────────────────────────────────
+
+function execResume(deps: RealtimeActionDeps, a: Record<string, unknown>): ActionResult {
+  const r = resolveAgent(str(a.agentId) || str(a.target) || str(a.name), deps.hiveRegistry());
+  if ('error' in r) return { ok: false, spoken: r.error };
+  deps.controlResume(r.id);
+  attribute(deps, 'resume', r.id);
+  return { ok: true, spoken: `Resumed ${r.name} — tools flow again.` };
+}
+
+function execAutoDelivery(deps: RealtimeActionDeps, a: Record<string, unknown>): ActionResult {
+  const r = resolveAgent(str(a.agentId) || str(a.target) || str(a.name), deps.hiveRegistry());
+  if ('error' in r) return { ok: false, spoken: r.error };
+  const raw = norm(str(a.state) || str(a.action) || (a.paused === true ? 'pause' : a.paused === false ? 'resume' : ''));
+  if (!raw) return { ok: false, spoken: 'Should I pause or resume message delivery?' };
+  const paused = /pause|off|hold|stop/.test(raw);
+  deps.controlAutoDelivery(r.id, paused);
+  attribute(deps, 'auto_delivery', r.id, { action: paused ? 'paused' : 'resumed' });
+  return {
+    ok: true,
+    spoken: paused
+      ? `Paused automatic delivery to ${r.name} — queued messages will wait.`
+      : `Resumed automatic delivery to ${r.name}.`
+  };
+}
+
+function execGateTool(deps: RealtimeActionDeps, a: Record<string, unknown>): ActionResult {
+  const r = resolveAgent(str(a.agentId) || str(a.target) || str(a.name), deps.hiveRegistry());
+  if ('error' in r) return { ok: false, spoken: r.error };
+  const toolName = str(a.tool) || str(a.toolName);
+  if (!toolName || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(toolName)) {
+    return { ok: false, spoken: 'Which tool should I gate? Give me its exact name, like Bash or WebFetch.' };
+  }
+  const raw = norm(str(a.state) || str(a.action));
+  const on = !/off|allow|ungate|unblock|enable/.test(raw); // default: gate it
+  deps.controlGateTool(r.id, toolName, on);
+  attribute(deps, 'gate_tool', r.id, { action: `${on ? 'gated' : 'ungated'} ${toolName}` });
+  return { ok: true, spoken: `${on ? 'Gated' : 'Un-gated'} the ${toolName} tool for ${r.name}.` };
+}
+
+function execDeleteTask(deps: RealtimeActionDeps, a: Record<string, unknown>): ActionResult {
+  const ref = str(a.taskId) || str(a.task) || str(a.title);
+  if (!ref) return { ok: false, spoken: 'Which task should I delete?' };
+  const { tasks, card, ambiguous } = findCard(deps, ref);
+  if (ambiguous) return { ok: false, spoken: `Which one — ${ambiguous.map((c) => `"${c.title}"`).join(', or ')}?` };
+  if (!card) return { ok: false, spoken: `I couldn't find a task matching "${ref}".` };
+  deps.hiveWriteTasks(tasks.filter((t) => t.id !== card.id));
+  attribute(deps, 'delete_task', card.id, { title: card.title.slice(0, 120) });
+  return { ok: true, spoken: `Deleted the task "${card.title}". Recreate it any time if that was wrong.` };
+}
+
+function execUnarchive(deps: RealtimeActionDeps, a: Record<string, unknown>): ActionResult {
+  const r = resolveAgent(str(a.agentId) || str(a.target) || str(a.name), deps.hiveRegistry());
+  if ('error' in r) return { ok: false, spoken: r.error };
+  const res = deps.setArchived(r.id, false);
+  attribute(deps, 'unarchive', r.id);
+  return res.ok
+    ? { ok: true, spoken: `Brought ${r.name} back from the archive.` }
+    : { ok: false, spoken: `Couldn't unarchive ${r.name}: ${res.error || 'unknown error'}.` };
+}
+
 // ─── destructive commit builders (run AFTER confirm) ────────────────────────
 
 function buildKill(deps: RealtimeActionDeps, r: ResolvedAgent): () => Promise<string> {
@@ -423,6 +541,26 @@ function buildSpawn(deps: RealtimeActionDeps, spec: RealtimeSpawnSpec, label: st
   };
 }
 
+function buildClearContext(deps: RealtimeActionDeps, r: ResolvedAgent): () => Promise<string> {
+  return async () => {
+    // Queue '/clear' through the renderer message queue: delivery inherits every
+    // existing safety gate (idle-only, boot grace, draft/picker protection).
+    deps.enqueueToAgent(r.id, '/clear');
+    attribute(deps, 'clear_context', r.id);
+    return `Queued a context clear for ${r.name} — it lands the moment they're idle.`;
+  };
+}
+
+function buildArchive(deps: RealtimeActionDeps, r: ResolvedAgent): () => Promise<string> {
+  return async () => {
+    const res = deps.setArchived(r.id, true);
+    attribute(deps, 'archive', r.id);
+    return res.ok
+      ? `Archived ${r.name} — off the floor, history kept. Say unarchive to bring them back.`
+      : `Couldn't archive ${r.name}: ${res.error || 'unknown error'}.`;
+  };
+}
+
 function buildEditSchedule(
   deps: RealtimeActionDeps,
   mission: ScheduledMission,
@@ -452,18 +590,30 @@ function proposeDestructive(deps: RealtimeActionDeps, verb: string, a: Record<st
       return { ok: false, spoken: `${verb} on all agents at once is voice-forbidden. Do it agent by agent, or use the UI.` };
     const r = resolveAgent(rawTarget, reg);
     if ('error' in r) return { ok: false, spoken: r.error };
-    if (r.isGod)
+    // God policy per verb: kill/pause/halt/archive on god stay voice-forbidden.
+    // clear_context on god is ALLOWED behind confirm — it's recoverable
+    // (sessions resume) and "clear Michael's context" is a real operator need.
+    if (r.isGod && verb !== 'clear_context')
       return { ok: false, spoken: `${verb} on the god orchestrator is voice-forbidden. That has to be done in the UI.` };
 
     const commit =
-      verb === 'kill' ? buildKill(deps, r) : verb === 'pause' ? buildPause(deps, r) : buildHalt(deps, r);
+      verb === 'kill' ? buildKill(deps, r)
+      : verb === 'pause' ? buildPause(deps, r)
+      : verb === 'halt' ? buildHalt(deps, r)
+      : verb === 'clear_context' ? buildClearContext(deps, r)
+      : buildArchive(deps, r);
     const breaker = deps.controlSnapshot(r.id);
     const note = breaker?.halted ? ' (note: already halted)' : breaker?.paused ? ' (note: already paused)' : '';
     pending = { verb, confirmWord: spec.confirmWord, targetLabel: r.name, createdAt: Date.now(), commit };
+    const consequence = verb === 'clear_context'
+      ? `That wipes ${r.name}'s working memory of the current conversation.`
+      : verb === 'archive'
+        ? `That takes ${r.name} off the floor (history kept).`
+        : `That's destructive.`;
     return {
       ok: true,
       needsConfirm: true,
-      spoken: `You asked me to ${verb} ${r.name}${note}. That's destructive. To go ahead, say "confirm" or "${spec.confirmWord}". Say "cancel" to stop.`
+      spoken: `You asked me to ${verb.replace('_', ' ')} ${r.name}${note}. ${consequence} To go ahead, say "confirm" or "${spec.confirmWord}". Say "cancel" to stop.`
     };
   }
 
@@ -516,6 +666,90 @@ function proposeDestructive(deps: RealtimeActionDeps, verb: string, a: Record<st
     };
   }
 
+  // v0.3.4: create a brand-new schedule (edit_schedule only toggles/deletes).
+  if (verb === 'create_schedule') {
+    const label = str(a.label) || str(a.name) || str(a.title);
+    const body = str(a.prompt) || str(a.body) || str(a.message);
+    if (!label || !body) return { ok: false, spoken: 'I need a name for the schedule and what it should tell the agent.' };
+    const minutes = typeof a.intervalMinutes === 'number' && isFinite(a.intervalMinutes)
+      ? Math.min(7 * 24 * 60, Math.max(5, Math.round(a.intervalMinutes)))
+      : 60;
+    const to = str(a.to) || str(a.agentId) || 'god';
+    const target = resolveAgent(to, reg);
+    const targetId = 'error' in target ? 'god' : target.id;
+    const mission: ScheduledMission = {
+      id: `voice-${slug(label)}-${shortId()}`,
+      label,
+      intervalMs: minutes * 60_000,
+      to: targetId,
+      body,
+      enabled: true
+    };
+    pending = {
+      verb, confirmWord: 'schedule', targetLabel: label, createdAt: Date.now(),
+      commit: async () => {
+        deps.saveMissions([...deps.listMissions(), mission]);
+        attribute(deps, 'create_schedule', mission.id, { title: label.slice(0, 120) });
+        return `Created the "${label}" schedule — every ${minutes} minutes to ${targetId}.`;
+      }
+    };
+    return {
+      ok: true,
+      needsConfirm: true,
+      spoken: `You want a new schedule "${label}", every ${minutes} minutes, messaging ${targetId}. To create it, say "confirm" or "schedule". Say "cancel" to stop.`
+    };
+  }
+
+  // v0.3.4: settings, through the policy table ONLY.
+  if (verb === 'update_setting') {
+    const key = str(a.key) || str(a.setting) || str(a.name);
+    const policy = SETTING_POLICY[key];
+    if (!key) return { ok: false, spoken: 'Which setting should I change?' };
+    if (!policy) {
+      return { ok: false, spoken: `The "${key}" setting can't be changed by voice — use the Settings screen for that one.` };
+    }
+    // Coerce + validate the value against the key's declared type.
+    let value: unknown = a.value;
+    if (policy.type === 'boolean') {
+      if (typeof value === 'string') value = /^(true|on|yes|enable|enabled|1)$/i.test(value.trim());
+      if (typeof value !== 'boolean') return { ok: false, spoken: `Should ${key} be on or off?` };
+    } else if (policy.type === 'number') {
+      if (typeof value === 'string') value = parseFloat(value);
+      if (typeof value !== 'number' || !isFinite(value)) return { ok: false, spoken: `What number should ${key} be?` };
+      if (policy.min !== undefined && value < policy.min) return { ok: false, spoken: `${key} can't go below ${policy.min}.` };
+      if (policy.max !== undefined && value > policy.max) return { ok: false, spoken: `${key} can't go above ${policy.max}.` };
+      value = Math.round(value as number);
+    } else {
+      if (typeof value !== 'string' || !value.trim() || value.length > 200) {
+        return { ok: false, spoken: `What should ${key} be set to?` };
+      }
+      value = value.trim();
+      if (policy.values && !policy.values.includes(value as string)) {
+        return { ok: false, spoken: `${key} must be one of: ${policy.values.join(', ')}.` };
+      }
+    }
+    const oldValue = deps.getConfigValue(key);
+    const describe = (v: unknown): string => typeof v === 'boolean' ? (v ? 'on' : 'off') : String(v ?? 'unset');
+    if (describe(oldValue) === describe(value)) {
+      return { ok: true, spoken: `${key} is already ${describe(value)} — nothing to change.` };
+    }
+    const applyNow = (): string => {
+      deps.patchConfig({ [key]: value });
+      attribute(deps, 'update_setting', key, { action: `${describe(oldValue)} → ${describe(value)}` });
+      return `Done — ${key} is now ${describe(value)} (was ${describe(oldValue)}).`;
+    };
+    if (policy.tier === 'soft') {
+      // Low-blast keys apply immediately, like other soft verbs.
+      return { ok: true, spoken: applyNow() };
+    }
+    pending = { verb, confirmWord: 'setting', targetLabel: key, createdAt: Date.now(), commit: async () => applyNow() };
+    return {
+      ok: true,
+      needsConfirm: true,
+      spoken: `${key} is ${describe(oldValue)}; you want it ${describe(value)}. To change it, say "confirm" or "setting". Say "cancel" to stop.`
+    };
+  }
+
   return { ok: false, spoken: `I don't know how to ${verb}.` };
 }
 
@@ -535,6 +769,11 @@ function runAction(deps: RealtimeActionDeps, verb: string, a: Record<string, unk
       case 'create_task': return execCreateTask(deps, a);
       case 'assign_task': return execAssignTask(deps, a);
       case 'update_task': return execUpdateTask(deps, a);
+      case 'resume': return execResume(deps, a);
+      case 'auto_delivery': return execAutoDelivery(deps, a);
+      case 'gate_tool': return execGateTool(deps, a);
+      case 'delete_task': return execDeleteTask(deps, a);
+      case 'unarchive': return execUnarchive(deps, a);
       default: return { ok: false, spoken: `I don't know how to ${verb}.` };
     }
   }

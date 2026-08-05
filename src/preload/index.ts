@@ -1150,6 +1150,23 @@ const api = {
     timeoutMs?: number
   ): Promise<{ summary: string; targetAgentId: string; taskId?: string } | { timedOut: true; taskId: string }> =>
     ipcRenderer.invoke('realtime:waitFor', taskId, timeoutMs),
+  /** v0.3.4: coalesced floor deltas pushed while a voice session is live — the
+   *  renderer injects them into the conversation as silent items. */
+  onRealtimeFloorDelta: (cb: (evt: { text: string }) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: { text: string }) => cb(payload);
+    ipcRenderer.on('realtime:floorDelta', listener);
+    return () => ipcRenderer.removeListener('realtime:floorDelta', listener);
+  },
+  /** v0.3.4: main-staged queue insertions (voice clear_context) — the renderer
+   *  enqueues so delivery rides every existing safety gate. */
+  onRealtimeEnqueue: (cb: (evt: { agentId: string; text: string }) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: { agentId: string; text: string }) => cb(payload);
+    ipcRenderer.on('realtime:enqueue', listener);
+    return () => ipcRenderer.removeListener('realtime:enqueue', listener);
+  },
+  /** v0.3.4: app self-knowledge — version + newest changelog sections. */
+  appInfo: (): Promise<{ version: string; changelog: string }> =>
+    ipcRenderer.invoke('app:info'),
   // ─── Roster mirror (agents + notes + queues, shared dev ↔ packaged) ─────────
   /** Read the roster file beside the hive. SYNCHRONOUS on purpose: the zustand
    *  store is created at module load, so an async read would arrive after the

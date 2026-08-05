@@ -23,8 +23,9 @@ import { getSecret, hasSecret } from './integrations';
  *  line (rt-1 COORD: Oscar also edits index.ts). */
 const OPENAI_KEY_REF = 'apikey:openai';
 
-/** GA speech-to-speech model for the voice orchestrator (board: GA 2026-05-07). */
-export const REALTIME_MODEL = 'gpt-realtime-2';
+/** GA speech-to-speech model for the voice orchestrator (v0.3.4: bumped to the
+ *  July 2026 gpt-realtime-2.1 — 25% p95 latency cut, better interruption handling). */
+export const REALTIME_MODEL = 'gpt-realtime-2.1';
 
 /** GA ephemeral-secret mint endpoint. If an account/tier still answers the legacy
  *  beta shape, we fall back to /v1/realtime/sessions on a 404 and normalize both
