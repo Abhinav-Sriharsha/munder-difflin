@@ -239,6 +239,11 @@ export interface HarnessConfig {
    *  AC). Default OFF: the honest default is "survive sleep + catch up once on
    *  resume" (see the powerMonitor 'resume' handler), not "stay awake". */
   strongKeepalive?: boolean;
+  /** Auto-update from GitHub releases (v0.3.4). Default ON. Packaged builds
+   *  check on boot + every ~6h, download in the background, and show a
+   *  "restart to update" toast — installation is always user-initiated. OFF
+   *  disables checking entirely. (Mirrored in preload + renderer config.) */
+  autoUpdate?: boolean;
   /** Multi-window "floors": expose a New Floor action that opens additional
    *  windows, each an independent office with isolated renderer state (its own
    *  session partition) and per-window PTY routing. OFF by default (opt-in) —
@@ -360,6 +365,7 @@ const DEFAULTS: HarnessConfig = {
   missions: [OPS_STANDUP_MISSION],
   notifications: false,
   strongKeepalive: false,
+  autoUpdate: true,
   multiWindow: true,
   tvShowOffices: false,
   officeTheme: 'office',

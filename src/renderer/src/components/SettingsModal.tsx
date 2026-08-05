@@ -257,6 +257,15 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
     } catch { setAutoCompactOn(!next); }
   };
 
+  // ─── Auto-update (default ON; gates main's updater checks entirely) ────────
+  const [autoUpdateOn, setAutoUpdateOn] = useState<boolean>(config.autoUpdate !== false);
+  const toggleAutoUpdate = async () => {
+    const next = !autoUpdateOn;
+    setAutoUpdateOn(next);
+    try { await window.cth.updateConfig({ autoUpdate: next }); }
+    catch { setAutoUpdateOn(!next); }
+  };
+
   // --- Free Flow (voice dictation → message queue) ---
   const setFreeflowEnabledStore = useStore((s) => s.setFreeflowEnabled);
   const setHasGroqKeyStore = useStore((s) => s.setHasGroqKey);
@@ -767,6 +776,25 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                             onClick={toggleAutoCompact}
                           >
                             {autoCompactOn ? 'on' : 'off'}
+                          </PixelButton>
+                        </div>
+                        <div style={{ height: 10 }} />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                              Auto-update
+                            </span>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              Check GitHub releases and download updates in the background;
+                              you choose when to restart. Never restarts on its own.
+                            </span>
+                          </div>
+                          <PixelButton
+                            variant={autoUpdateOn ? 'primary' : 'secondary'}
+                            size="sm"
+                            onClick={toggleAutoUpdate}
+                          >
+                            {autoUpdateOn ? 'on' : 'off'}
                           </PixelButton>
                         </div>
                       </div>

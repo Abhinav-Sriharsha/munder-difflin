@@ -266,6 +266,8 @@ export interface HarnessConfig {
   /** Opt-in strong keep-alive (prevent-display-sleep). Mirrors main + renderer
    *  HarnessConfig so updateConfig({ strongKeepalive }) is typed across the bridge. */
   strongKeepalive?: boolean;
+  /** Auto-update from GitHub releases (default ON; Settings → General). */
+  autoUpdate?: boolean;
   slackEnabled?: boolean;
   slackSigningSecret?: string;
   slackBotToken?: string;
@@ -1118,7 +1120,30 @@ const api = {
   /** Mirror the roster to disk. Debounced by the caller; main keeps the previous
    *  contents as a backup and refuses a first write that would empty a full file. */
   rosterWrite: (snap: RosterSnapshot): Promise<{ ok: boolean; skipped?: string; error?: string }> =>
-    ipcRenderer.invoke('roster:write', snap)
+    ipcRenderer.invoke('roster:write', snap),
+
+  // ─── Auto-update (v0.3.4) ───────────────────────────────────────────────────
+  /** Push channel from main's updater: either a downloaded update waiting for a
+   *  restart, or (fallback/notify-only installs) a newer release to link to. */
+  onUpdateStatus: (
+    cb: (status:
+      | { state: 'downloaded'; version: string; notes?: string }
+      | { state: 'available-manual'; version: string; url: string }) => void
+  ): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: Parameters<typeof cb>[0]) => cb(payload);
+    ipcRenderer.on('update:status', listener);
+    return () => ipcRenderer.removeListener('update:status', listener);
+  },
+  /** Quit and install the downloaded update — only ever called from the toast's
+   *  explicit "restart to update" button. */
+  updateRestartAndInstall: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('update:restartAndInstall'),
+  /** Manual re-check (also re-serves a pending status to a fresh window). */
+  updateCheckNow: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('update:checkNow'),
+  /** Open the project's releases page for a notify-only update. */
+  updateOpenRelease: (url?: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('update:openRelease', url)
 };
 
 contextBridge.exposeInMainWorld('cth', api);

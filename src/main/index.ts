@@ -10,6 +10,7 @@ import { join, resolve, sep, basename, dirname } from 'node:path';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
 import { resolveCommand as resolveCliCommand } from './shellEnv';
+import { initAutoUpdater } from './updater';
 import {
   readConfig, writeConfig, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
@@ -3835,6 +3836,11 @@ app.whenReady().then(() => {
   // Guarded: a DB failure (e.g. a bad native build) must degrade to defaults,
   // never block app startup.
   try { persist.open(); } catch (e) { console.error('[db] open failed:', e); }
+  // Auto-update from GitHub releases (packaged builds only; gated on the
+  // `autoUpdate` config flag). Download-in-background + restart-to-apply toast;
+  // never restarts on its own. Falls back to a notify-only releases/latest
+  // check where native updating isn't possible (win-portable, dev-ish builds).
+  initAutoUpdater(() => liveWebContents());
   // Bootstrap the hive (if harnessHome is configured) and start the message router.
   bootstrapHiveServices();
   // Survive sleep/lock. macOS freezes libuv timers during true system sleep, so a
