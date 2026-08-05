@@ -16,6 +16,7 @@ import { usePtyParser } from '@/hooks/usePtyParser';
 import { useRestoreTeam } from '@/hooks/useRestoreTeam';
 import { useTerminalFontSize } from './terminalFontSize';
 import { useHasTerminalDraft } from './terminalPool';
+import { useAppTheme, toggleAppTheme } from '@/design/theme';
 import type { HarnessConfig } from '@/store/config';
 
 /** Roster rail width. A fixed 232px is right on a 14" laptop but reads as a
@@ -143,7 +144,8 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
   const updateAgent = useStore(s => s.updateAgent);
   // The floor strip (and with it the restore button) is hidden behind the
   // overlay, so the roster carries restore too.
-  const { restoring, autoRestoring, restoreNote, restoreTeam } = useRestoreTeam(config);
+  const { restoring, autoRestoring, restoreTeam } = useRestoreTeam(config);
+  const appThemeNow = useAppTheme();
 
   const agent = agents.find(a => a.id === fullscreenAgentId);
   const parser = usePtyParser(agent?.id ?? '__none__');
@@ -248,6 +250,59 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
           fontFamily: 'var(--cth-font-display)', fontSize: 12, lineHeight: '20px',
           color: 'var(--cth-ink-900)'
         }}>MUNDER DIFFLIN · FULLSCREEN</span>
+        {/* Same top-right controls as the main title bar — fullscreen covers
+            it, so theme / exit-fullscreen / IDE must live here too. */}
+        <div className="cth-titlebar-nodrag" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => {
+              const next = toggleAppTheme();
+              void window.cth.updateConfig({ terminalTheme: next });
+            }}
+            title={appThemeNow === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'}
+            aria-label="Toggle dark mode"
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, padding: 0,
+              background: 'var(--cth-paper-100)',
+              boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+              border: 'none', borderRadius: 2, cursor: 'pointer',
+              color: 'var(--cth-ink-900)', fontSize: 14, lineHeight: 1
+            }}
+          >
+            {appThemeNow === 'dark' ? '☀' : '☾'}
+          </button>
+          <button
+            onClick={() => setFullscreen(null)}
+            title="Exit fullscreen (Esc)"
+            aria-label="Exit fullscreen"
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, padding: 0,
+              background: 'var(--cth-paper-100)',
+              boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+              border: 'none', borderRadius: 2, cursor: 'pointer',
+              color: 'var(--cth-ink-900)'
+            }}
+          >
+            <Icon name="minimize" size={1} style={{ width: 16, height: 16 }} />
+          </button>
+          <button
+            onClick={() => useStore.getState().setIdeOpen(true)}
+            title="Open IDE — file editor + git diff"
+            aria-label="Open IDE"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              height: 28, padding: '0 9px',
+              background: 'var(--cth-paper-100)',
+              boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+              border: 'none', borderRadius: 2, cursor: 'pointer',
+              color: 'var(--cth-ink-900)',
+              fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '14px'
+            }}
+          >
+            <Icon name="code" size={1} style={{ width: 16, height: 16 }} /> IDE
+          </button>
+        </div>
       </div>
 
       {/* Body — roster on the left, the focused agent's terminal on the right.
@@ -337,7 +392,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
 
           {/* Last session's team, same as the floor strip — pinned to the bottom
               so it can't be scrolled out of reach behind a long roster. */}
-          {(restorableAgents.length > 0 || restoreNote || autoRestoring) && (
+          {(restorableAgents.length > 0 || autoRestoring) && (
             <div style={{
               flexShrink: 0, padding: 8, display: 'flex', flexDirection: 'column', gap: 6,
               borderTop: '1px solid var(--cth-ink-300)'
@@ -356,7 +411,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                   <Icon name="play" /> restoring your team…
                 </div>
               )}
-              {restorableAgents.length > 0 && (
+              {!autoRestoring && restorableAgents.length > 0 && (
                 <PixelButton
                   variant="primary"
                   size="sm"
@@ -370,7 +425,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                   </span>
                 </PixelButton>
               )}
-              {restorableAgents.length > 0 && (
+              {!autoRestoring && restorableAgents.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {restorableAgents.map((a: Agent) => (
                     <span
@@ -400,16 +455,6 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                     </span>
                   ))}
                 </div>
-              )}
-              {restoreNote && (
-                <span
-                  title={restoreNote}
-                  style={{
-                    fontFamily: 'var(--cth-font-ui)', fontSize: 11,
-                    color: 'var(--cth-ink-500)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                  }}
-                >{restoreNote}</span>
               )}
             </div>
           )}
