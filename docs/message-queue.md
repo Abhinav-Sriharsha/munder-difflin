@@ -51,10 +51,17 @@ The front of an agent's MD queue is delivered only when **all** of these hold:
 | Condition | Why |
 |---|---|
 | agent status is `idle` | don't interrupt a running turn |
-| auto-delivery not paused | per-agent control switch |
+| auto-delivery not paused — **or the message was manually released** | floor-wide switch (Command Center); see below |
 | past the boot grace window | the CLI is still painting its banner |
 | `isTerminalAutomationSafe(ptyId)` | the user owns the prompt — see below |
 | 4.5 s since the last delivery to this agent | back-to-back sends jam the TUI |
+
+**Manual release (v0.3.5).** While floor-wide auto-delivery is paused, every queued row
+shows a **send now** link. Clicking it sets `manual: true` on that message and moves it
+to the front of its queue. The drain then bypasses **only the pause check** for that
+message — every other condition in this table still applies, so a manually released
+message waits for idle, respects your draft/picker, and is acknowledged the same way.
+The pause gate holds everything else untouched.
 
 Delivery is acknowledged only after both PTY writes (the text, then the submit) have
 succeeded. A failure leaves the message visible in the queue and it retries.

@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] — 2026-08-06
+
+**The queue always has an escape hatch, and the app updates itself for the first time.**
+A fast-follow to 0.3.4: one real workflow fix, a sidebar polish pass, and the first
+release your installed app can pick up on its own — 0.3.4 installs get the
+"v0.3.5 downloaded — Restart to update" toast instead of a trip to the website.
+
+### Fixed
+- **Queued messages are never stuck again.** Pausing floor-wide auto-delivery (the
+  Command Center switch) used to hold every queued message with no explanation and no
+  manual override. Each queued row now grows a **send now** link while the floor is
+  paused: it moves that message to the front and bypasses *only* the pause gate —
+  idle/draft/picker safety and delivery acknowledgement all still apply, so it types in
+  the moment the terminal is genuinely free ("sending when free…" until then). The
+  composer also says why nothing is moving: "held — delivery paused floor-wide", with
+  the full story (and where to resume) on hover.
+
+### Changed
+- **Compact Command Center header.** At sidebar width the old header wrapped its
+  display-font title onto three lines, stacked "runs the floor" word-per-line, and let
+  the two wide toolbar buttons crush everything else. Now: single-line **COMMAND
+  CENTER** title + "Michael runs the floor" subtitle (both ellipsize), and the floor
+  delivery toggle compressed to ▶ `auto` / ⏸ `paused` with the full explanation in its
+  tooltip. The queue header's "clear all" no longer wraps either.
+
+### Notes
+- **First auto-updated release.** 0.3.4 introduced the updater; 0.3.5 is the first
+  version it delivers. Running 0.3.4 apps download this in the background and prompt
+  "Restart to update" (never restarting on their own). 0.3.3 and older have no updater —
+  grab this one from [munderdiffl.in](https://munderdiffl.in) and you're on the train.
+
 ## [0.3.4] — 2026-08-06
 
 **The queue you can trust, a Michael who actually knows the floor, and an IDE that shows

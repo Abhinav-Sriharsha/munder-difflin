@@ -29,11 +29,11 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Munder Difflin",
-  "description": "Run a virtual office of AI agents on any computer. Munder Difflin is a highly capable local multi-agent harness that makes a multi-CLI agent cluster work 24/7 for you — Claude Code, Codex, Antigravity, and GitHub Copilot CLI with Slack and webhook integration. New in v0.3.3: a built-in Monaco IDE and GitHub Copilot CLI support.",
+  "description": "Run a virtual office of AI agents on any computer. Munder Difflin is a highly capable local multi-agent harness that makes a multi-CLI agent cluster work 24/7 for you — Claude Code, Codex, Antigravity, Grok, and GitHub Copilot CLI with Slack and webhook integration. New in v0.3.5: voice orchestration with live floor context, markdown previews, git history & branch compare in the built-in IDE, and auto-update.",
   "url": "https://munderdiffl.in/",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS, Windows, Linux",
-  "softwareVersion": "0.3.3",
+  "softwareVersion": "0.3.5",
   "downloadUrl": "https://github.com/chaitanyagiri/munder-difflin/releases/latest",
   "softwareHelp": "https://github.com/chaitanyagiri/munder-difflin#readme",
   "license": "https://github.com/chaitanyagiri/munder-difflin/blob/main/LICENSE",
@@ -64,6 +64,28 @@
   "name": "Munder Difflin",
   "url": "https://munderdiffl.in/",
   "inLanguage": "en-US"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Is Munder Difflin really free?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Munder Difflin is MIT-licensed and free forever — download it or build from source. It drives the agent subscriptions you already pay for (Claude Code, Codex, Antigravity), so there's no new bill." } },
+    { "@type": "Question", "name": "Do I need new API keys to use Munder Difflin?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. If claude, codex, or agy already work in your terminal, they work here — the harness runs the same CLI processes under your existing login or subscription. You can optionally add your own keys or local LLMs in Settings." } },
+    { "@type": "Question", "name": "Does my code leave my machine?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. The harness is local-first: agents are real CLI processes in local terminals, each in an isolated git worktree, with state in a local SQLite file. The only network traffic is what your own CLIs already make to their providers." } },
+    { "@type": "Question", "name": "Which agent CLIs does Munder Difflin support?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Claude Code, OpenAI Codex, Antigravity (Gemini), GitHub Copilot CLI, OpenCode, Crush, pi.dev — and, new in v0.3.4, xAI Grok and Kimi Code. Each gets a desk, a mailbox, and shared memory; most can even play the orchestrator." } },
+    { "@type": "Question", "name": "How is Munder Difflin different from YC's qm?",
+      "acceptedAnswer": { "@type": "Answer", "text": "qm is a multiplayer agent harness for teams, headless, living in Slack and a web UI. Munder Difflin covers the same jobs — security postures, background crons and watches, Slack triggers, shareable skills — as a simpler, local-first desktop app that's been shipping stably since v0.2, and adds what qm doesn't have: real terminals you can watch, voice orchestration, a built-in IDE with commit history and branch compare, and auto-update." } },
+    { "@type": "Question", "name": "Can Munder Difflin really run for days without me?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. The hive keeps iterating on its own and escalates to you (desktop, Slack, or voice) only when something needs a human: spend limits, scope changes, or destructive operations. You can steer mid-run or stop gracefully at any time." } },
+    { "@type": "Question", "name": "Why does Munder Difflin look like The Office?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Because watching a wall of log lines is miserable. The pixel office floor is a real visualization — every avatar maps to a live agent. An affectionate parody; not affiliated with NBC." } }
+  ]
 }
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -763,16 +785,16 @@
   <div class="wrap">
     <div class="chip-wrap reveal" id="verWrap">
       <button class="chip" id="verChip" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="verPop">
-        <span class="new">NEW</span> <b>v0.3.3</b> · Local agent harness
+        <span class="new">NEW</span> <b>v0.3.5</b> · Local agent harness
       </button>
-      <div class="ver-pop" id="verPop" role="dialog" aria-label="What's new in v0.3.3">
-        <h4>What's new in v0.3.3</h4>
+      <div class="ver-pop" id="verPop" role="dialog" aria-label="What's new in v0.3.5">
+        <h4>What's new in v0.3.5</h4>
         <ul>
-          <li><b>Built-in Monaco IDE</b> — file tree, editor tabs, and side-by-side git diffs of your agents' changes, one click over the floor.</li>
-          <li><b>GitHub Copilot CLI</b> joins the engine roster — our first community-contributed provider.</li>
-          <li><b>New landing experience</b> — dark mode, narrated video tour, and a theme toggle.</li>
+          <li><b>Michael knows the floor</b> — talk mode opens with a live snapshot of every agent and stays current mid-call; he can now run nearly the whole app by voice.</li>
+          <li><b>Git time-machine in the IDE</b> — clickable commit history, branch compare, and guarded checkout. Plus live markdown previews everywhere (⌘-click a .md path in any terminal).</li>
+          <li><b>The app updates itself</b> — new releases download in the background and wait for your "restart to update" click. Also: xAI Grok joins the engine roster.</li>
         </ul>
-        <a class="more" href="/blog/launching-munder-difflin-v0-3-3/">Read the launch post →</a>
+        <a class="more" href="/blog/launching-munder-difflin-v0-3-5/">Read the launch post →</a>
       </div>
     </div>
     <h1 class="hero-title reveal">Forever running cli agent cluster to do all your work</h1>
@@ -965,14 +987,15 @@
       <!-- Talk mode (wide) -->
       <div class="fcard span-2 reveal">
         <div class="fcard-body" style="padding: 26px 28px;">
-          <div class="fcard-title"><span class="ic">🎙️</span> Talk mode — run the floor by voice <span class="badge badge-new">NEW in v0.3.2</span></div>
-          <p class="fcard-desc">Flip it on and Michael greets you out loud. Describe the goal; he spawns hires, assigns and
-            steers the work, reads back memory or any agent's status on request, and speaks up when it's done.
-            Hands-free orchestration — with the same human-in-the-loop confirms before anything risky.</p>
+          <div class="fcard-title"><span class="ic">🎙️</span> Talk mode — a Michael who knows the floor <span class="badge badge-new">NEW in v0.3.4</span></div>
+          <p class="fcard-desc">Flip it on and Michael greets you out loud — already knowing <b>every agent's status, context
+            fill, and in-flight work</b>, and staying current mid-call as the floor changes. Describe the goal; he spawns hires,
+            assigns and steers, manages tasks and schedules, changes settings from a strict allowlist, and speaks up when it's
+            done. Hands-free orchestration — destructive actions still wait for you to say "confirm" out loud.</p>
           <div class="badges">
-            <span class="badge"><span class="dot" style="background:#FBD7CD;"></span>Realtime voice orchestrator</span>
-            <span class="badge"><span class="dot" style="background:var(--sky);"></span>Hands-free hive control</span>
-            <span class="badge"><span class="dot" style="background:var(--mint);"></span>Speaks up when work's done</span>
+            <span class="badge"><span class="dot" style="background:#FBD7CD;"></span>Live floor context, mid-call</span>
+            <span class="badge"><span class="dot" style="background:var(--sky);"></span>Full app control by voice</span>
+            <span class="badge"><span class="dot" style="background:var(--mint);"></span>Confirm-word safety for anything risky</span>
           </div>
         </div>
       </div>
@@ -980,15 +1003,16 @@
       <!-- Monaco IDE (wide) -->
       <div class="fcard span-2 reveal">
         <div class="fcard-body" style="padding: 26px 28px;">
-          <div class="fcard-title"><span class="ic">📝</span> A real IDE, built into the floor <span class="badge badge-new">NEW in v0.3.3</span></div>
+          <div class="fcard-title"><span class="ic">📝</span> A real IDE, built into the floor <span class="badge badge-new">UPGRADED in v0.3.4</span></div>
           <p class="fcard-desc">One click opens a full <b>Monaco IDE</b> — the same editor engine as VS&nbsp;Code — right over the office.
-            Browse the file tree, review every change your agents made as a <b>side-by-side git diff</b>, edit in tabs with
-            dirty-state tracking, and save with <b>Cmd/Ctrl+S</b>. No context switch, no external editor — read, tweak, and
-            approve agent work where it happens.</p>
+            Review every agent change as a <b>side-by-side git diff</b>, walk the <b>clickable commit history</b> and open any
+            commit's diffs, <b>compare branches</b> file-by-file, and check out safely (it refuses to move a dirty tree or yank
+            code from under a working agent). Markdown gets a live <b>code | split | preview</b> switch, and ⌘-clicking any
+            <code>.md</code> path an agent prints opens a rendered preview instantly.</p>
           <div class="badges">
             <span class="badge"><span class="dot" style="background:var(--sky);"></span>Monaco editor (VS Code engine)</span>
-            <span class="badge"><span class="dot" style="background:var(--mint);"></span>Git diff vs HEAD</span>
-            <span class="badge"><span class="dot" style="background:#E4DEFB;"></span>File tree + editor tabs</span>
+            <span class="badge"><span class="dot" style="background:var(--mint);"></span>Commit history &amp; branch compare</span>
+            <span class="badge"><span class="dot" style="background:#E4DEFB;"></span>Live markdown preview</span>
           </div>
         </div>
       </div>
@@ -1035,6 +1059,9 @@
       <div class="mini"><span class="ic">🧩</span><div class="t"><span class="lbl">Agent Gallery</span><span class="sub">Off-the-shelf hires you review &amp; spawn</span></div></div>
       <div class="mini"><span class="ic">🔐</span><div class="t"><span class="lbl">Integrations registry</span><span class="sub">Services behind a write-only secret broker</span></div></div>
       <div class="mini"><span class="ic">📡</span><div class="t"><span class="lbl">Remote control</span><span class="sub">Check in and steer from your phone</span></div></div>
+      <div class="mini"><span class="ic">⬆️</span><div class="t"><span class="lbl">Auto-update</span><span class="sub">Downloads new releases, you click restart</span></div></div>
+      <div class="mini"><span class="ic">📄</span><div class="t"><span class="lbl">Markdown previews</span><span class="sub">⌘-click any .md an agent prints</span></div></div>
+      <div class="mini"><span class="ic">🎛️</span><div class="t"><span class="lbl">Six-tab Settings</span><span class="sub">Models, autonomy, budgets, voice, memory</span></div></div>
     </div>
   </div>
 </section>
@@ -1216,7 +1243,11 @@
       </details>
       <details class="faq-item reveal">
         <summary>Which agent CLIs are supported?</summary>
-        <div class="a">Claude Code, OpenAI Codex, Antigravity (Gemini), OpenCode, Crush, pi.dev — and, new in v0.3.3, <b>GitHub Copilot CLI</b>. Each gets a desk, a mailbox, and shared memory; most can even play the orchestrator. Mix and match on the same floor.</div>
+        <div class="a">Claude Code, OpenAI Codex, Antigravity (Gemini), GitHub Copilot CLI, OpenCode, Crush, pi.dev — and, new in v0.3.4, <b>xAI Grok</b> and <b>Kimi Code</b>. Each gets a desk, a mailbox, and shared memory; most can even play the orchestrator. Mix and match on the same floor.</div>
+      </details>
+      <details class="faq-item reveal">
+        <summary>How is this different from YC's qm?</summary>
+        <div class="a">They're solving the same problem from different ends. <a href="https://github.com/yc-software/qm" rel="nofollow">qm</a> is a multiplayer agent harness for teams — headless, living in Slack and a web UI. Munder Difflin covers the same jobs — security postures, background crons and watches, Slack triggers, shareable skills — as a <b>simpler, local-first desktop app</b> that's been shipping stably since v0.2: real terminals you can watch, voice orchestration, a built-in IDE with commit history and branch compare, and auto-update. If you want your agent office on your own machine with everything visible, that's us. <a href="/blog/qm-vs-munder-difflin/">Full comparison →</a></div>
       </details>
       <details class="faq-item reveal">
         <summary>Can it really run for days without me?</summary>
@@ -1314,7 +1345,7 @@
 <!-- ===================== FINAL CTA ===================== -->
 <div class="final-wrap">
   <section class="final" style="padding-top: 84px;">
-    <div class="eyebrow reveal">v0.3.3 · Free &amp; open source</div>
+    <div class="eyebrow reveal">v0.3.5 · Free &amp; open source</div>
     <h2 class="reveal">Your virtual office is <span class="hl">one download away.</span></h2>
     <p class="reveal">A full floor of AI agents — planning, building, and shipping around the clock, on your machine.
       Free, local, and MIT-licensed.</p>
@@ -1677,7 +1708,7 @@
   // download picker — pick macOS / Windows / Linux, click starts the download
   (function () {
     var REPO = 'chaitanyagiri/munder-difflin';
-    var REL = '0.3.4'; // fallback version; live links are resolved from the GitHub API below
+    var REL = '0.3.5'; // fallback version; live links are resolved from the GitHub API below
     var BASE = 'https://github.com/' + REPO + '/releases/latest/download/';
     var PLATFORMS = [
       { key: 'mac',   icon: '🍎', os: 'macOS',   sub: 'Universal · Apple Silicon + Intel', match: 'mac-universal.dmg',     file: 'Munder-Difflin-' + REL + '-mac-universal.dmg' },
