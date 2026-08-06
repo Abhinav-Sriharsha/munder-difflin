@@ -30,6 +30,7 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
   const queue = useStore((s) => s.messageQueues[agent.id]) ?? EMPTY_QUEUE;
   const enqueueMessage = useStore((s) => s.enqueueMessage);
   const removeQueuedMessage = useStore((s) => s.removeQueuedMessage);
+  const releaseQueuedMessage = useStore((s) => s.releaseQueuedMessage);
   const clearQueue = useStore((s) => s.clearQueue);
 
   // Draft lives in the store, keyed by agent — switching agents remounts this
@@ -151,10 +152,17 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
   // the hint claimed it was sending while nothing moved — so poll it and say so.
   const block = useTerminalBlock(agent.ptyId, queue.length > 0 && idle);
 
+  // Floor-wide auto-delivery pause (Command Center switch) also holds the queue.
+  // Without saying so — and without the per-row "send now" override — messages
+  // look permanently stuck with no explanation and no escape hatch.
+  const deliveryPaused = useDeliveryPaused(agent.id, queue.length > 0);
+
   const statusHint = queue.length === 0
     ? null
     : !idle
     ? `${agent.name} is busy — ${queue.length} queued`
+    : deliveryPaused && !queue[0]?.manual
+    ? 'held — delivery paused floor-wide'
     : block === 'draft'
     ? `held — ${agent.name}'s terminal has unsent text on its prompt`
     : block === 'picker'
@@ -204,11 +212,16 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
           }}>{queue.length}</span>
         )}
         {statusHint && (
-          <span style={{
-            fontSize: 12,
-            color: idle ? 'var(--cth-ink-700)' : 'var(--cth-ink-500)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-          }}>{statusHint}</span>
+          <span
+            title={deliveryPaused && !queue[0]?.manual
+              ? 'Auto-delivery is paused for the whole floor. Resume it in the Command Center, or use "send now" on a message below.'
+              : statusHint}
+            style={{
+              fontSize: 12,
+              color: idle ? 'var(--cth-ink-700)' : 'var(--cth-ink-500)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+            }}
+          >{statusHint}</span>
         )}
         {(block === 'draft' || block === 'picker') && agent.ptyId && (
           <button
@@ -239,7 +252,7 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
             onClick={() => clearQueue(agent.id)}
             title="Clear all queued messages"
             style={{
-              marginLeft: 'auto',
+              marginLeft: 'auto', flexShrink: 0, whiteSpace: 'nowrap',
               border: 'none', background: 'transparent', cursor: 'pointer',
               fontFamily: 'var(--cth-font-ui)', fontSize: 12,
               color: 'var(--cth-ink-500)'
@@ -259,6 +272,8 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
               key={m.id}
               index={i}
               message={m}
+              paused={deliveryPaused}
+              onSendNow={() => releaseQueuedMessage(agent.id, m.id)}
               onRemove={() => removeQueuedMessage(agent.id, m.id)}
             />
           ))}
@@ -379,13 +394,40 @@ function useTerminalBlock(ptyId: string | undefined, active: boolean): TerminalA
   return block === 'settling' ? null : block;
 }
 
+/** Poll the floor-wide auto-delivery pause (main-process control state) while
+ * this agent has messages waiting. 2s is plenty — the pause flips on human
+ * timescales, and the drain re-reads the live snapshot before every send. */
+function useDeliveryPaused(agentId: string, active: boolean): boolean {
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (!active) { setPaused(false); return; }
+    let alive = true;
+    const read = () => {
+      window.cth.controlSnapshot(agentId)
+        .then((s) => { if (alive) setPaused(!!s?.autoDeliveryPaused); })
+        .catch(() => { /* main not ready — assume not paused */ });
+    };
+    read();
+    const iv = setInterval(read, 2000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [agentId, active]);
+  return paused;
+}
+
 /**
  * One pending queue row. Collapsed it clamps to 2 lines; "see more" expands it
  * in place so a long message can be read without hovering for the tooltip. The
  * toggle only renders when the text actually clips, so short messages stay tidy.
  */
 function QueuedMessageRow(
-  { index, message, onRemove }: { index: number; message: QueuedMessage; onRemove: () => void }
+  { index, message, paused, onSendNow, onRemove }: {
+    index: number;
+    message: QueuedMessage;
+    /** Floor-wide auto-delivery is paused — offer the per-message override. */
+    paused: boolean;
+    onSendNow: () => void;
+    onRemove: () => void;
+  }
 ) {
   const [expanded, setExpanded] = useState(false);
   const [clipped, setClipped] = useState(false);
@@ -436,17 +478,36 @@ function QueuedMessageRow(
                 })
           }}
         >{message.text}</div>
-        {(clipped || expanded) && (
-          <button
-            onClick={() => setExpanded((e) => !e)}
-            title={expanded ? 'Collapse this message' : 'Show the full message'}
-            style={{
-              alignSelf: 'flex-start',
-              border: 'none', background: 'transparent', cursor: 'pointer', padding: 0,
-              fontFamily: 'var(--cth-font-ui)', fontSize: 12, lineHeight: '16px',
-              color: 'var(--cth-ink-500)', textDecoration: 'underline'
-            }}
-          >{expanded ? 'see less' : 'see more'}</button>
+        {(clipped || expanded || paused) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {(clipped || expanded) && (
+              <button
+                onClick={() => setExpanded((e) => !e)}
+                title={expanded ? 'Collapse this message' : 'Show the full message'}
+                style={{
+                  border: 'none', background: 'transparent', cursor: 'pointer', padding: 0,
+                  fontFamily: 'var(--cth-font-ui)', fontSize: 12, lineHeight: '16px',
+                  color: 'var(--cth-ink-500)', textDecoration: 'underline'
+                }}
+              >{expanded ? 'see less' : 'see more'}</button>
+            )}
+            {paused && !message.manual && (
+              <button
+                onClick={onSendNow}
+                title="Deliver this message even though auto-delivery is paused. It moves to the front of the queue and types in as soon as the terminal is free."
+                style={{
+                  border: 'none', background: 'transparent', cursor: 'pointer', padding: 0,
+                  fontFamily: 'var(--cth-font-ui)', fontSize: 12, lineHeight: '16px',
+                  color: 'var(--cth-ink-900)', textDecoration: 'underline'
+                }}
+              >send now</button>
+            )}
+            {paused && message.manual && (
+              <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                sending when free…
+              </span>
+            )}
+          </div>
         )}
       </div>
       <button

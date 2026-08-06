@@ -113,6 +113,10 @@ export interface QueuedMessage {
    *  `text`. Used by Slack-origin work to carry the autonomy preamble to god's
    *  prompt without polluting the human-readable kanban card title (= raw `text`). */
   instruction?: string;
+  /** User clicked "send now" while floor-wide auto-delivery was paused. Bypasses
+   *  ONLY the pause gate in the drain loop — idle/draft/picker safety still hold,
+   *  so it delivers the moment the terminal is actually free. */
+  manual?: boolean;
 }
 
 // 'files' retired in v0.3.4 (the per-agent IDE button superseded it) — a
@@ -227,6 +231,9 @@ interface State {
   enqueueMessage: (agentId: string, text: string, meta?: { slack?: { channel: string; thread_ts: string }; instruction?: string }) => void;
   /** Drop a single queued message (user removed it, or it was just delivered). */
   removeQueuedMessage: (agentId: string, messageId: string) => void;
+  /** "Send now" while floor auto-delivery is paused: marks the message manual
+   *  (drain bypasses the pause gate for it) and moves it to the queue front. */
+  releaseQueuedMessage: (agentId: string, messageId: string) => void;
   /** Clear an agent's entire pending queue. */
   clearQueue: (agentId: string) => void;
   setAddAgentOpen: (open: boolean) => void;
@@ -702,6 +709,19 @@ export const useStore = create<State>((set) => ({
       const current = s.messageQueues[agentId];
       if (!current) return s;
       const next = current.filter((m) => m.id !== messageId);
+      const messageQueues = { ...s.messageQueues, [agentId]: next };
+      persistQueues(messageQueues);
+      return { messageQueues };
+    }),
+  releaseQueuedMessage: (agentId, messageId) =>
+    set((s) => {
+      const current = s.messageQueues[agentId];
+      const target = current?.find((m) => m.id === messageId);
+      if (!current || !target) return s;
+      const next = [
+        { ...target, manual: true },
+        ...current.filter((m) => m.id !== messageId)
+      ];
       const messageQueues = { ...s.messageQueues, [agentId]: next };
       persistQueues(messageQueues);
       return { messageQueues };
