@@ -1,4 +1,4 @@
-# Munder Difflin v0.3.4
+# Munder Difflin v0.3.5
 
 **A local hive of Claude Code, Antigravity, Codex, Grok & Copilot agents that run themselves** — messaging,
 routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-first and open source.
@@ -7,7 +7,23 @@ routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-f
 
 ---
 
-## What's new in 0.3.4 — *Talk to a Michael who knows the floor, see everything in the IDE*
+## What's new in 0.3.5 — *The queue always has an escape hatch*
+
+A fast-follow to yesterday's big 0.3.4 wave — and the **first release the app delivers to
+itself**: if you're on 0.3.4, it downloads in the background and offers "Restart to
+update". Nothing to download, nothing restarts on its own.
+
+- **"Send now" for a paused floor.** Pausing floor-wide auto-delivery used to strand every
+  queued message with no explanation and no override. Each queued row now gets a **send
+  now** link while the floor is paused — it bypasses only the pause gate (draft/picker/idle
+  safety still hold) and the composer says exactly why the queue is being held.
+- **Compact Command Center header.** No more three-line wrapped title and crushed buttons
+  at sidebar width — single-line title, ellipsizing subtitle, and an icon-sized
+  ▶ auto / ⏸ paused delivery toggle.
+
+---
+
+## What was new in 0.3.4 — *Talk to a Michael who knows the floor, see everything in the IDE*
 
 **A community release plus a four-feature first-party wave.** The terminal/queue
 reliability work is by [**@gts-47**](https://github.com/gts-47) (Vyapak Goyal), with major
