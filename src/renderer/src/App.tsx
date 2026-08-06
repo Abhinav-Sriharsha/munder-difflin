@@ -13,6 +13,8 @@ import { OnboardingWizard } from '@/components/OnboardingWizard';
 import { HivePicker } from '@/components/HivePicker';
 import { QuitWarningModal, type ClosingTimeState } from '@/components/QuitWarningModal';
 import { CompletionToast } from '@/realtime/CompletionToast';
+import { UpdateToast } from '@/components/UpdateToast';
+import { useAppTheme, toggleAppTheme } from '@/design/theme';
 import { SettingsModal } from '@/components/SettingsModal';
 import { PixelPanel } from '@/components/PixelPanel';
 import { PixelButton } from '@/components/PixelButton';
@@ -37,6 +39,7 @@ export function App() {
   const setAddAgentOpen = useStore(s => s.setAddAgentOpen);
   const godStatus = useStore(s => s.godStatus);
   const fullscreenAgentId = useStore(s => s.fullscreenAgentId);
+  const appThemeNow = useAppTheme();
   const fullscreenFilePath = useStore(s => s.fullscreenFilePath);
   const sidebarWidth = useStore(s => s.sidebarWidth);
   const setSidebarWidth = useStore(s => s.setSidebarWidth);
@@ -212,13 +215,16 @@ export function App() {
       {/* rt-12: global fixed-overlay toast for voice-Michael completions ("Oscar
           finished X"). Self-positions bottom-right; renders null until one arrives. */}
       <CompletionToast />
+      {/* v0.3.4: background-update toast ("restart to update"); renders null until
+          main's updater pushes a status. */}
+      <UpdateToast />
       {/* Title bar */}
       <div
         className="cth-titlebar-drag"
         style={{
           height: 36, minHeight: 36,
           background: 'linear-gradient(180deg, var(--cth-cream-100) 0%, var(--cth-cream-200) 100%)',
-          borderBottom: '2px solid var(--cth-ink-900)',
+          borderBottom: '1px solid var(--cth-ink-300)',
           display: 'flex',
           alignItems: 'center',
           paddingLeft: 96,
@@ -234,29 +240,63 @@ export function App() {
         />
         <span style={{
           fontFamily: 'var(--cth-font-ui)',
-          fontSize: 14,
+          fontSize: 13,
           color: 'var(--cth-ink-500)'
         }}>
           v{__APP_VERSION__} · {config.autoMode ? 'auto mode on' : 'auto mode off'}
         </span>
+        {/* v0.3.4: theme + fullscreen live HERE (top right), not buried in the
+            terminal header — and the theme darkens the whole app, terminals
+            included (design/theme.ts + tokens.css dark block). */}
         <button
           className="cth-titlebar-nodrag"
-          onClick={() => setIdeOpen(true)}
-          title="Open IDE — file editor + git diff"
-          aria-label="Open IDE"
+          onClick={() => {
+            const next = toggleAppTheme();
+            // Mirror into the harness config: every agent (re)spawned from now
+            // on gets the matching `theme` in its per-session Claude settings,
+            // so the TUI's truecolor palette fits the terminal. Scoped to
+            // harness agents — the user's global Claude theme is never touched.
+            void window.cth.updateConfig({ terminalTheme: next });
+          }}
+          title={appThemeNow === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'}
+          aria-label="Toggle dark mode"
           style={{
             marginLeft: 'auto',
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            height: 28, padding: '0 9px',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 28, height: 28, padding: 0,
             background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             border: 'none', borderRadius: 2, cursor: 'pointer',
-            color: 'var(--cth-ink-900)',
-            fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '14px'
+            color: 'var(--cth-ink-900)', fontSize: 13, lineHeight: 1
           }}
         >
-          <Icon name="code" size={1} style={{ width: 16, height: 16 }} /> IDE
+          {appThemeNow === 'dark' ? '☀' : '☾'}
         </button>
+        <button
+          className="cth-titlebar-nodrag"
+          onClick={() => {
+            if (fullscreenAgentId) { useStore.getState().setFullscreen(null); return; }
+            const all = useStore.getState().agents;
+            const target = all.find((x) => x.id === useStore.getState().selectedId && x.ptyId)
+              ?? all.find((x) => x.isGod && x.ptyId)
+              ?? all.find((x) => x.ptyId);
+            if (target) useStore.getState().setFullscreen(target.id);
+          }}
+          title={fullscreenAgentId ? 'Exit fullscreen (Esc)' : 'Fullscreen terminal — selected agent'}
+          aria-label="Toggle fullscreen terminal"
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 28, height: 28, padding: 0,
+            background: 'var(--cth-paper-100)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
+            border: 'none', borderRadius: 2, cursor: 'pointer',
+            color: 'var(--cth-ink-900)'
+          }}
+        >
+          <Icon name={fullscreenAgentId ? 'minimize' : 'expand'} size={1} style={{ width: 16, height: 16 }} />
+        </button>
+        {/* v0.3.4: the IDE button moved to agent level — every agent's header
+            (sidebar detail, god Command Center, fullscreen) carries it. */}
         <button
           className="cth-titlebar-nodrag cth-settings-btn"
           onClick={() => setSettingsOpen(true)}
@@ -266,7 +306,7 @@ export function App() {
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, padding: 0,
             background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             border: 'none', borderRadius: 2, cursor: 'pointer',
             color: 'var(--cth-ink-900)'
           }}
@@ -294,7 +334,7 @@ export function App() {
               <div style={{ pointerEvents: 'auto', width: 360 }}>
                 <PixelPanel variant="dialog" title="EMPTY FLOOR" noPadding>
                   <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <p style={{ margin: 0, fontSize: 14, lineHeight: '20px' }}>
+                    <p style={{ margin: 0, fontSize: 13, lineHeight: '20px' }}>
                       No agents on the floor yet. Spawn one to see real claude output stream in here.
                     </p>
                     <PixelButton variant="primary" size="md" onClick={() => setAddAgentOpen(true)}>
@@ -331,7 +371,7 @@ export function App() {
                 fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
                 color: 'var(--cth-ink-500)'
               }}>WAKING THE FLOOR</div>
-              <p style={{ margin: 0, fontSize: 14, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
+              <p style={{ margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
                 Michael is clocking in.<br />
                 The terminal will land here once he's seated.
               </p>
@@ -346,7 +386,7 @@ export function App() {
                 fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
                 color: 'var(--cth-ink-500)'
               }}>NO AGENT SELECTED</div>
-              <p style={{ margin: 0, fontSize: 14, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
+              <p style={{ margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
                 Spawn an agent from the strip below.<br />
                 The terminal and command bar will land here.
               </p>
@@ -388,7 +428,7 @@ export function App() {
         />
       )}
 
-      {fullscreenAgentId && <FullscreenTerminal />}
+      {fullscreenAgentId && <FullscreenTerminal config={config} />}
       {fullscreenFilePath && <FullscreenFileEditor />}
       {ideOpen && <IdePanel />}
       <TaskDetailOverlay />

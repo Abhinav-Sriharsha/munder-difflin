@@ -1,5 +1,6 @@
 import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
 import { isAbsolute, join, normalize, relative, resolve } from 'node:path';
+import { homedir } from 'node:os';
 
 /**
  * Confines `path` inside `root` to prevent path-traversal escapes.
@@ -80,5 +81,21 @@ export async function writeFileText(root: string, rel: string, content: string):
     return { ok: true, path: abs };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** Existence/metadata check for an ABSOLUTE path (v0.3.4 — backs the terminal
+ *  ⌘-click markdown flow). `~/` is expanded here (the renderer doesn't know
+ *  the home dir). Read-only metadata: returns whether a regular file exists and
+ *  the normalized absolute path; never file contents. */
+export async function statAbs(p: string): Promise<{ exists: boolean; isFile: boolean; path: string }> {
+  let abs = p.startsWith('~/') ? join(homedir(), p.slice(2)) : p;
+  if (!isAbsolute(abs)) return { exists: false, isFile: false, path: p };
+  abs = normalize(abs);
+  try {
+    const s = await stat(abs);
+    return { exists: true, isFile: s.isFile(), path: abs };
+  } catch {
+    return { exists: false, isFile: false, path: abs };
   }
 }

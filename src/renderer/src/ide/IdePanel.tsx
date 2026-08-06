@@ -1,16 +1,34 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '@/store/store';
 import { FileTree } from '@/components/FileTree';
 import { Icon } from '@/components/Icon';
 import { MonacoEditor } from './MonacoEditor';
 import { MonacoDiff } from './MonacoDiff';
+import { MarkdownPreview } from '@/markdown/MarkdownPreview';
+import { HistoryPane, ComparePane } from './GitPanes';
+
+// v0.3.4 markdown preview: per-md-tab view mode, defaulted from the last choice.
+type MdView = 'code' | 'split' | 'preview';
+const LS_MD_VIEW = 'cth.ide.mdView';
+const isMarkdown = (rel: string) => /\.(md|markdown)$/i.test(rel);
+function defaultMdView(): MdView {
+  try {
+    const v = window.localStorage.getItem(LS_MD_VIEW);
+    if (v === 'code' || v === 'split' || v === 'preview') return v;
+  } catch { /* noop */ }
+  return 'split';
+}
 
 // ─── Local mirrors of the main-side git shapes (kept renderer-local like GitTab) ──
 interface GitStatusEntry { path: string; index: string; worktree: string }
 interface GitStatusT { staged: GitStatusEntry[]; unstaged: GitStatusEntry[]; untracked: string[] }
 
-type TabMode = 'edit' | 'diff';
-interface Tab { key: string; rel: string; mode: TabMode }
+type TabMode = 'edit' | 'diff' | 'revdiff';
+interface Tab {
+  key: string; rel: string; mode: TabMode;
+  /** revdiff only: the two sides + a short human label ("a1b2c3d" / "main…feat"). */
+  revA?: string; revB?: string; revLabel?: string;
+}
 
 interface EditBuffer {
   content: string;
@@ -59,6 +77,23 @@ export function IdePanel() {
   const [isRepo, setIsRepo] = useState<boolean | null>(null);
   const [status, setStatus] = useState<GitStatusT | null>(null);
   const [treeWidth, setTreeWidth] = useState(300);
+  // v0.3.4 git visualization: which rail pane is showing, and the repo's MAIN
+  // root (a worktree's history/compare must run against the shared repo).
+  const [railTab, setRailTab] = useState<'changes' | 'history' | 'compare'>('changes');
+  const [gitRoot, setGitRoot] = useState<string | null>(null);
+  useEffect(() => {
+    if (!root) return;
+    let alive = true;
+    void window.cth.gitMainRepo(root).then((r) => { if (alive) setGitRoot(r ?? root); });
+    return () => { alive = false; };
+  }, [root]);
+  // Per-markdown-tab view mode (code | split | preview); changing it also
+  // updates the sticky default for the next markdown file.
+  const [mdViews, setMdViews] = useState<Record<string, MdView>>({});
+  const setMdView = useCallback((rel: string, v: MdView) => {
+    setMdViews((p) => ({ ...p, [rel]: v }));
+    try { window.localStorage.setItem(LS_MD_VIEW, v); } catch { /* noop */ }
+  }, []);
 
   // Refs so window/editor handlers always see current values without rebinding.
   const tabsRef = useRef(tabs); tabsRef.current = tabs;
@@ -110,6 +145,51 @@ export function IdePanel() {
   }, []);
 
   const openEdit = useCallback((rel: string) => { ensureEdit(rel); openTab('edit', rel); }, [ensureEdit, openTab]);
+
+  // v0.3.4: rev-pinned diff tabs (per-commit files + branch compare). Both
+  // sides load through the metadata-guarded git:showFile IPC at the MAIN root.
+  const openRevDiff = useCallback((revA: string, revB: string, rel: string, revLabel: string) => {
+    const repo = gitRoot ?? root;
+    if (!repo) return;
+    const key = `rev::${revA}::${revB}::${rel}`;
+    setTabs((prev) => (prev.some((t) => t.key === key)
+      ? prev
+      : [...prev, { key, rel, mode: 'revdiff', revA, revB, revLabel }]));
+    setActiveKey(key);
+    if (diffDataRef.current[key] && diffDataRef.current[key].status !== 'error') return;
+    setDiffData((p) => ({ ...p, [key]: { status: 'loading', head: '', working: '' } }));
+    void Promise.all([
+      window.cth.gitShowFile(repo, revA, rel),
+      window.cth.gitShowFile(repo, revB, rel)
+    ]).then(([a, b]) => {
+      if (!a.ok || !b.ok) {
+        const error = (!a.ok ? a.error : !b.ok ? (b as { error: string }).error : 'diff failed');
+        setDiffData((p) => ({ ...p, [key]: { status: 'error', head: '', working: '', error } }));
+        return;
+      }
+      if (a.isBinary || b.isBinary) {
+        setDiffData((p) => ({ ...p, [key]: { status: 'binary', head: '', working: '' } }));
+        return;
+      }
+      setDiffData((p) => ({ ...p, [key]: { status: 'ready', head: a.content, working: b.content } }));
+    });
+  }, [gitRoot, root]);
+
+  // Entry point from elsewhere in the app ("open in IDE" on the file overlay):
+  // consume the queued absolute path once the root is known, open it (preview
+  // for markdown), then clear the queue slot so a later IDE open starts fresh.
+  useEffect(() => {
+    if (!root) return;
+    const abs = useStore.getState().ideInitialFile;
+    if (!abs) return;
+    useStore.getState().setIdeInitialFile(null);
+    const prefix = root.endsWith('/') ? root : `${root}/`;
+    if (!abs.startsWith(prefix)) return; // different workspace — tree still lets them browse
+    const rel = abs.slice(prefix.length);
+    ensureEdit(rel);
+    openTab('edit', rel);
+    if (isMarkdown(rel)) setMdViews((p) => ({ ...p, [rel]: 'preview' }));
+  }, [root, ensureEdit, openTab]);
   const openDiff = useCallback((rel: string) => { ensureDiff(rel, true); openTab('diff', rel); }, [ensureDiff, openTab]);
 
   const closeTab = useCallback((key: string) => {
@@ -220,7 +300,7 @@ export function IdePanel() {
         style={{
           position: 'absolute', top: 0, left: 0, right: 0, height: 36,
           background: 'linear-gradient(180deg, var(--cth-cream-100) 0%, var(--cth-cream-200) 100%)',
-          borderBottom: '2px solid var(--cth-ink-900)',
+          borderBottom: '1px solid var(--cth-ink-300)',
           display: 'flex', alignItems: 'center',
           paddingLeft: 96, paddingRight: 8, gap: 10,
           userSelect: 'none'
@@ -232,7 +312,7 @@ export function IdePanel() {
           MUNDER DIFFLIN · IDE
         </span>
         <span title={root ?? ''} style={{
-          fontFamily: 'var(--cth-font-mono)', fontSize: 14, color: 'var(--cth-ink-500)',
+          fontFamily: 'var(--cth-font-mono)', fontSize: 13, color: 'var(--cth-ink-500)',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '40vw'
         }}>
           {root ? basename(root) : 'no workspace'}
@@ -247,7 +327,7 @@ export function IdePanel() {
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, padding: 0,
             background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             border: 'none', borderRadius: 2, cursor: 'pointer', color: 'var(--cth-ink-900)'
           }}
         >
@@ -271,19 +351,40 @@ export function IdePanel() {
             display: 'flex', flexDirection: 'column',
             borderRight: '1px solid var(--cth-ink-700)', background: 'var(--cth-cream-50)'
           }}>
-            {/* CHANGES */}
-            <div style={{ flexShrink: 0, maxHeight: '45%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <SectionHeader title="changes" right={
+            {/* Git rail: CHANGES · HISTORY · COMPARE (v0.3.4). History/compare
+                run at the repo's MAIN root so worktree branches all appear. */}
+            <div style={{
+              flexShrink: 0, display: 'flex', gap: 2, padding: '6px 10px 4px',
+              background: 'var(--cth-cream-50)', borderBottom: '1px solid var(--cth-ink-100)'
+            }}>
+              {(['changes', 'history', 'compare'] as const).map((k) => (
+                <button
+                  key={k}
+                  onClick={() => setRailTab(k)}
+                  style={{
+                    padding: '1px 8px', border: 'none', cursor: 'pointer',
+                    fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '14px',
+                    textTransform: 'uppercase', color: 'var(--cth-ink-700)',
+                    background: railTab === k ? 'var(--cth-sky-light)' : 'transparent',
+                    boxShadow: railTab === k ? 'inset 0 0 0 1px var(--cth-ink-300)' : 'none'
+                  }}
+                >{k}</button>
+              ))}
+              <span style={{ flex: 1 }} />
+              {railTab === 'changes' && (
                 <button onClick={() => refreshStatus()} title="Refresh" style={iconBtn}>
                   <Icon name="web" />
                 </button>
-              } />
+              )}
+            </div>
+            {railTab === 'changes' && (
+            <div style={{ flexShrink: 0, maxHeight: '45%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <div style={{ overflow: 'auto', minHeight: 0 }}>
                 {isRepo === false && (
-                  <div style={{ padding: '6px 12px', fontSize: 13, color: 'var(--cth-ink-500)' }}>not a git repo</div>
+                  <div style={{ padding: '6px 12px', fontSize: 12, color: 'var(--cth-ink-500)' }}>not a git repo</div>
                 )}
                 {isRepo && changedFiles.length === 0 && (
-                  <div style={{ padding: '6px 12px', fontSize: 13, color: 'var(--cth-ink-500)' }}>working tree clean</div>
+                  <div style={{ padding: '6px 12px', fontSize: 12, color: 'var(--cth-ink-500)' }}>working tree clean</div>
                 )}
                 {changedFiles.map((f) => {
                   const active = activeKey === tabKey('diff', f.path);
@@ -294,7 +395,7 @@ export function IdePanel() {
                       title={f.path}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 6, padding: '2px 12px',
-                        cursor: 'pointer', fontSize: 13, color: 'var(--cth-ink-900)',
+                        cursor: 'pointer', fontSize: 12, color: 'var(--cth-ink-900)',
                         background: active ? 'var(--cth-lemon-light)' : 'transparent'
                       }}
                     >
@@ -311,6 +412,13 @@ export function IdePanel() {
                 })}
               </div>
             </div>
+            )}
+            {railTab === 'history' && gitRoot && (
+              <HistoryPane key={gitRoot} gitRoot={gitRoot} onOpenRevDiff={openRevDiff} />
+            )}
+            {railTab === 'compare' && gitRoot && (
+              <ComparePane key={gitRoot} gitRoot={gitRoot} onOpenRevDiff={openRevDiff} />
+            )}
             {/* FILES */}
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--cth-ink-300)' }}>
               <SectionHeader title="files" />
@@ -345,14 +453,15 @@ export function IdePanel() {
                       background: active ? 'var(--cth-paper-100)' : 'transparent',
                       boxShadow: active ? 'inset 0 -2px 0 var(--cth-sky)' : 'none',
                       borderRight: '1px solid var(--cth-ink-100)',
-                      fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-ink-900)'
+                      fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)'
                     }}
                   >
-                    {t.mode === 'diff' && (
+                    {t.mode !== 'edit' && (
                       <span style={{
                         fontFamily: 'var(--cth-font-display)', fontSize: 7, padding: '1px 3px',
-                        background: 'var(--cth-sky-light)', color: 'var(--cth-ink-900)'
-                      }}>DIFF</span>
+                        background: t.mode === 'revdiff' ? 'var(--cth-lilac-light)' : 'var(--cth-sky-light)',
+                        color: 'var(--cth-ink-900)'
+                      }}>{t.mode === 'revdiff' ? (t.revLabel ?? 'REV') : 'DIFF'}</span>
                     )}
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {basename(t.rel)}{dirty ? ' •' : ''}
@@ -381,7 +490,7 @@ export function IdePanel() {
                     fontFamily: 'var(--cth-font-display)', fontSize: 8, textTransform: 'uppercase',
                     letterSpacing: 1, color: 'var(--cth-ink-700)'
                   }}>nothing open</div>
-                  <div style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 14 }}>
+                  <div style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 13 }}>
                     Pick a file from the tree to edit, or a changed file to diff.
                   </div>
                 </div>
@@ -391,6 +500,8 @@ export function IdePanel() {
                 const buf = editBuffers[activeTab.rel];
                 if (!buf || buf.status === 'loading') return <Centered>loading…</Centered>;
                 if (buf.status === 'error') return <Centered tone="error">{buf.error}</Centered>;
+                const md = isMarkdown(activeTab.rel);
+                const view: MdView = md ? (mdViews[activeTab.rel] ?? defaultMdView()) : 'code';
                 return (
                   <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <EditorBar
@@ -399,14 +510,59 @@ export function IdePanel() {
                       saveState={buf.saveState}
                       onSave={() => void save(activeTab.rel)}
                       onCopy={() => copyAbs(activeTab.rel)}
+                      mdView={md ? view : undefined}
+                      onMdView={md ? (v) => setMdView(activeTab.rel, v) : undefined}
                     />
+                    <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+                      {view !== 'preview' && (
+                        <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                          <MonacoEditor
+                            path={activeTab.rel}
+                            value={buf.content}
+                            onChange={(v) => onEditChange(activeTab.rel, v)}
+                            onSave={() => void save(activeTab.rel)}
+                          />
+                        </div>
+                      )}
+                      {md && view !== 'code' && (
+                        <MdPane
+                          rel={activeTab.rel}
+                          source={buf.content}
+                          split={view === 'split'}
+                          onOpenMarkdownLink={(target) => {
+                            ensureEdit(target);
+                            openTab('edit', target);
+                            setMdViews((p) => ({ ...p, [target]: 'preview' }));
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {activeTab?.mode === 'revdiff' && (() => {
+                const d = diffData[activeTab.key];
+                if (!d || d.status === 'loading') return <Centered>loading diff…</Centered>;
+                if (d.status === 'error') return <Centered tone="error">{d.error}</Centered>;
+                if (d.status === 'binary') return <Centered>binary file — no text diff</Centered>;
+                return (
+                  <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '3px 8px',
+                      background: 'var(--cth-cream-200)', borderBottom: '1px solid var(--cth-ink-700)',
+                      fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-700)'
+                    }}>
+                      <span style={{ fontFamily: 'var(--cth-font-mono)', color: 'var(--cth-ink-500)' }}>
+                        {activeTab.revLabel ?? `${activeTab.revA} → ${activeTab.revB}`}
+                      </span>
+                      <span style={{
+                        flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        fontFamily: 'var(--cth-font-mono)', textAlign: 'right'
+                      }} title={activeTab.rel}>{activeTab.rel}</span>
+                    </div>
                     <div style={{ flex: 1, minHeight: 0 }}>
-                      <MonacoEditor
-                        path={activeTab.rel}
-                        value={buf.content}
-                        onChange={(v) => onEditChange(activeTab.rel, v)}
-                        onSave={() => void save(activeTab.rel)}
-                      />
+                      <MonacoDiff path={activeTab.rel} original={d.head} modified={d.working} />
                     </div>
                   </div>
                 );
@@ -422,7 +578,7 @@ export function IdePanel() {
                     <div style={{
                       display: 'flex', alignItems: 'center', gap: 8, padding: '3px 8px',
                       background: 'var(--cth-cream-200)', borderBottom: '1px solid var(--cth-ink-700)',
-                      fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-ink-700)'
+                      fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-700)'
                     }}>
                       <span style={{ color: 'var(--cth-ink-500)' }}>HEAD</span>
                       <Icon name="arrow-right" />
@@ -462,19 +618,37 @@ function SectionHeader({ title, right }: { title: string; right?: React.ReactNod
   );
 }
 
-function EditorBar({ rel, dirty, saveState, onSave, onCopy }: {
+function EditorBar({ rel, dirty, saveState, onSave, onCopy, mdView, onMdView }: {
   rel: string; dirty: boolean; saveState: EditBuffer['saveState']; onSave: () => void; onCopy: () => void;
+  /** Set only for markdown files — renders the code|split|preview switch. */
+  mdView?: MdView; onMdView?: (v: MdView) => void;
 }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6, padding: '3px 8px',
       background: 'var(--cth-cream-200)', borderBottom: '1px solid var(--cth-ink-700)',
-      fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-ink-700)'
+      fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-700)'
     }}>
       <Icon name="code" />
       <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--cth-font-mono)' }} title={rel}>
         {rel}{dirty ? ' •' : ''}
       </span>
+      {mdView && onMdView && (
+        <span style={{ display: 'inline-flex', gap: 0 }}>
+          {(['code', 'split', 'preview'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => onMdView(v)}
+              title={v === 'code' ? 'Source only' : v === 'split' ? 'Source + preview' : 'Rendered preview'}
+              style={{
+                ...textBtn,
+                background: mdView === v ? 'var(--cth-sky-light)' : 'var(--cth-cream-100)',
+                boxShadow: mdView === v ? 'inset 0 0 0 1px var(--cth-ink-500)' : 'inset 0 0 0 1px var(--cth-ink-100)'
+              }}
+            >{v}</button>
+          ))}
+        </span>
+      )}
       <button onClick={onCopy} title="Copy absolute path" style={textBtn}>copy path</button>
       <button onClick={onSave} disabled={!dirty || saveState === 'saving'} title="Save (Cmd/Ctrl+S)"
         style={{ ...textBtn, opacity: dirty ? 1 : 0.5 }}>
@@ -484,11 +658,29 @@ function EditorBar({ rel, dirty, saveState, onSave, onCopy }: {
   );
 }
 
+/** Markdown preview pane — renders the LIVE edit buffer (deferred so fast typing
+ *  never blocks the editor). In split view it takes the right half behind a
+ *  hairline divider; in preview view it fills the body. */
+function MdPane({ rel, source, split, onOpenMarkdownLink }: {
+  rel: string; source: string; split: boolean; onOpenMarkdownLink: (rel: string) => void;
+}) {
+  const deferred = useDeferredValue(source);
+  return (
+    <div style={{
+      flex: 1, minWidth: 0, minHeight: 0, overflow: 'auto',
+      background: 'var(--cth-paper-100)',
+      borderLeft: split ? '1px solid var(--cth-ink-100)' : 'none'
+    }}>
+      <MarkdownPreview source={deferred} baseRel={rel} onOpenMarkdownLink={onOpenMarkdownLink} />
+    </div>
+  );
+}
+
 function Centered({ children, tone }: { children: React.ReactNode; tone?: 'error' }) {
   return (
     <div style={{
       height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 16, textAlign: 'center', fontFamily: 'var(--cth-font-ui)', fontSize: 14,
+      padding: 16, textAlign: 'center', fontFamily: 'var(--cth-font-ui)', fontSize: 13,
       color: tone === 'error' ? 'var(--cth-coral)' : 'var(--cth-ink-500)'
     }}>{children}</div>
   );
@@ -502,6 +694,6 @@ const iconBtn: React.CSSProperties = {
 const textBtn: React.CSSProperties = {
   padding: '0 6px', height: 20, fontFamily: 'var(--cth-font-ui)', fontSize: 12,
   color: 'var(--cth-ink-900)', background: 'var(--cth-cream-100)', border: 'none',
-  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)', cursor: 'pointer',
+  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)', cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4
 };

@@ -4,14 +4,15 @@ import { PixelBadge } from './PixelBadge';
 import { PixelButton } from './PixelButton';
 import { SpritePortrait } from './SpritePortrait';
 import { PtyTerminalView } from './PtyTerminalView';
+import { terminalInstanceKey } from './terminalRecovery';
 import { MessageQueueComposer } from './MessageQueueComposer';
 import { CommandCenterPanel } from './CommandCenterPanel';
 import { disposeTerminal } from './terminalPool';
 import { SidebarTabs } from './SidebarTabs';
-import { FilesTab } from './FilesTab';
 import { ThreadsPanel } from './ThreadsPanel';
 import { ToolWaterfall } from './ToolWaterfall';
 import { AgentControlStrip } from './AgentControlStrip';
+import { GitTab } from './GitTab';
 import { Icon } from './Icon';
 import { useStore, type Agent } from '@/store/store';
 import { usePtyParser } from '@/hooks/usePtyParser';
@@ -93,7 +94,7 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
         <div style={{
           width: 32, height: 32,
           background: `var(--cth-${agent.accent}-light)`,
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
           flexShrink: 0
         }}>
@@ -116,6 +117,13 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
             }}>{agent.project}</span>
           </div>
         </div>
+        {/* v0.3.4: the IDE lives at agent level (replaces the old files tab) —
+            opens the full-window Monaco editor rooted at this agent's workspace. */}
+        <PixelButton variant="secondary" size="sm" onClick={() => useStore.getState().setIdeOpen(true)}>
+          <span title={`Open the IDE — file editor + git diff for ${agent.project}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Icon name="code" /> IDE
+          </span>
+        </PixelButton>
         <PixelButton variant="secondary" size="sm" onClick={openTerminal} disabled={openTerminalState === 'opening'}>
           <span title={`open Terminal.app at ${agent.cwd}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <Icon name="terminal" />
@@ -156,7 +164,7 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
             <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
                 <PtyTerminalView
-                  key={agent.ptyId}
+                  key={terminalInstanceKey(agent.ptyId, agent.terminalGeneration)}
                   ptyId={agent.ptyId}
                   onStreamData={onPtyStream}
                   onUserPrompt={(t) => {
@@ -181,8 +189,8 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
           )
         )}
 
-        {sidebarTab === 'files' && (
-          <FilesTab cwd={agent.cwd} />
+        {sidebarTab === 'git' && (
+          <GitTab cwd={agent.cwd} />
         )}
 
         {sidebarTab === 'messages' && (
@@ -210,7 +218,7 @@ function EmptyTab({ title, children }: { title: string; children: React.ReactNod
         color: 'var(--cth-ink-500)'
       }}>{title.toUpperCase()}</div>
       <p style={{
-        margin: 0, fontSize: 14, textAlign: 'center', color: 'var(--cth-ink-700)',
+        margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)',
         maxWidth: 280
       }}>{children}</p>
     </div>

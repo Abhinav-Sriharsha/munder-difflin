@@ -25,8 +25,8 @@ export function MonacoDiff({ path, original, modified }: MonacoDiffProps) {
       options={{
         readOnly: true,
         renderSideBySide: true,
-        fontFamily: 'VT323, "JetBrains Mono", monospace',
-        fontSize: 15,
+        fontFamily: '"JetBrains Mono", "SF Mono", Menlo, monospace',
+        fontSize: 12,
         lineHeight: 20,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,

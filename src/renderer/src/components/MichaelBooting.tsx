@@ -34,7 +34,7 @@ export function MichaelBooting() {
               ))}
             </div>
             <p style={{
-              margin: 0, fontSize: 14, lineHeight: '20px', textAlign: 'center',
+              margin: 0, fontSize: 13, lineHeight: '20px', textAlign: 'center',
               color: 'var(--cth-ink-700)'
             }}>
               Michael is settling into the corner office and getting the floor

@@ -2,35 +2,27 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import '@xterm/xterm/css/xterm.css';
 import { Icon } from './Icon';
-import { acquireTerminal, attachTerminal } from './terminalPool';
+import { acquireTerminal, attachTerminal, detachTerminal, reflowTerminal } from './terminalPool';
+import {
+  DEFAULT_TERMINAL_FONT_SIZE,
+  MAX_TERMINAL_FONT_SIZE,
+  MIN_TERMINAL_FONT_SIZE,
+  getTerminalFontSize,
+  setTerminalFontSize,
+  useTerminalFontSize
+} from './terminalFontSize';
+import { useAppTheme } from '@/design/theme';
 
-const DEFAULT_FONT_SIZE = 14;
-const MIN_FONT_SIZE = 8;
-const MAX_FONT_SIZE = 40;
+// Zoom lives in ./terminalFontSize so anything outside the terminal (the message
+// composer) can scale with it too; these aliases keep the call sites below short.
+const DEFAULT_FONT_SIZE = DEFAULT_TERMINAL_FONT_SIZE;
+const MIN_FONT_SIZE = MIN_TERMINAL_FONT_SIZE;
+const MAX_FONT_SIZE = MAX_TERMINAL_FONT_SIZE;
 
-const LS_FONT_SIZE = 'cth.ptyFontSize';
-const LS_THEME = 'cth.ptyTheme';
-
+// v0.3.4: the terminal follows the APP-WIDE theme (design/theme.ts, toggled in
+// the title bar) instead of keeping its own light/dark switch — one theme for
+// chrome, terminal, and (via config.terminalTheme) each agent's TUI palette.
 type PtyTheme = 'light' | 'dark';
-
-function loadFontSize(): number {
-  try {
-    const n = parseInt(window.localStorage.getItem(LS_FONT_SIZE) ?? '', 10);
-    if (!Number.isNaN(n) && n >= MIN_FONT_SIZE && n <= MAX_FONT_SIZE) return n;
-  } catch { /* noop */ }
-  return DEFAULT_FONT_SIZE;
-}
-
-function loadTheme(): PtyTheme {
-  try {
-    const v = window.localStorage.getItem(LS_THEME);
-    if (v === 'dark' || v === 'light') return v;
-  } catch { /* noop */ }
-  // Cream by default — safe because each agent's per-session Claude settings
-  // mirror the terminal theme, so the TUI paints the matching truecolor
-  // palette (light on cream, dark on ink).
-  return 'light';
-}
 
 const zoomBtnStyle: CSSProperties = {
   width: 18,
@@ -61,7 +53,7 @@ const zoomBtnStyle: CSSProperties = {
 const lightTheme = {
   background: '#FCFAF0',
   foreground: '#1A1320',
-  cursor: '#FF6B6B',
+  cursor: '#D96A62',
   cursorAccent: '#FCFAF0',
   selectionBackground: '#FFEC99',
   selectionForeground: '#1A1320',
@@ -83,30 +75,32 @@ const lightTheme = {
   brightWhite:  '#1A1320'
 };
 
-// Dark theme — the original neon-on-ink palette (designed for a dark background).
+// Dark theme — v0.3.4: matches the app's dark surface ramp (tokens.css
+// data-cth-theme='dark'). Muted-professional ANSI set: recognizable hues, no
+// fluorescing on the dark ground; brights are one legible step up, not pastels.
 const darkTheme = {
-  background: '#1A1320',
-  foreground: '#F3ECF7',
-  cursor: '#FF6B6B',
-  cursorAccent: '#1A1320',
-  selectionBackground: '#3A2F44',
-  selectionForeground: '#FFF8E7',
-  black:        '#241B2C',
-  red:          '#FF6B6B',
-  green:        '#6BCF7F',
-  yellow:       '#FFD93D',
-  blue:         '#4ECDC4',
-  magenta:      '#B197FC',
-  cyan:         '#4ECDC4',
-  white:        '#F3ECF7',
-  brightBlack:  '#857693',
-  brightRed:    '#FFB4B4',
-  brightGreen:  '#B4E5BD',
-  brightYellow: '#FFEC99',
-  brightBlue:   '#A8E6E0',
-  brightMagenta:'#D6C5FF',
-  brightCyan:   '#A8E6E0',
-  brightWhite:  '#FFFDF5'
+  background: '#1D1C21',
+  foreground: '#E8E6E3',
+  cursor: '#DF8078',
+  cursorAccent: '#1D1C21',
+  selectionBackground: '#37363E',
+  selectionForeground: '#E8E6E3',
+  black:        '#26252C',
+  red:          '#DF8078',
+  green:        '#6FB88B',
+  yellow:       '#D8B052',
+  blue:         '#64ACBB',
+  magenta:      '#A493E0',
+  cyan:         '#64ACBB',
+  white:        '#E8E6E3',
+  brightBlack:  '#8F8C90',
+  brightRed:    '#EBA39C',
+  brightGreen:  '#96CDA9',
+  brightYellow: '#E5C87E',
+  brightBlue:   '#8FC5D1',
+  brightMagenta:'#C0B3EB',
+  brightCyan:   '#8FC5D1',
+  brightWhite:  '#F5F4F2'
 };
 
 const THEMES: Record<PtyTheme, typeof lightTheme> = { light: lightTheme, dark: darkTheme };
@@ -131,9 +125,9 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
   onStreamDataRef.current = onStreamData;
   const onUserPromptRef = useRef(onUserPrompt);
   onUserPromptRef.current = onUserPrompt;
-  const [fontSize, setFontSize] = useState(loadFontSize);
+  const fontSize = useTerminalFontSize();
   const fontSizeRef = useRef(fontSize);
-  const [ptyTheme, setPtyTheme] = useState<PtyTheme>(loadTheme);
+  const ptyTheme: PtyTheme = useAppTheme();
   const ptyThemeRef = useRef(ptyTheme);
   ptyThemeRef.current = ptyTheme;
 
@@ -240,27 +234,47 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
     const onWinResize = () => tryFit(false);
     window.addEventListener('resize', onWinResize);
 
+    // Self-heal after a display wake. Closing the laptop lid sleeps the GPU,
+    // which loses the WebGL context and leaves xterm's cached cell-height (and
+    // the viewport scroll-area derived from it) stale — the full buffer is still
+    // there but only part is scrollable until a re-measure (the user otherwise
+    // has to zoom to force a fit). The ResizeObserver/resize listeners DON'T fire
+    // on lid-open because the window's pixel size is unchanged, so we re-fit
+    // explicitly when the page becomes visible / regains focus. reflowTerminal
+    // re-measures + refits WITHOUT scrolling, so a user reading history isn't
+    // yanked to the bottom. rAF lets the waking layout settle first; if the host
+    // is still unsized the reflow no-ops and the next focus/visibility catches it.
+    const onWake = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      requestAnimationFrame(() => reflowTerminal(ptyId));
+    };
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('focus', onWake);
+
     return () => {
       retries.forEach(clearTimeout);
       ro.disconnect();
       window.removeEventListener('resize', onWinResize);
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('focus', onWake);
       // Detach (but DON'T dispose) the terminal — it keeps running in the pool.
+      // detachTerminal also releases the WebGL lease, so a terminal nobody is
+      // looking at stops holding a GPU context that an on-screen one needs.
       entry.onData = undefined;
       entry.onPrompt = undefined;
-      if (entry.host.parentElement === container) container.removeChild(entry.host);
+      detachTerminal(entry, container);
     };
   }, [ptyId]);
 
-  // Apply theme changes to the pooled terminal and persist the choice.
+  // Apply app-theme changes to the pooled terminal (persistence lives in
+  // design/theme.ts — the title-bar toggle owns it).
   useEffect(() => {
-    try { window.localStorage.setItem(LS_THEME, ptyTheme); } catch { /* noop */ }
     acquireTerminal(ptyId, THEMES[ptyTheme], fontSizeRef.current).term.options.theme = THEMES[ptyTheme];
   }, [ptyTheme, ptyId]);
 
   // Apply font-size (zoom) changes to the pooled terminal and re-fit cols/rows.
   useEffect(() => {
     fontSizeRef.current = fontSize;
-    try { window.localStorage.setItem(LS_FONT_SIZE, String(fontSize)); } catch { /* noop */ }
     const entry = acquireTerminal(ptyId, THEMES[ptyThemeRef.current], fontSize);
     entry.term.options.fontSize = fontSize;
     try {
@@ -315,9 +329,8 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
     void window.cth.writePty(ptyId, paths.join(' ') + ' ');
   };
 
-  const zoom = (delta: number) =>
-    setFontSize((s) => Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, s + delta)));
-  const resetZoom = () => setFontSize(DEFAULT_FONT_SIZE);
+  const zoom = (delta: number) => setTerminalFontSize(getTerminalFontSize() + delta);
+  const resetZoom = () => setTerminalFontSize(DEFAULT_FONT_SIZE);
 
   // Keyboard zoom: Cmd/Ctrl + '=' / '-' / '0'
   useEffect(() => {
@@ -345,7 +358,7 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6,
         fontFamily: 'var(--cth-font-ui)',
-        fontSize: 13,
+        fontSize: 12,
         color: 'var(--cth-ink-500)',
         borderBottom: '1px dashed var(--cth-ink-300)',
         paddingBottom: 4,
@@ -356,28 +369,14 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
       }}>
         <span style={{
           width: 8, height: 8, background: 'var(--cth-mint)',
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
           animation: 'cth-pulse 1200ms steps(2, end) infinite'
         }} />
         live · pty {ptyId}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
-          <button
-            onClick={() => {
-              const next: PtyTheme = ptyTheme === 'dark' ? 'light' : 'dark';
-              setPtyTheme(next);
-              // Mirror into the harness config: every agent (re)spawned from
-              // now on gets the matching `theme` in its per-session Claude
-              // settings, so the TUI's truecolor palette fits the terminal.
-              // Scoped to harness agents — the user's global Claude theme
-              // (their own terminals) is never touched. Running sessions keep
-              // their palette until they restart.
-              void window.cth.updateConfig({ terminalTheme: next });
-            }}
-            title={ptyTheme === 'dark'
-              ? 'Switch terminal + agent sessions to the light theme'
-              : 'Switch terminal + agent sessions to the dark theme'}
-            style={{ ...zoomBtnStyle, width: 22, marginRight: 4 }}
-          >{ptyTheme === 'dark' ? '☀' : '☾'}</button>
+          {/* v0.3.4: the theme + enter-fullscreen buttons moved to the TITLE BAR
+              (top right) — more accessible, and the theme now darkens the whole
+              app. Only the EXIT affordance stays here, in fullscreen. */}
           <button
             onClick={() => zoom(-1)}
             disabled={fontSize <= MIN_FONT_SIZE}
@@ -395,13 +394,13 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
             title="Zoom in (Cmd +)"
             style={zoomBtnStyle}
           >+</button>
-          {onToggleFullscreen && (
+          {fullscreen && onToggleFullscreen && (
             <button
               onClick={onToggleFullscreen}
-              title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen terminal'}
+              title="Exit fullscreen (Esc)"
               style={{ ...zoomBtnStyle, width: 22, height: 22, marginLeft: 4 }}
             >
-              <Icon name={fullscreen ? 'minimize' : 'expand'} />
+              <Icon name="minimize" />
             </button>
           )}
         </div>

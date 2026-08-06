@@ -249,6 +249,130 @@ export function realtimeActionTools(): ReturnType<typeof tool>[] {
       execute: (input) => act('edit_schedule', input)
     }),
 
+    // ── v0.3.4 full-control verbs ─────────────────────────────────────────
+    tool({
+      name: 'resume_agent',
+      description:
+        'Resume a paused or halted agent so its tools flow again. Soft action — runs immediately. The undo for pause_agent / halt_agent.',
+      parameters: {
+        type: 'object',
+        properties: { agentId: { type: 'string', description: 'Agent name or id to resume.' } },
+        required: ['agentId'],
+        additionalProperties: false
+      },
+      execute: (input) => act('resume', input)
+    }),
+    tool({
+      name: 'set_auto_delivery',
+      description:
+        'Pause or resume automatic message-queue delivery to one agent. Paused = queued messages wait until resumed. Soft action — runs immediately.',
+      parameters: {
+        type: 'object',
+        properties: {
+          agentId: { type: 'string', description: 'Agent name or id.' },
+          state: { type: 'string', enum: ['pause', 'resume'], description: 'pause holds the queue; resume lets it flow.' }
+        },
+        required: ['agentId', 'state'],
+        additionalProperties: false
+      },
+      execute: (input) => act('auto_delivery', input)
+    }),
+    tool({
+      name: 'gate_tool',
+      description:
+        'Block (gate) or unblock one named tool for one agent — e.g. gate Bash for Jim. Soft action — runs immediately.',
+      parameters: {
+        type: 'object',
+        properties: {
+          agentId: { type: 'string', description: 'Agent name or id.' },
+          tool: { type: 'string', description: 'Exact tool name, e.g. Bash, WebFetch, Edit.' },
+          state: { type: 'string', enum: ['gate', 'allow'], description: 'gate blocks it; allow removes the block.' }
+        },
+        required: ['agentId', 'tool', 'state'],
+        additionalProperties: false
+      },
+      execute: (input) => act('gate_tool', input)
+    }),
+    tool({
+      name: 'delete_task',
+      description:
+        'Delete one task card from the board by title or id. Soft action — runs immediately (recreate it if wrong).',
+      parameters: {
+        type: 'object',
+        properties: { taskId: { type: 'string', description: 'Task title or id to delete.' } },
+        required: ['taskId'],
+        additionalProperties: false
+      },
+      execute: (input) => act('delete_task', input)
+    }),
+    tool({
+      name: 'unarchive_agent',
+      description: 'Bring an archived agent back onto the roster. Soft action — runs immediately.',
+      parameters: {
+        type: 'object',
+        properties: { agentId: { type: 'string', description: 'Archived agent name or id.' } },
+        required: ['agentId'],
+        additionalProperties: false
+      },
+      execute: (input) => act('unarchive', input)
+    }),
+    tool({
+      name: 'clear_agent_context',
+      description:
+        "Queue a context clear (/clear) for one agent — wipes its working memory of the current conversation; delivery waits until the agent is idle. DESTRUCTIVE — returns an echo-back and asks for verbal confirmation ('clear' or 'confirm'). After the user confirms, call confirm_action. Allowed on the god orchestrator too (it can resume its session).",
+      parameters: {
+        type: 'object',
+        properties: { agentId: { type: 'string', description: 'Agent name or id whose context to clear.' } },
+        required: ['agentId'],
+        additionalProperties: false
+      },
+      execute: (input) => act('clear_context', input)
+    }),
+    tool({
+      name: 'archive_agent',
+      description:
+        'Archive an agent — takes it off the floor, history kept (unarchive brings it back). DESTRUCTIVE — returns an echo-back and asks for verbal confirmation. After the user confirms, call confirm_action.',
+      parameters: {
+        type: 'object',
+        properties: { agentId: { type: 'string', description: 'Agent name or id to archive.' } },
+        required: ['agentId'],
+        additionalProperties: false
+      },
+      execute: (input) => act('archive', input)
+    }),
+    tool({
+      name: 'create_schedule',
+      description:
+        'Create a NEW recurring schedule that messages an agent on an interval. DESTRUCTIVE — returns an echo-back and asks for verbal confirmation. After the user confirms, call confirm_action.',
+      parameters: {
+        type: 'object',
+        properties: {
+          label: { type: 'string', description: 'Short name for the schedule.' },
+          prompt: { type: 'string', description: 'The message the agent receives each time it fires.' },
+          intervalMinutes: { type: 'number', description: 'How often it fires, in minutes (min 5). Default 60.' },
+          to: { type: 'string', description: 'Target agent name or id. Default: the god orchestrator.' }
+        },
+        required: ['label', 'prompt'],
+        additionalProperties: false
+      },
+      execute: (input) => act('create_schedule', input)
+    }),
+    tool({
+      name: 'update_setting',
+      description:
+        "Change one app setting from the voice-allowed list. Cosmetic/low-risk keys (notifications, officeTheme, terminalTheme, freeflowEnabled, strongKeepalive, autoUpdate, tvShowOffices, realtimeIdleDisconnectMs) apply immediately; behavior-changing keys (autoMode, defaultModel, godProvider, godModel, maxConcurrentWorkers, costCapTokens, maxTurns, slackEnabled, webhookEnabled, semanticMemory, multiWindow) return an echo-back with old→new and need verbal confirmation ('setting' or 'confirm') — then call confirm_action. Secrets, folders and anything not listed are refused.",
+      parameters: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: 'The exact setting key, e.g. autoMode or notifications.' },
+          value: { type: 'string', description: 'The new value: true/false, a number, or the option name.' }
+        },
+        required: ['key', 'value'],
+        additionalProperties: false
+      },
+      execute: (input) => act('update_setting', input)
+    }),
+
     // ── confirm / cancel (drive the two-phase commit) ─────────────────────
     tool({
       name: 'confirm_action',

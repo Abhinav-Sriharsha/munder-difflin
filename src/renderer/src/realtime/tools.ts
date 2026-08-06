@@ -565,6 +565,51 @@ export function realtimeReadTools(): ReturnType<typeof tool>[] {
           if (!text) return 'The board is empty right now.';
           return clip(text, 1800);
         }, 'board')
+    }),
+
+    // ── get_floor_state (v0.3.4) ──────────────────────────────────────────
+    tool({
+      name: 'get_floor_state',
+      description:
+        'The LIVE floor in one call: every active agent with its current status, context fill, breaker state and inbox backlog, plus in-flight tasks. Returns compact JSON plus a one-line spoken summary. Prefer this for "what is everyone doing" style questions.',
+      parameters: { type: 'object', properties: {}, required: [], additionalProperties: false },
+      execute: () =>
+        spoken(async () => {
+          const dir = await window.cth.hiveAgentDirectory();
+          const tasksRaw = (await window.cth.hiveTasks()) as { tasks?: unknown } | null;
+          const tasks = Array.isArray(tasksRaw?.tasks) ? (tasksRaw!.tasks as unknown[]).map(obj) : [];
+          const rows = (Array.isArray(dir?.agents) ? (dir.agents as unknown[]) : [])
+            .map(obj)
+            .filter((a) => !a.archived)
+            .map((a) => ({
+              name: str(a.name) || str(a.id),
+              status: str(a.status) || 'unknown',
+              engine: str(a.provider) || undefined,
+              contextPct: typeof a.contextPct === 'number' ? a.contextPct : undefined,
+              breaker: str(a.breaker) && str(a.breaker) !== 'healthy' ? str(a.breaker) : undefined,
+              inbox: typeof a.inboxBacklog === 'number' && a.inboxBacklog > 0 ? a.inboxBacklog : undefined
+            }));
+          const doing = tasks.filter((t) => str(t.status) === 'doing').map((t) => ({ title: str(t.title), owner: str(t.assignee) || undefined }));
+          const blocked = tasks.filter((t) => str(t.status) === 'blocked').map((t) => ({ title: str(t.title), owner: str(t.assignee) || undefined }));
+          const summary = `${plural(rows.length, 'agent')} on the floor, ${doing.length} in progress, ${blocked.length} blocked.`;
+          // Flagged JSON per the Realtime prompting guidance: precise fields the
+          // model can quote verbatim, with the spoken line separate.
+          return `${summary} DATA: ${JSON.stringify({ agents: rows, doing, blocked })}`;
+        }, 'floor state')
+    }),
+
+    // ── get_app_info (v0.3.4) ─────────────────────────────────────────────
+    tool({
+      name: 'get_app_info',
+      description:
+        'About the Munder Difflin app itself: the running version and the latest release notes (changelog). Use for "what version is this" or "what is new in this release".',
+      parameters: { type: 'object', properties: {}, required: [], additionalProperties: false },
+      execute: () =>
+        spoken(async () => {
+          const info = await window.cth.appInfo();
+          const notes = despan(info.changelog || '');
+          return `This is Munder Difflin version ${info.version}. ${notes ? `Latest release notes: ${clip(notes, 1600)}` : 'No release notes are bundled with this build.'}`;
+        }, 'app info')
     })
   ];
 }
@@ -577,41 +622,42 @@ export function realtimeReadTools(): ReturnType<typeof tool>[] {
  */
 export async function realtimeSessionSummary(): Promise<string> {
   try {
-    // rt-7: also pull the recent hive log so the warm-start carries what the OTHER
-    // orchestrator (god) + the floor have just been doing — dual-orchestrator awareness
-    // so voice-Michael doesn't duplicate or contradict god's moves.
-    const [reg, tasksRaw, logRaw] = await Promise.all([
-      window.cth.hiveRegistry(),
-      window.cth.hiveTasks(),
-      window.cth.hiveLog(20).catch(() => [] as unknown[])
+    // v0.3.4: a COMPACT PER-AGENT TABLE, not just counts — most "what's
+    // happening" questions should be answerable from this alone, with zero
+    // tool round-trips. Injected as the FIRST CONVERSATION ITEM (not into the
+    // instructions), so the cached prompt prefix stays byte-stable.
+    const [dir, tasksRaw] = await Promise.all([
+      window.cth.hiveAgentDirectory(),
+      window.cth.hiveTasks()
     ]);
-    const agents = Object.entries(obj(reg.agents));
-    const active = agents.filter(([, a]) => !obj(a).archived).length;
-    const godName = reg.godId ? str(obj(obj(reg.agents)[reg.godId]).name) || reg.godId : null;
-    const list = Array.isArray(obj(tasksRaw).tasks) ? (obj(tasksRaw).tasks as unknown[]) : [];
-    const doing = list.map(obj).filter((t) => str(t.status) === 'doing').length;
-    const blocked = list.map(obj).filter((t) => str(t.status) === 'blocked').length;
-    // Last few meaningful events (spawns, messages, voice actions), newest first.
-    const events = Array.isArray(logRaw) ? logRaw : [];
-    const recent = events
-      .slice(-6)
-      .reverse()
-      .map((e) => {
-        const o = obj(e);
-        const kind = str(o.kind) || str(o.event) || 'event';
-        const who = str(o.actor) || str(o.from) || str(o.agentId) || str(o.name);
-        return who ? `${kind} by ${who}` : kind;
-      })
-      .filter(Boolean);
-    const activity = recent.length ? ` Recent floor activity: ${recent.join('; ')}.` : '';
+    const rows = (Array.isArray(dir?.agents) ? (dir.agents as unknown[]) : []).map(obj).filter((a) => !a.archived);
+    const godRow = rows.find((a) => a.isGod === true);
+    const lines = rows.slice(0, 20).map((a) => {
+      const bits = [
+        `${str(a.name) || str(a.id)} is ${str(a.status) || 'in an unknown state'}`,
+        str(a.provider) ? `on ${str(a.provider)}` : '',
+        typeof a.contextPct === 'number' ? `context ${Math.round(a.contextPct as number)} percent full` : '',
+        str(a.breaker) && str(a.breaker) !== 'healthy' ? `breaker ${str(a.breaker)}` : '',
+        typeof a.inboxBacklog === 'number' && (a.inboxBacklog as number) > 0 ? `${a.inboxBacklog} unread` : ''
+      ].filter(Boolean);
+      return bits.join(', ');
+    });
+    const list = Array.isArray(obj(tasksRaw).tasks) ? (obj(tasksRaw).tasks as unknown[]).map(obj) : [];
+    const doing = list.filter((t) => str(t.status) === 'doing');
+    const blocked = list.filter((t) => str(t.status) === 'blocked');
+    const taskLine = [
+      doing.length
+        ? `In progress: ${doing.slice(0, 5).map((t) => `"${str(t.title)}"${str(t.assignee) ? ` with ${str(t.assignee)}` : ''}`).join('; ')}.`
+        : 'Nothing is in progress on the board.',
+      blocked.length ? `Blocked: ${blocked.slice(0, 4).map((t) => `"${str(t.title)}"`).join('; ')}.` : ''
+    ].filter(Boolean).join(' ');
     return (
-      `Current hive snapshot: ${plural(active, 'agent')} active` +
-      `${godName ? `, ${godName} orchestrating alongside you` : ''}; ` +
-      `${doing} task${doing === 1 ? '' : 's'} in progress` +
-      `${blocked ? ` and ${plural(blocked, 'blocked')}` : ''}.` +
-      activity +
-      ` You share the floor with god (the typing orchestrator) — before you dispatch or create work,` +
-      ` glance at recent activity so you don't duplicate what god just did. Use your read-tools for live detail.`
+      `Floor at connect — ${plural(rows.length, 'agent')} active` +
+      `${godRow ? `, ${str(godRow.name)} orchestrating alongside you` : ''}. ` +
+      `Per agent: ${lines.join(' | ') || 'none'}. ` +
+      taskLine +
+      ` You will also receive short "(Floor update: …)" notes as things change mid-call — trust those over this snapshot.` +
+      ` You share the floor with god (the typing orchestrator); the board is the single source of truth.`
     );
   } catch {
     return '';

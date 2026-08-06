@@ -5,7 +5,13 @@ import { PixelButton } from './PixelButton';
  *  boundary), graceful halt (clean stop), and mid-run steering (inject context
  *  without typing into the TUI). All ride Claude Code's hook-return protocol; no
  *  PTY keystrokes. A thin strip under the agent header. */
-interface Snapshot { paused: boolean; halted: boolean; gatedTools: string[]; pendingSteers: number }
+interface Snapshot {
+  paused: boolean;
+  halted: boolean;
+  autoDeliveryPaused: boolean;
+  gatedTools: string[];
+  pendingSteers: number;
+}
 
 export function AgentControlStrip({ agentId }: { agentId: string }) {
   const [snap, setSnap] = useState<Snapshot | null>(null);
@@ -56,6 +62,11 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
           {snap?.paused ? 'resume' : 'pause'}
         </PixelButton>
         <PixelButton variant="destructive" size="sm" onClick={halt}>halt</PixelButton>
+        {/* v0.3.4: the auto-delivery switch moved to the god's Command Center
+            header — ONE floor-wide control instead of a per-agent toggle. */}
+        {snap?.autoDeliveryPaused && (
+          <span style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>delivery paused (floor)</span>
+        )}
         {snap?.halted && <span style={{ fontSize: 11, color: 'var(--cth-coral)' }}>halting…</span>}
         {!!snap?.pendingSteers && <span style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>{snap.pendingSteers} steer queued</span>}
       </div>
@@ -67,7 +78,7 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
           placeholder="steer this agent (injected as context, no typing into its terminal)…"
           style={{
             flex: 1, padding: '4px 6px', background: 'var(--cth-paper-100)', border: 'none',
-            boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)', fontFamily: 'var(--cth-font-ui)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)', fontFamily: 'var(--cth-font-ui)',
             fontSize: 12, color: 'var(--cth-ink-900)', outline: 'none'
           }}
         />

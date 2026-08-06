@@ -2,9 +2,11 @@ import { type SidebarTab } from '@/store/store';
 import { type AccentColorName } from '@/design/tokens';
 import { Icon, type IconName } from './Icon';
 
+// v0.3.4: the files tab is gone — the per-agent IDE button (header) opens the
+// full Monaco editor + file tree, which superseded the read-only browser.
 const TABS: { key: SidebarTab; label: string; icon: IconName }[] = [
   { key: 'terminal', label: 'terminal', icon: 'terminal' },
-  { key: 'files',    label: 'files',    icon: 'folder' },
+  { key: 'git',      label: 'git',      icon: 'code' },
   { key: 'messages', label: 'messages', icon: 'bell' },
   { key: 'traces',   label: 'traces',   icon: 'web' }
 ];

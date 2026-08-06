@@ -4,6 +4,105 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] — 2026-08-06
+
+**The queue you can trust, a Michael who actually knows the floor, and an IDE that shows
+you everything.** A community release: the headline terminal/queue/roster reliability wave
+is by [@gts-47](https://github.com/gts-47) (Vyapak Goyal), with major fixes by
+[@qschmick](https://github.com/qschmick) ([#110](https://github.com/chaitanyagiri/munder-difflin/pull/110),
+[#111](https://github.com/chaitanyagiri/munder-difflin/pull/111),
+[#112](https://github.com/chaitanyagiri/munder-difflin/pull/112),
+[#114](https://github.com/chaitanyagiri/munder-difflin/pull/114)). Plus four new
+first-party features — **voice Michael with live floor context + full app control**,
+**markdown previews** (IDE and ⌘-click in any terminal), **git history / branch compare /
+safe checkout** in the IDE, and a **redesigned six-tab Settings** — alongside **xAI Grok
+and Kimi Code as first-class engines**, **auto-update from GitHub releases**, a
+**professional type + color recalibration with full-app dark mode**, and a **scheduled
+auto-compact switch (default off)**.
+
+### Added (v0.3.4 feature wave)
+- **Talk mode grows up: live context + full control.** Michael's voice session now opens
+  with a compact per-agent floor snapshot (status, engine, context fill, breaker, inbox,
+  in-flight tasks) and receives silent "(Floor update: …)" notes as things change mid-call
+  — most "what's happening" questions need zero look-ups. New read tools: `get_floor_state`
+  (precise live-floor JSON) and `get_app_info` (app version + release notes — "what's new
+  in this version?" finally has an answer). New voice verbs behind the same safety spine:
+  **resume** (the missing undo for pause/halt), auto-delivery pause/resume, tool gating,
+  delete task, archive/unarchive, **clear an agent's context** (queued through every
+  delivery gate; allowed on god behind confirm), **create schedules**, and **change
+  settings** from a strict main-side allowlist (secrets and dangerous keys refused
+  outright; behavior-changing keys echo old→new and require the distinct confirm word).
+  Model bumped to gpt-realtime-2.1.
+- **Markdown previews everywhere agents write them.** Markdown files in the IDE get a
+  **code | split | preview** switch with live re-render as you type; **⌘-click any `.md`
+  path an agent prints in its terminal** to open a rendered preview instantly (edit toggle
+  + "open in IDE" escalation included). Rendering is safe by construction for untrusted
+  agent output — no raw-HTML pipeline exists, links never navigate the app, and remote
+  images stay blocked.
+- **Git time-machine in the IDE.** The left rail becomes **CHANGES · HISTORY · COMPARE**:
+  a clickable commit graph (topologically ordered, all worktree branches, paginated) where
+  picking a commit lists its files and opens per-file Monaco diffs; branch compare with
+  ahead/behind counts and PR-style or literal modes; and **guarded checkout** — jump to
+  any commit or branch, refused automatically when the tree is dirty or an agent is
+  actively working in it. The slim git status panel also returns as a per-agent sidebar tab.
+- **Settings, redesigned into six tabs** — General · Agents & Models · Autonomy & Budgets ·
+  Connections · Voice · Memory & Knowledge. The default agent model, autonomy mode,
+  keep-Mac-awake, explain-things-simply, and the full circuit breaker (hard-stop included)
+  all get real controls for the first time; dead display-only rows are gone; Danger Zone
+  became a red row in General. Plus config truth fixes: Knowledge Graph genuinely defaults
+  off, and the Free Flow toggle no longer shows OFF while the feature is on.
+
+### Added
+- **Auto-update.** Packaged builds check GitHub releases on boot and every ~6 hours, download the new
+  version in the background, and show a small "restart to update" toast — installation is always your
+  click; the app never restarts on its own. Installs that can't self-update (the Windows portable exe)
+  get a notify-only toast linking the release page. Settings → General → **Auto-update** turns the
+  whole thing off. (Auto-update starts working for users **on 0.3.4+**; 0.3.3 and earlier have no
+  updater — grab this release from the site once more.)
+- **xAI Grok, a first-class agent engine** (`grok`) — worker *and* orchestrator-eligible. Grok's
+  lifecycle events are Claude-compatible but camelCase on the wire; an AGENT_ID-scoped hook adapter
+  (`installGrokHooks`) normalizes them into the hive's contract, so live status, guarded inbox
+  delivery, and operator gates all work. `grok [PROMPT]` takes the protocol positionally and
+  `--resume` continues a session. *(gts-47)*
+- **Kimi Code engine** (`kimi`) — spawn Kimi workers with `--auto` autonomy and the K3/K2.7 model
+  aliases. No hook bridge yet, so routed mail bounces to the god rather than silently dropping. *(gts-47)*
+- **Scheduled auto-compact switch — default OFF.** The dedicated compact-maintenance schedule (v0.3.2)
+  now ships disabled: scheduled `/compact` is opt-in. Flip it in Settings → General → **Scheduled
+  auto-compact** or the Schedules tab (which keeps its interval picker and its warning when off).
+  Existing installs keep whatever state they already chose. Scheduled compaction is now also
+  **provider-aware** — each engine gets its own compact command instead of Claude's only. *(founder decision + gts-47)*
+- **Fullscreen agent roster rail.** The horizontal tab bar ran out of room past a handful of agents and hid the operator controls; it's replaced by a left rail — `+ agent` pinned at the top, god agents ungrouped above everything, workers bucketed under repository headers, restore-team and its dismiss chips pinned at the bottom. An isolated agent's cwd is its own git worktree, so a new `mainRepoRoot` helper follows a linked worktree back to its main checkout (cached per cwd) and groups key on the absolute repo root, so two checkouts with the same name stay separate. Notes render on the row (one line per bullet) instead of behind a hover popover, the note editor becomes a textarea so Enter makes a new bullet instead of dropping every bullet but the first, pause/halt/steer come back in fullscreen, god agents render the full Command Center, and drag-to-reorder carries over (confined to an agent's own repository group). The destructive kill button is gone.
+- **`typing` badge — see why a queue is held.** A message queue held by your own unsent text on an agent's prompt used to look identical to an idle agent with nothing to do. Agent cards and the fullscreen roster now show a **"your draft"** badge whenever you have unsubmitted text on that agent's prompt. It's derived at render from the same check the delivery gate uses, so the badge can never disagree with the reason nothing is being delivered.
+- **[`docs/message-queue.md`](./docs/message-queue.md)** — the delivery contract: who may type into an agent's terminal, when, and what automation is never allowed to do to your text.
+- **Remote Control sessions are named after the agent** ([#81](https://github.com/chaitanyagiri/munder-difflin/pull/81)). claude.ai / the mobile app now shows "Michael", "Jim", … instead of `<hostname>-<random>`, so a floor full of RC sessions is finally tellable-apart. *(gts-47)*
+- **Roster shared between dev and a packaged build.** The roster (agents + notes + queues + selection) mirrors to a file beside the hive (`src/main/roster.ts`), so the dev build and the installed app see the same team; localStorage remains the per-origin fallback. Restore-team also runs **in parallel**, fires **on open**, and each restorable agent gets its own ✕ dismiss. *(gts-47)*
+- **Fable 5 + Sonnet 5** in the Claude model picker (Fable 5 is the new default model). The two "default" entries — the harness's configured default vs the CLI's own — are now labeled distinctly in every picker, and every Claude option names a real model. *(gts-47)*
+- **New test suites** — queue delivery, terminal automation + recovery, roster persistence, provider config/automation, codex remote, agent env, and PID release (`npm run test:focused` + `test/proc-kill.test.cjs`). *(gts-47, qschmick)*
+
+### Changed
+- **One gate for every automatic writer.** The queue kept breaking because two loops each decided for themselves when it was safe to type into a terminal. The inbox-wake nudge now enqueues like scheduled `/compact` already did, so a single drain loop owns every "is this terminal free?" decision — idle, off cooldown, past boot grace, delivery not paused, no user draft in the way.
+- **Automation never destroys or closes what you own.** A draft block lasts half an hour rather than a minute, a picker block half an hour rather than three minutes, and when either expires delivery simply types *after* whatever is on the line (the two fuse into one prompt). Wiping the line first, and sending Escape at an open picker, are both gone — deleting text is worse than garbling one prompt, and we can't verify that Escape closed anything. Both keys remain on the composer's own button, where you asked for them.
+- **Terminal zoom scales the whole pane.** Cmd +/- moved out of `PtyTerminalView` into a shared subscribable module, so it now scales the message composer and the roster along with the terminal instead of leaving them pinned at sizes tuned for a 14" display.
+- **Changing an agent's model within the same provider resumes its session** instead of starting fresh (best-effort — an agent with no recorded session still gets its model changed). The Command Center picker is now **cross-provider** (switch an agent between engines from one dropdown).
+- **Codex resume actually resumes.** Codex has no `--resume` flag — it resumes via the `codex resume` subcommand — and its rollout transcript + sqlite index live together in a per-agent `CODEX_HOME`. Respawns now use the subcommand, and resuming by a pasted session id points `CODEX_HOME` at the agent home whose state DB actually indexes that session (a stray rollout copy without an index can't be opened). Codex workers also get **Codex Remote**: the app-server daemon is started under the agent's isolated home so the thread shows up in ChatGPT mobile. *(gts-47)*
+- **Restore team runs in parallel** and the login-shell capture is memoised, so rebuilding a roster no longer serialises one shell probe per agent. Agents are added in roster order rather than completion order.
+
+### Fixed
+- **Blank terminal pane where typing does nothing.** Three causes, which is why every single-cause fix only half-worked. (a) WebGL is now a lease taken on attach and released on detach — a browser allows only ~16 live contexts and silently discards the oldest past that cap, so restoring a team blew the cap and Chromium killed a background terminal's renderer while its pty, buffer and subscription stayed healthy. (b) `requestInitialPtyRedraw` latches only once the redraw actually succeeds, instead of burning the terminal's one chance on a failed fire-and-forget IPC. (c) The needs-repaint marker is cleared only after the refresh returns, so a throw no longer discards the last record that the terminal needed repainting.
+- **Message queue silently stopped delivering to an agent.** (a) Only a *bare* command opens a picker — `/model` prompts you to choose, `/model sonnet` applies the argument and returns to the prompt; first-token matching latched the block on both and the submitting Enter couldn't clear it. (b) The picker block now expires like the draft block does, so a picker closed in a way we can't observe no longer wedges the queue for the rest of the session. (c) `lineBuf` moved onto the pool entry and is reset everywhere `inputDirty` is — as a closure variable it survived a draft clear, so the next keystroke recomputed the block from text that had just been deleted.
+- **Phantom drafts blocked delivery against text that didn't exist.** `inputDirty` is inferred by counting keystrokes, and a TUI that swallows keys for its own UI leaves it set while the prompt is visibly empty. The prompt is now read from xterm's rendered buffer (cursor row, prompt chrome stripped) — deliberately one-directional: the screen can only *clear* a phantom draft, never invent one, because being wrong the other way would type over something you really wrote.
+- **A queued message could be typed into an open picker and acked as delivered.** Clearing the input line no longer clears the picker latch — Ctrl-U kills the input line, it does not close a menu — so automation is no longer told the prompt is free while a picker still owns it.
+- **A model or command change died on reload.** `updateAgent` now persists when a durable field changes (volatile run-state fields — status, action, progress, context counters — still skip the write, so a burst of terminal output doesn't rewrite storage).
+- **The roster stopped spawning `git rev-parse` on every chunk of terminal output** — failed and in-flight repo lookups are cached, so an agent outside a repo is looked up once.
+- **Killed processes actually die** ([#110](https://github.com/chaitanyagiri/munder-difflin/pull/110)). Every explicit kill was a bare node-pty `proc.kill()` — one SIGHUP to the direct child only, so a TUI that traps SIGHUP lived on and its children (MCP servers, helper daemons) reparented to PID 1 and kept running for the machine's uptime. Every kill path now routes through `ensureKilled`: a grace signal, then SIGKILL of the whole process group (POSIX) / `taskkill /T /F` (Windows). *(qschmick)*
+- **Circuit-breaker false-positive storm on idle/compacting agents** ([#109](https://github.com/chaitanyagiri/munder-difflin/issues/109) → [#112](https://github.com/chaitanyagiri/munder-difflin/pull/112)). Compaction and inbox-ack token bursts no longer read as looping. *(qschmick)*
+- **Shell-capture fencing.** The interactive login shell used for PATH/`which` capture runs the user's rc files, which are free to print (zsh's "Restored session: …" plugin chatter was being prepended to every agent's PATH). Capture output is now fenced between markers, with a multi-line sanity check before a PATH is trusted. *(gts-47)*
+- **Fullscreen surfaces notes and modals** (they stacked under the overlay); **an un-echoed keystroke no longer reads as an empty prompt**; **expired automation blocks are acted on** instead of typed through. *(gts-47)*
+
+### Performance
+- **~350× faster warm usage reads** — an incremental per-file transcript cache replaces re-reading every transcript on each poll ([#111](https://github.com/chaitanyagiri/munder-difflin/pull/111)). *(qschmick)*
+- **Spawns stopped freezing the app.** Command resolution is memoized (with on-disk revalidation) and the login-shell PATH is captured once per session — each interactive-shell launch cost ~1s of blocked main thread, paid twice per spawn, ×N on a team restore ([#114](https://github.com/chaitanyagiri/munder-difflin/pull/114) + gts-47's equivalent, merged). *(qschmick + gts-47)*
+
 ## [0.3.3] — 2026-07-03
 
 **An IDE on the floor, and a seventh engine.** Two headliners: a **built-in Monaco IDE** — the

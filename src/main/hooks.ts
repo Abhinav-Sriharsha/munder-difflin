@@ -5,9 +5,8 @@
  * shim (see HOOK_SHIM in hive.ts) that forwards the hook payload to the Unix
  * domain socket this server listens on. We then:
  *   - drive avatar state from PreToolUse/PostToolUse/Notification/etc., and
- *   - implement the autonomous loop: on Stop, drain the agent's inbox and return
- *     {"decision":"block", reason} so the agent keeps working — guarded by
- *     `stop_hook_active` so it can never loop forever.
+ *   - report lifecycle boundaries while renderer-side guarded queues deliver
+ *     inbox work only after the session reaches a safe idle prompt.
  *
  * Runs in the Electron main process.
  */
@@ -210,18 +209,12 @@ export class HookServer {
     }
 
     if ((event === 'Stop' || event === 'SubagentStop') && agentId) {
-      // Loop guard: a previous Stop hook already blocked this turn → let it stop.
+      // Respect any upstream Stop hook that already re-entered this boundary.
       if (p.stop_hook_active) { this.emit(agentId, event, p); return {}; }
-      const drain = this.hive.drainForStop(agentId);
-      if (drain.block) {
-        // The agent is NOT idle — we're forcing it to keep working to process
-        // its inbox. Tell the renderer that (blocked: true) so it doesn't flash
-        // 'idle' on a Stop that never actually stops. Without this, an agent
-        // re-engaged by a queued/dispatched message reads as idle while working.
-        this.emit(agentId, event, p, true);
-        return { decision: 'block', reason: drain.reason };
-      }
-      // A genuine stop with nothing queued → idle. Surface it as a desktop toast.
+      // Never turn unread hive mail into a forced continuation at Stop. That old
+      // path bypassed terminal-draft/HITL safety and could spend credits while a
+      // user was answering a question. Inbox files remain durable; the renderer
+      // wakes the agent later through its guarded idle-only delivery path.
       this.notify(agentId ?? 'Agent', 'finished — idle');
       this.emit(agentId, event, p);
       return {};

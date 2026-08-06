@@ -57,7 +57,7 @@ export function QuitWarningModal({ ptyCount, closing, onCancel, onConfirm, onClo
                   <div style={{
                     width: 32, height: 32,
                     background: closing!.phase === 'complete' ? 'var(--cth-mint-light, #cdeccd)' : 'var(--cth-lemon-light, #f6ecc4)',
-                    boxShadow: 'inset 0 0 0 2px var(--cth-ink-900)',
+                    boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0
                   }}>
@@ -93,8 +93,8 @@ export function QuitWarningModal({ ptyCount, closing, onCancel, onConfirm, onClo
                 <div style={{
                   padding: 8,
                   background: 'var(--cth-cream-200)',
-                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
-                  fontSize: 13, lineHeight: '18px',
+                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
+                  fontSize: 12, lineHeight: '18px',
                   color: 'var(--cth-ink-700)',
                   fontFamily: 'var(--cth-font-display)'
                 }}>
@@ -129,7 +129,7 @@ export function QuitWarningModal({ ptyCount, closing, onCancel, onConfirm, onClo
                   <div style={{
                     width: 32, height: 32,
                     background: 'var(--cth-coral-light)',
-                    boxShadow: 'inset 0 0 0 2px var(--cth-ink-900)',
+                    boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0
                   }}>
@@ -156,8 +156,8 @@ export function QuitWarningModal({ ptyCount, closing, onCancel, onConfirm, onClo
                 <div style={{
                   padding: 8,
                   background: 'var(--cth-cream-200)',
-                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
-                  fontSize: 13, lineHeight: '18px',
+                  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
+                  fontSize: 12, lineHeight: '18px',
                   color: 'var(--cth-ink-700)'
                 }}>
                   Tip: <strong>closing time</strong> is the safe way out — the orchestrator has
@@ -169,8 +169,8 @@ export function QuitWarningModal({ ptyCount, closing, onCancel, onConfirm, onClo
                   <div style={{
                     padding: 8,
                     background: 'var(--cth-coral-light)',
-                    boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
-                    fontSize: 13, lineHeight: '18px',
+                    boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
+                    fontSize: 12, lineHeight: '18px',
                     color: 'var(--cth-ink-900)'
                   }}>
                     {closing.error ?? 'Closing time could not start.'}

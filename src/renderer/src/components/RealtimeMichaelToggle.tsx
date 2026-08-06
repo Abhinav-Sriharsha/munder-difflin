@@ -133,7 +133,7 @@ export function RealtimeMichaelToggle({ compact = false }: RealtimeMichaelToggle
               height: 6,
               flexShrink: 0,
               background: noKey ? 'var(--cth-ink-300)' : view.dot,
-              boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+              boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
               animation: noKey ? 'none' : view.anim
             }}
           />
@@ -162,7 +162,7 @@ export function RealtimeMichaelToggle({ compact = false }: RealtimeMichaelToggle
             padding: '1px 5px 0',
             background: 'var(--cth-lemon)',
             color: 'var(--cth-ink-900)',
-            boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             flexShrink: 0
           }}
         >

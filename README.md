@@ -111,9 +111,11 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 
 | Area | What works today |
 |---|---|
-| **Real terminals** | Spawn Claude Code, Antigravity (`agy` / Gemini), OpenAI Codex, or a custom command in a `node-pty` PTY. Full read/write/resize/kill, live streaming over IPC, multi-agent. |
-| **Built-in Monaco IDE** *(new in v0.3.3)* | A title-bar **IDE** button opens a full-window Monaco editor (the VS Code editor engine, self-hosted — no CDN) over the floor: git CHANGES rail with **side-by-side diffs vs HEAD**, workspace file tree, editor tabs with dirty-state tracking, **Cmd/Ctrl+S** save. All fs/git access is brokered through the main process. |
-| **Multi-provider hive** | Claude Code, Antigravity, and Codex workers can all participate in the same hive. Claude uses native hooks; Antigravity gets a native `agy-hook` bridge; Codex receives the protocol as its initial prompt and participates through inbox/outbox routing. |
+| **Real terminals** | Spawn Claude Code, Antigravity (`agy` / Gemini), OpenAI Codex (GPT), xAI Grok, Kimi Code, or a custom command in a `node-pty` PTY. Full read/write/resize/kill, live streaming over IPC, multi-agent. |
+| **Built-in Monaco IDE** | A per-agent **IDE** button opens a full-window Monaco editor (self-hosted — no CDN): **CHANGES · HISTORY · COMPARE** git rails *(v0.3.4)* — clickable commit graph, per-commit diffs, branch compare with ahead/behind, guarded checkout — plus the workspace file tree, editor tabs, and **Cmd/Ctrl+S** save. All fs/git access is brokered through the main process. |
+| **Markdown previews** *(new in v0.3.4)* | Markdown files render beautifully: a **code / split / preview** switch in the IDE with live re-render, and **⌘-click any `.md` path in an agent's terminal** for an instant preview overlay. Safe by construction for agent-generated files (no raw-HTML pipeline). |
+| **Voice orchestration with live context** *(v0.3.4)* | Talk to Michael and he *knows the floor*: a per-agent snapshot at connect plus silent live updates mid-call. He can act on nearly everything — resume/pause agents, delivery, tool gates, tasks, schedules, context clears, allowlisted settings — with destructive actions gated behind spoken confirmation. |
+| **Multi-provider hive** | Claude Code, Antigravity, Codex, and Grok workers can all participate in the same hive. Claude uses native hooks; Antigravity gets a native `agy-hook` bridge; Grok gets an AGENT_ID-scoped lifecycle-hook adapter; Codex receives the protocol as its initial prompt and participates through inbox/outbox routing. |
 | **The hive** | On-disk multi-agent layer: per-agent identity + long-term memory, atomic-file mailboxes, a shared blackboard, append-only event log, single-committer git. |
 | **GOD orchestrator** | An always-on supervisor agent that adjudicates traffic, routes tasks, scribes the blackboard, and escalates only critical items to you. |
 | **Memory layer** | Markdown-first long-term memory per agent, mined into a shared semantic palace for instant recall; searchable from the UI. Degrades gracefully when the index isn't installed. |
@@ -149,6 +151,7 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 | **Task kanban** | Dependency-aware kanban board in the Command Center Tasks tab — assign tasks to agents, track status across todo/doing/blocked/done, wire dependencies so work starts in order. |
 | **Scheduled missions & heartbeat** | Recurring auto-dispatch missions with label, interval, target agent, and body — plus a scheduler heartbeat that re-engages the floor when it goes quiet. Missions now live in their own Schedules tab with last/next-fired times. |
 | **Terminal work-order handoff** | Providers without an inbox-drain hook receive hive mail as a `WORK ORDER FROM HIVE` typed into their terminal; if the renderer is unavailable, the message bounces to the GOD agent instead of disappearing. |
+| **Message queue that respects your prompt** | Park messages for a busy agent; one drain loop delivers them the moment it goes idle. Every automatic writer — queued messages, inbox wake-ups, scheduled `/compact` — goes through that one gate, so nothing ever lands on top of a line you're mid-way through writing. Unsent text of yours badges the agent **"your draft"** so a held queue never looks like an idle agent. See [`docs/message-queue.md`](./docs/message-queue.md). |
 | **Slack/webhook ingress** | Slack and generic webhook ingress expose local endpoints through tunnelmole, so POSTs pass straight through and failed tunnels surface a real error instead of a silent broken URL. |
 | **GitHub ingestion** | Pull open issues from any registered repo via the `gh` CLI and assign them to agents with one click from the Command Center. |
 | **CI status watcher** | Live pass/fail/in-progress status for GitHub Actions runs, visible in the Activity tab for every registered repo. |
@@ -174,8 +177,9 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
   ```
 - At least one supported terminal-agent CLI on your `PATH`: **[Claude Code](https://claude.com/claude-code)**
   (`claude`, the default command), **Antigravity** (`agy`, Gemini), **OpenAI Codex** (`codex`),
-  **OpenCode** (`opencode`), **Crush** (`crush`), or **pi.dev** (`pi`). Claude uses native hooks,
-  Antigravity uses the `agy-hook` bridge, Codex participates through initial-prompt protocol injection
+  **xAI Grok** (`grok`), **Kimi Code** (`kimi`), **OpenCode** (`opencode`), **Crush** (`crush`), or
+  **pi.dev** (`pi`). Claude uses native hooks, Antigravity uses the `agy-hook` bridge, Grok uses an
+  AGENT_ID-scoped lifecycle-hook adapter, Codex participates through initial-prompt protocol injection
   plus inbox/outbox routing, and OpenCode / Crush / pi.dev wire in via a native-plugin / proxy / hooks
   bridge respectively. A missing engine CLI self-heals — the harness runs the installer in the
   terminal, then auto restart-and-continues into the freshly-installed binary.
@@ -281,6 +285,7 @@ docs/                        `logo.png`, `banner.png`, landing page (GitHub Page
 docs/media/                  `og.png` (social previews) + rendered Remotion clips
 landing-remotion/            Remotion project that renders the landing page's "how it works" clips
 HIVE.md · SPEC.md · DESIGN.md   multi-agent · terminal/event · visual design
+docs/message-queue.md        who may type into an agent's terminal, and when
 ```
 
 <div align="right">(<a href="#munder-difflin">↑ back to top</a>)</div>
@@ -310,7 +315,7 @@ Shipped in **v0.2.0–v0.3.2**:
 - [x] **Memory reflection** — the MemoryReflector summarizes and bounds per-agent memory over time to prevent unbounded growth.
 - [x] **Persistence** — SQLite-backed durable store for window bounds + history across restarts, plus a durable cost ledger and persisted session IDs.
 - [x] **Hook-driven avatars** — broadened hook→station coverage and caged the synthetic demo loop, with new *compacting* and *looping* avatar states.
-- [x] **Multi-provider floor** — Claude Code, Antigravity (`agy` / Gemini), and OpenAI Codex can participate in the same hive (Codex reaches full hive parity via a native lifecycle-hook bridge).
+- [x] **Multi-provider floor** — Claude Code, Antigravity (`agy` / Gemini), OpenAI Codex, and xAI Grok can participate in the same hive through native or provider-specific lifecycle-hook bridges.
 - [x] **Dedicated Schedules tab** — recurring missions and the adaptive heartbeat have their own Command Center tab.
 - [x] **Tunnelmole ingress** — Slack and generic webhook public URLs use tunnelmole instead of localtunnel.
 - [x] **Voice dictation (Free Flow)** — hold Option to talk; Groq Whisper transcribes speech straight into the message composer (gated on a Groq key, encrypted at rest).
@@ -323,7 +328,7 @@ Shipped in **v0.2.0–v0.3.2**:
 Next up:
 
 - [ ] **More chat integrations** — Telegram and richer chat bridges that pipe a channel straight into Michael's queue (and route his replies back out), so you can run the floor from your phone.
-- [x] **More engines & providers** — the engine abstraction is in (Claude Code, Antigravity, Codex, local providers), and **v0.3.1 shipped OpenCode, Crush, and pi.dev** as worker+god engines with BYOK keys + local LLMs (live runtime verification pending on-device keys). Keep adding engines and broadening the per-hire capability catalog on top of it.
+- [x] **More engines & providers** — the engine abstraction is in (Claude Code, Antigravity, Codex, local providers), **v0.3.1 shipped OpenCode, Crush, and pi.dev** as worker+god engines with BYOK keys + local LLMs, and **v0.3.4 adds xAI Grok and Kimi Code**. Keep adding engines and broadening the per-hire capability catalog on top of it.
 - [ ] **More integration templates** — grow the integrations registry beyond the first-wave templates.
 - [ ] **Fuller avatar coverage** — push the remaining station visits and tool-bubbles to be driven 100% by real Claude Code hook events.
 - [ ] **Durable layout & command history** — extend persistence to agent layout and per-session command history.

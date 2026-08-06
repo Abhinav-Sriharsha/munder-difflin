@@ -53,12 +53,18 @@ input, textarea, [contenteditable='true'] {
 .cth-tabbar { scrollbar-width: none; -ms-overflow-style: none; }
 .cth-tabbar::-webkit-scrollbar { height: 0; display: none; }
 
+/* Same treatment for a vertical list (the fullscreen agent roster): still
+   scrollable by wheel/trackpad, but the bar itself never takes a slice out of an
+   already narrow rail. */
+.cth-scroll-hidden { scrollbar-width: none; -ms-overflow-style: none; }
+.cth-scroll-hidden::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
 /* Pixel-snapping for any rasterised content */
 canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 /* Focus ring — 2px outer offset, ink */
 :focus-visible {
-  outline: 2px solid var(--cth-ink-900);
+  outline: 1px solid var(--cth-ink-300);
   outline-offset: 2px;
 }
 
@@ -66,11 +72,11 @@ canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
 ::-webkit-scrollbar { width: 12px; height: 12px; }
 ::-webkit-scrollbar-track {
   background: var(--cth-cream-200);
-  box-shadow: inset 0 0 0 1px var(--cth-ink-700);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
 }
 ::-webkit-scrollbar-thumb {
   background: var(--cth-ink-700);
-  box-shadow: inset 0 0 0 1px var(--cth-ink-900);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--cth-ink-900); }
 
@@ -98,12 +104,12 @@ canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
 .cth-settings-btn { transition: background 80ms steps(2), box-shadow 80ms steps(2), transform 80ms steps(2); }
 .cth-settings-btn:hover {
   background: var(--cth-lemon) !important;
-  box-shadow: inset 0 0 0 1.5px var(--cth-ink-900), 2px 2px 0 0 var(--cth-ink-900) !important;
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300), 2px 2px 0 0 var(--cth-ink-900) !important;
   transform: translate(-1px, -1px);
 }
 .cth-settings-btn:active {
   transform: translate(0, 0);
-  box-shadow: inset 0 0 0 1.5px var(--cth-ink-900) !important;
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300) !important;
 }
 
 /* Keyframes — pixel-style: step-based, no easing */
@@ -132,4 +138,59 @@ canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
 .xterm-width-cache-measure-container {
   font-variant-ligatures: none !important;
   font-feature-settings: "liga" 0, "clig" 0, "calt" 0 !important;
+}
+
+/* ─── Markdown preview (v0.3.4) ──────────────────────────────────────────────
+   Shared by the IDE split/preview view and the fullscreen file overlay. All
+   colors ride the tokens, so light + dark themes come for free. */
+.cth-md-preview {
+  font-family: var(--cth-font-ui);
+  font-size: 14px; line-height: 1.65;
+  color: var(--cth-ink-900);
+  max-width: 72ch;
+  padding: 16px 20px 32px;
+}
+.cth-md-preview h1, .cth-md-preview h2, .cth-md-preview h3,
+.cth-md-preview h4, .cth-md-preview h5 {
+  color: var(--cth-ink-900);
+  line-height: 1.3;
+  margin: 1.4em 0 0.5em;
+}
+.cth-md-preview h1 { font-size: 24px; border-bottom: 1px solid var(--cth-ink-100); padding-bottom: 6px; }
+.cth-md-preview h2 { font-size: 19px; border-bottom: 1px solid var(--cth-ink-100); padding-bottom: 4px; }
+.cth-md-preview h3 { font-size: 16px; }
+.cth-md-preview h4 { font-size: 14px; }
+.cth-md-preview p { margin: 0.6em 0; }
+.cth-md-preview a { color: var(--cth-sky); }
+.cth-md-preview code {
+  font-family: var(--cth-font-mono); font-size: 12.5px;
+  background: var(--cth-cream-200); padding: 1px 5px; border-radius: 2px;
+}
+.cth-md-preview pre {
+  background: var(--cth-cream-200);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  padding: 10px 12px; overflow-x: auto; border-radius: 2px;
+}
+.cth-md-preview pre code { background: transparent; padding: 0; }
+.cth-md-preview blockquote {
+  margin: 0.8em 0; padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--cth-ink-300); color: var(--cth-ink-700);
+}
+.cth-md-preview ul, .cth-md-preview ol { padding-left: 22px; margin: 0.5em 0; }
+.cth-md-preview li { margin: 3px 0; }
+.cth-md-preview li::marker { color: var(--cth-ink-500); }
+.cth-md-preview input[type="checkbox"] { accent-color: var(--cth-mint); margin-right: 6px; }
+.cth-md-preview table {
+  border-collapse: collapse; margin: 0.8em 0; display: block; overflow-x: auto;
+}
+.cth-md-preview th, .cth-md-preview td {
+  border: 1px solid var(--cth-ink-100); padding: 5px 10px; text-align: left;
+  font-size: 13px;
+}
+.cth-md-preview th { background: var(--cth-cream-200); font-weight: 600; }
+.cth-md-preview hr { border: none; border-top: 1px solid var(--cth-ink-100); margin: 1.4em 0; }
+.cth-md-preview .cth-md-img {
+  display: inline-block; padding: 2px 8px; font-size: 12px;
+  background: var(--cth-cream-200); box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  color: var(--cth-ink-500); border-radius: 2px;
 }

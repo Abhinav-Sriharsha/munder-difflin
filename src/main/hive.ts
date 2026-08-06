@@ -478,7 +478,8 @@ export class HiveManager {
 
     const claudeProvider = isClaudeProvider(meta.provider ?? 'claude');
 
-    // Non-hive-aware providers (Antigravity's `agy`, OpenAI's `codex`) don't
+    // Non-hive-aware providers (Antigravity's `agy`, OpenAI's `codex`, xAI's
+    // `grok`) don't
     // understand Claude Code's flags (no `--append-system-prompt`, no telemetry,
     // no `--settings`). Instead: (1) the hive identity+protocol rides in as the
     // session's INITIAL prompt — the closest thing to `--append-system-prompt`
@@ -489,14 +490,14 @@ export class HiveManager {
     //
     // How the prompt rides in differs by CLI:
     //  - agy takes it under a flag (`agy -i "<prompt>"`) → push [flag, prompt].
-    //  - codex takes it POSITIONALLY (`codex "<prompt>"`, no flag) → push the
+    //  - codex/grok take it POSITIONALLY (`codex|grok "<prompt>"`) → push the
     //    bare prompt as a trailing arg (node-pty passes argv literally, so it
     //    arrives as one positional argument after codex's own flags).
     if (!isHiveAwareProvider(meta.provider)) {
       const preset = providerPreset(meta.provider ?? 'claude');
       const flag = preset.initialPromptFlag;
       const prompt = this.injectedPrompt(meta, dir, root, opts.semanticMemory ?? false, opts.knowledgeGraph ?? false);
-      // Both agy and codex expose a Claude-style lifecycle-hook surface, so each
+      // agy, codex, and grok expose a Claude-style lifecycle-hook surface, so each
       // gets the SAME live status + Stop→inbox-drain Claude does — selected by the
       // preset's `hookBridge`. agy needs a translating shim (its hook stdin/stdout
       // shape differs from Claude's); codex reuses the Claude `cth-hook` shim
@@ -549,6 +550,7 @@ export class HiveManager {
               // idle inbox-wake nudge is the guaranteed drain fallback.
               env.OPENCODE_CONFIG_DIR = this.installOpenCodePlugin(dir);
             }
+            else if (desc.shim === 'grok') this.installGrokHooks();
           } else if (desc.kind === 'proxy') {
             // Stable per-spawn session id, stamped on every synthesized payload so
             // recordSession (registry resume key) and the cost ledger persist.
@@ -594,8 +596,8 @@ export class HiveManager {
       if (preset.seedDelivery === 'type-into-tui') return { args: [...preArgs], env, seedPrompt: prompt };
       // If a provider somehow exposes neither a flag nor a positional prompt, spawn bare.
       if (flag) return { args: [...preArgs, flag, prompt], env };
-      // Positional initial prompt (codex). Append as a trailing argv element.
-      return { args: [...preArgs, prompt], env };
+      if (preset.positionalInitialPrompt) return { args: [...preArgs, prompt], env };
+      return { args: preArgs, env };
     }
 
     // Stage 7A — first-party Claude Code telemetry → the embedded loopback OTLP
@@ -1001,10 +1003,9 @@ export class HiveManager {
     const targets = msg.to === 'broadcast'
       // The roster for fan-out is the ACTIVE registry: skip the send-only prep
       // assistant, any archived agent (closed tab), and providers that can't
-      // drain an inbox (hookless custom commands) so mail never piles into a dead
-      // inbox no one reads. Claude, Codex AND Antigravity workers ARE included —
-      // each can drain its inbox on Stop: Claude via its native Stop hook, and
-      // Antigravity/Codex via their `hookBridge` Stop→drain (agy-hook / codex-hook).
+      // expose safe-idle lifecycle state (hookless custom commands), so mail never
+      // piles into a dead inbox. Claude, Codex and Antigravity are included; their
+      // hooks let the renderer wake them only after a safe idle boundary.
       ? Object.keys(reg.agents).filter((a) =>
           a !== msg.from
           && !reg.agents[a]?.isAssistant
@@ -1026,10 +1027,9 @@ export class HiveManager {
         }, godId);
         continue;
       }
-      // A provider that can't drain its own inbox (a hookless custom command)
-      // would let direct mail rot unread. Claude (native Stop hook) and
-      // Antigravity/Codex (their `hookBridge` Stop→drain) all drain their inbox,
-      // so they receive directly into their inbox/. For a provider that can't, try
+      // A provider without safe-idle lifecycle state (a hookless custom command)
+      // would let direct mail rot unread. Claude and bridged Antigravity/Codex
+      // receive directly into inbox/ for guarded renderer delivery. Otherwise try
       // a terminal work-order handoff to its REPL (#53);
       // if the renderer is unavailable, bounce to god to relay. God is exempt
       // (the bounce target).
@@ -1301,7 +1301,7 @@ export class HiveManager {
   /** Install the Antigravity (`agy`) lifecycle-hook bridge: write the normalizer
    *  shim and merge a `munder-hive` hook group into agy's global hooks.json so a
    *  Gemini worker reports PreToolUse/PostToolUse/Stop/PreInvocation/PostInvocation
-   *  to this HookServer (live status + inbox-drain), reusing the Claude pipeline.
+   *  to this HookServer (live status + guarded idle delivery), reusing the Claude pipeline.
    *
    *  Two agy-isms handled: (1) antigravity-cli#49 — agy LOADS hooks from
    *  `~/.gemini/antigravity-cli/hooks.json` but TRIGGERS from `~/.gemini/config/
@@ -1375,6 +1375,16 @@ export class HiveManager {
       if (existsSync(authSrc) && !existsSync(authDest)) {
         try { symlinkSync(authSrc, authDest); }
         catch { try { copyFileSync(authSrc, authDest); } catch { /* best-effort */ } }
+      }
+      // The managed app-server daemon used by Codex Remote Control is launched
+      // from the standalone install rooted at $CODEX_HOME/packages. Share the
+      // user's installed binaries without duplicating them into every agent.
+      const packagesSrc = join(userHome, 'packages');
+      const packagesDest = join(home, 'packages');
+      if (existsSync(packagesSrc) && !existsSync(packagesDest)) {
+        try {
+          symlinkSync(packagesSrc, packagesDest, process.platform === 'win32' ? 'junction' : 'dir');
+        } catch { /* remote integration falls back to a local TUI if unavailable */ }
       }
       // Wire lifecycle hooks via config.toml `[hooks]` tables — the user-layer
       // discovery surface Codex actually scans. (A bare $CODEX_HOME/hooks.json is
@@ -1489,6 +1499,48 @@ export class HiveManager {
       writeFileSync(config, JSON.stringify({ providers }, null, 2), 'utf8');
     } catch (e) { console.error('[hive] installCrushConfig failed:', e); }
     return { config, data };
+  }
+
+  /** Grok lifecycle-hook bridge → live hive status, session capture, guarded
+   *  inbox delivery, and operator gates for `grok` workers.
+   *
+   *  Grok supports the same hook events and decision vocabulary as Claude Code,
+   *  but its stdin payload uses camelCase keys. A small adapter normalizes those
+   *  keys to HookServer's Claude-shaped contract. The hook is installed in the
+   *  user's global Grok hook directory because global hooks are trusted and
+   *  Grok sessions/resume stay in the user's normal GROK_HOME. The adapter is
+   *  strictly scoped by AGENT_ID, so ordinary Grok sessions exit without doing
+   *  anything. Best-effort and idempotent. */
+  private installGrokHooks(): void {
+    const root = this.root();
+    if (!root) return;
+    try {
+      const shim = join(root, 'bin', 'grok-hook.cjs');
+      mkdirSync(join(root, 'bin'), { recursive: true });
+      writeFileSync(shim, GROK_HOOK_SHIM, 'utf8');
+      const tool = (matcher?: string) => ({
+        ...(matcher ? { matcher } : {}),
+        // Let Grok apply its event-aware defaults (5s normally, 600s for Stop).
+        hooks: [{ type: 'command', command: `node ${shim}` }]
+      });
+      const hooks = {
+        PreToolUse: [tool('.*')],
+        PostToolUse: [tool('.*')],
+        Stop: [tool()],
+        SubagentStop: [tool('.*')],
+        SessionStart: [tool('.*')],
+        UserPromptSubmit: [tool()],
+        PreCompact: [tool('.*')],
+        PostCompact: [tool('.*')]
+      };
+      const hookDir = join(homedir(), '.grok', 'hooks');
+      mkdirSync(hookDir, { recursive: true });
+      writeFileSync(
+        join(hookDir, 'munder-hive.json'),
+        JSON.stringify({ hooks }, null, 2),
+        'utf8'
+      );
+    } catch (e) { console.error('[hive] installGrokHooks failed:', e); }
   }
 
   /** Write the live fleet snapshot Michael reads (`fleet.json`, gitignored).
@@ -2126,5 +2178,79 @@ server.listen(0, '127.0.0.1', function () {
   const addr = server.address();
   const port = (addr && typeof addr === 'object') ? addr.port : 0;
   try { process.stdout.write(JSON.stringify({ port: port }) + '\\n'); } catch (e) {}
+});
+`;
+
+// ─── grok-hook shim (written to <hive>/bin/grok-hook.cjs) ───────────────────
+// Grok's lifecycle events and decisions are Claude-compatible, but the wire
+// payload is camelCase and uses snake_case event values. Normalize the input for
+// HookServer and translate its Claude-style permission denial into Grok's direct
+// decision form. Scoped by AGENT_ID so the trusted global hook is inert outside
+// Munder-spawned workers.
+const GROK_HOOK_SHIM = `#!/usr/bin/env node
+'use strict';
+const net = require('net');
+const agentId = process.env.AGENT_ID || null;
+let data = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (d) => { data += d; });
+process.stdin.on('end', () => {
+  const sock = process.env.HIVE_SOCK;
+  if (!agentId || !sock) { process.exit(0); }
+  let grok = {};
+  try { grok = JSON.parse(data || '{}'); } catch (_) {}
+  const names = {
+    pre_tool_use: 'PreToolUse',
+    post_tool_use: 'PostToolUse',
+    post_tool_use_failure: 'PostToolUseFailure',
+    permission_denied: 'PermissionDenied',
+    stop: 'Stop',
+    stop_failure: 'StopFailure',
+    session_start: 'SessionStart',
+    session_end: 'SessionEnd',
+    user_prompt_submit: 'UserPromptSubmit',
+    notification: 'Notification',
+    subagent_start: 'SubagentStart',
+    subagent_stop: 'SubagentStop',
+    pre_compact: 'PreCompact',
+    post_compact: 'PostCompact'
+  };
+  const payload = {
+    hook_event_name: names[grok.hookEventName] || grok.hookEventName || 'Unknown',
+    agent_id: agentId,
+    session_id: grok.sessionId,
+    cwd: grok.cwd || grok.workspaceRoot,
+    tool_name: grok.toolName,
+    tool_input: grok.toolInput,
+    stop_hook_active: grok.stopHookActive,
+    prompt: grok.prompt,
+    source: grok.source,
+    notification_type: grok.notificationType,
+    message: grok.message
+  };
+  let resp = '';
+  const done = () => {
+    let out = null;
+    try {
+      const r = JSON.parse(resp || '{}');
+      if (r.continue === false) out = { continue: false, stopReason: r.stopReason };
+      else if (r.decision === 'block') out = { decision: 'block', reason: r.reason };
+      else if (r.hookSpecificOutput && r.hookSpecificOutput.permissionDecision === 'deny') {
+        out = { decision: 'deny', reason: r.hookSpecificOutput.permissionDecisionReason };
+      } else if (r.hookSpecificOutput && r.hookSpecificOutput.additionalContext) {
+        out = r;
+      }
+    } catch (_) {}
+    if (out) { try { process.stdout.write(JSON.stringify(out)); } catch (_) {} }
+    process.exit(0);
+  };
+  try {
+    const c = net.createConnection(sock, () => c.write(JSON.stringify(payload) + '\\n'));
+    c.setEncoding('utf8');
+    c.on('data', (d) => { resp += d; });
+    c.on('end', done);
+    c.on('error', () => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  } catch (_) { process.exit(0); }
 });
 `;

@@ -76,7 +76,7 @@ jobs:
         run: |
           cd dist
           # hash only the distributable artifacts, not blockmaps/yml
-          files=$(ls *.dmg *.exe *.AppImage 2>/dev/null || true)
+          files=$(ls *.dmg *.zip *.exe *.AppImage 2>/dev/null || true)
           [ -z "$files" ] && { echo "no artifacts to hash"; exit 0; }
           if command -v sha256sum >/dev/null 2>&1; then
             sha256sum $files > "SHA256SUMS-${{ matrix.os }}.txt"
@@ -89,10 +89,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os }}-dist
+          # zip + latest*.yml + blockmaps feed electron-updater (auto-update):
+          # latest-mac.yml points Squirrel.Mac at the zip; nsis/AppImage use
+          # latest.yml/latest-linux.yml + blockmaps for differential download.
           path: |
             dist/*.dmg
+            dist/*.zip
             dist/*.exe
             dist/*.AppImage
+            dist/*.blockmap
+            dist/latest*.yml
             dist/SHA256SUMS-*.txt
           if-no-files-found: warn
 
@@ -111,7 +117,7 @@ jobs:
       - name: Flatten + merge checksums
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.AppImage' \) -exec cp {} release/ \;
+          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.blockmap' -o -name 'latest*.yml' \) -exec cp {} release/ \;
           cat artifacts/*/SHA256SUMS-*.txt > release/SHA256SUMS.txt 2>/dev/null || true
           ls -la release
 
@@ -123,6 +129,9 @@ jobs:
           fail_on_unmatched_files: false
           files: |
             release/*.dmg
+            release/*.zip
             release/*.exe
             release/*.AppImage
+            release/*.blockmap
+            release/latest*.yml
             release/SHA256SUMS.txt

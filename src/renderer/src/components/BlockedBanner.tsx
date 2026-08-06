@@ -11,7 +11,7 @@ export function BlockedBanner({ reason, onAction }: BlockedBannerProps) {
   return (
     <div style={{
       background: 'var(--cth-coral-light)',
-      boxShadow: 'inset 0 0 0 2px var(--cth-ink-900), inset 0 0 0 4px var(--cth-coral)',
+      boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500), inset 0 0 0 4px var(--cth-coral)',
       padding: 12,
       display: 'flex',
       flexDirection: 'column',
@@ -35,7 +35,7 @@ export function BlockedBanner({ reason, onAction }: BlockedBannerProps) {
         {reason.summary}
       </div>
       <div style={{
-        fontSize: 14,
+        fontSize: 13,
         lineHeight: '18px',
         color: 'var(--cth-ink-700)'
       }}>
@@ -44,12 +44,12 @@ export function BlockedBanner({ reason, onAction }: BlockedBannerProps) {
       {reason.command && (
         <div style={{
           fontFamily: 'var(--cth-font-mono)',
-          fontSize: 14,
+          fontSize: 13,
           lineHeight: '18px',
           color: 'var(--cth-ink-900)',
           background: 'var(--cth-paper-100)',
           padding: '4px 8px',
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis'

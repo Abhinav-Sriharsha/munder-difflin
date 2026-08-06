@@ -2,7 +2,8 @@ import * as pty from 'node-pty';
 import type { WebContents } from 'electron';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { userShellPath } from './shellEnv';
+import { ensureKilled } from './procKill';
+import { captureFromLoginShell, userShellPath } from './shellEnv';
 
 interface PtySession {
   id: string;
@@ -21,6 +22,9 @@ interface PtySession {
    *  file) and the idle handshake that gates god's PTY nudge (never type into a
    *  PTY that produced output in the last few seconds = mid-stream). */
   lastOutputAt: number;
+  /** True after the child has emitted at least one frame. Automation waits for
+   *  this before typing, so startup prompts cannot outrun the TUI subscription. */
+  hasOutput: boolean;
 }
 
 export interface SpawnOptions {
@@ -100,7 +104,14 @@ export class PtyManager {
    *  terminals don't linger as orphaned processes writing to a dead webContents. */
   killByOwner(wc: WebContents): void {
     for (const [id, s] of [...this.sessions.entries()]) {
-      if (s.owner === wc) { try { s.proc.kill(); } catch { /* already gone */ } void id; }
+      if (s.owner === wc) {
+        try {
+          const pid = s.proc.pid;
+          s.proc.kill();
+          ensureKilled(pid);
+        } catch { /* already gone */ }
+        void id;
+      }
     }
   }
 
@@ -200,14 +211,12 @@ export class PtyManager {
       return { path: command, found: false };
     }
     // macOS / Linux — `which` against an interactive shell so we pick up nvm/asdf/brew paths.
-    try {
-      const res = spawnSync(process.env.SHELL ?? '/bin/zsh', ['-ilc', `which ${command}`], {
-        encoding: 'utf8',
-        timeout: 3000
-      });
-      const path = res.stdout.trim().split('\n').pop();
+    // Fenced capture (shellEnv): rc-file chatter can't poison the which output.
+    const which = captureFromLoginShell(`which ${command}`);
+    if (which) {
+      const path = which.trim().split('\n').map((l) => l.trim()).filter(Boolean).pop();
       if (path && existsSync(path)) return { path, found: true };
-    } catch { /* fall through */ }
+    }
     // Common explicit locations
     const candidates = [
       `/opt/homebrew/bin/${command}`,
@@ -231,8 +240,9 @@ export class PtyManager {
     const resolved = this.resolveCommand(opts.command).path;
     try {
       // Build a user-shell PATH so child can resolve subprocess deps. Cached
-      // for the session (shellEnv.userShellPath) — the interactive-shell launch
-      // it replaces cost ~1s of main-thread freeze on EVERY spawn.
+      // for the session (shellEnv.userShellPath, fenced against rc-file noise) —
+      // the interactive-shell launch it replaces cost ~1s of main-thread freeze
+      // on EVERY spawn.
       const userPath = process.platform === 'win32'
         ? (process.env.PATH || '')
         : userShellPath();
@@ -305,13 +315,22 @@ export class PtyManager {
       // final bytes into the new agent's fresh TUI frame — scattered/overlapping
       // text — and (b) on exit delete the replacement session and emit a false
       // `pty:exit`, killing input to the agent that just started.
-      const session: PtySession = { id: opts.id, proc, cwd: opts.cwd, command: resolved, lastOutputAt: Date.now(), owner };
+      const session: PtySession = {
+        id: opts.id,
+        proc,
+        cwd: opts.cwd,
+        command: resolved,
+        lastOutputAt: Date.now(),
+        hasOutput: false,
+        owner
+      };
       this.sessions.set(opts.id, session);
 
       proc.onData((data) => {
         // Drop trailing output from a process whose id was already reclaimed by
         // a respawn (or killed) — it would corrupt the new session's screen.
         if (this.sessions.get(opts.id) !== session) return;
+        session.hasOutput = true;
         session.lastOutputAt = Date.now();
         // Route to the session's owner window (multi-window owner routing).
         this.safeSend(`pty:data:${opts.id}`, data, session.owner);
@@ -355,11 +374,27 @@ export class PtyManager {
     }
   }
 
+  /** Ask the foreground TUI for a fresh frame without changing its geometry.
+   *  Startup output may predate the renderer subscription, and a same-sized
+   *  first fit otherwise emits no resize. */
+  redraw(id: string): { ok: boolean; error?: string } {
+    const s = this.sessions.get(id);
+    if (!s) return { ok: false, error: `no pty: ${id}` };
+    try {
+      s.proc.resize(s.proc.cols, s.proc.rows);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
   kill(id: string): { ok: boolean; error?: string } {
     const s = this.sessions.get(id);
     if (!s) return { ok: false, error: `no pty: ${id}` };
     try {
+      const pid = s.proc.pid;
       s.proc.kill();
+      ensureKilled(pid); // verify + sweep the process group so no PID leaks
       this.sessions.delete(id);
       return { ok: true };
     } catch (e) {
@@ -367,13 +402,14 @@ export class PtyManager {
     }
   }
 
-  list(): Array<{ id: string; cwd: string; command: string; pid: number; lastOutputAt: number }> {
+  list(): Array<{ id: string; cwd: string; command: string; pid: number; lastOutputAt: number; hasOutput: boolean }> {
     return Array.from(this.sessions.values()).map(s => ({
       id: s.id,
       cwd: s.cwd,
       command: s.command,
       pid: s.proc.pid,
-      lastOutputAt: s.lastOutputAt
+      lastOutputAt: s.lastOutputAt,
+      hasOutput: s.hasOutput
     }));
   }
 
@@ -396,7 +432,11 @@ export class PtyManager {
   killAll() {
     this.exitHandler = null;
     for (const s of this.sessions.values()) {
-      try { s.proc.kill(); } catch { /* noop */ }
+      try {
+        const pid = s.proc.pid;
+        s.proc.kill();
+        ensureKilled(pid);
+      } catch { /* noop */ }
     }
     this.sessions.clear();
   }

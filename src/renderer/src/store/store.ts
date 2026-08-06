@@ -38,6 +38,8 @@ export interface Agent {
   tmuxTarget: string;
   cwd: string;
   goal?: string;
+  /** User-authored private note shown and edited from the roster-card hover. */
+  note?: string;
   status: StatusKind;
   action: string;
   progress: number;
@@ -51,6 +53,9 @@ export interface Agent {
   blockReason?: BlockReason;
   /** present iff this agent has a real PTY in the main process */
   ptyId?: string;
+  /** Incremented by Restart & Continue to remount this agent's xterm without
+   * changing its durable PTY/session identity. */
+  terminalGeneration?: number;
   /** the command being run in the PTY (e.g. 'claude' or 'agy') */
   command?: string;
   /** which agent CLI preset owns this PTY recipe; drives the model picker +
@@ -110,7 +115,10 @@ export interface QueuedMessage {
   instruction?: string;
 }
 
-export type SidebarTab = 'terminal' | 'files' | 'messages' | 'traces';
+// 'files' retired in v0.3.4 (the per-agent IDE button superseded it) — a
+// persisted 'files' selection falls back to 'terminal' on load. 'git' added in
+// v0.3.4: at-a-glance branch/status/log without opening the IDE.
+export type SidebarTab = 'terminal' | 'messages' | 'traces' | 'git';
 
 /** Lifecycle of the god agent ("Michael") bootstrap on launch.
  *  'booting' until his PTY is confirmed live, then 'ready' (or 'failed' if the
@@ -135,6 +143,12 @@ interface State {
   addAgentOpen: boolean;
   fullscreenAgentId: string | null;
   fullscreenFilePath: string | null;
+  /** How the fullscreen file overlay renders (v0.3.4): raw editor or rendered
+   *  markdown preview. Preview is the default when opened from a terminal link. */
+  fullscreenFileView: 'edit' | 'preview';
+  /** Absolute path queued for the IDE to open on next mount ("open in IDE"
+   *  escalation from the file overlay). Consumed-and-cleared by IdePanel. */
+  ideInitialFile: string | null;
   /** Whether the full-window IDE panel (file manager + Monaco editor + git diff)
    *  is open. Toggled from the title-bar IDE button; a global feature surface,
    *  independent of the per-agent sidebar Files/Git tabs. */
@@ -153,6 +167,7 @@ interface State {
   setGodStatus: (status: GodStatus) => void;
   select: (id: string) => void;
   updateAgent: (id: string, patch: Partial<Agent>) => void;
+  setAgentNote: (id: string, note: string) => void;
   pushFeed: (id: string, line: string) => void;
   addAgent: (agent: Agent) => void;
   removeAgent: (id: string) => void;
@@ -164,6 +179,7 @@ interface State {
   removeArchivedAgent: (id: string) => void;
   /** Drop one agent from the restorable list (it was respawned or dismissed). */
   removeRestorableAgent: (id: string) => void;
+  reorderAgents: (fromId: string, toId: string) => void; // move agent fromId into toId's slot (AgentStrip drag-reorder) and persist the new order
   /** One-shot request to open a Command-Center tab (e.g. clicking the office
    *  task board → 'tasks'). `seq` makes repeated identical requests distinct. */
   ccTabRequest: { tab: string; seq: number } | null;
@@ -218,8 +234,9 @@ interface State {
   pendingHire: HireManifest | null;
   setPendingHire: (m: HireManifest | null) => void;
   setFullscreen: (id: string | null) => void;
-  setFullscreenFile: (path: string | null) => void;
+  setFullscreenFile: (path: string | null, view?: 'edit' | 'preview') => void;
   setIdeOpen: (open: boolean) => void;
+  setIdeInitialFile: (path: string | null) => void;
   setSidebarWidth: (px: number) => void;
   setSidebarTab: (tab: SidebarTab) => void;
   /** Drop persisted agents whose PTY is no longer alive in the main process.
@@ -241,23 +258,127 @@ const LS_QUEUES = 'cth.messageQueues';
 // dead session's context gauge after a restart until the poll caught up.
 type PersistedAgent = Omit<Agent, 'recentAssistantText' | 'recentTextTs' | 'blockReason' | 'contextTokens' | 'contextLimit' | 'seedPrompt'>;
 
-function persistAgents(agents: Agent[], selectedId: string | null): void {
+// ─── The roster mirror ──────────────────────────────────────────────────────
+//
+// localStorage is partitioned by ORIGIN, and the two ways this app runs do not
+// share one: `npm run dev` serves the renderer from http://localhost:5173, a
+// packaged build loads it from file://. So the roster — agents, their private
+// notes, worktree paths, archived entries, parked queues — was invisible to
+// whichever of the two you were not currently in, even though the hive on disk
+// (sessions, memory, inboxes, tasks) was shared and intact the whole time.
+//
+// So we also mirror it to <harnessHome>/roster.json, which both sides reach by
+// path. localStorage keeps being written byte-for-byte as before: it is the
+// fallback when there is no file yet, and a standing backup afterwards. Main
+// keeps every previous version of the file under roster-backups/.
+const fileRoster = (() => {
+  try { return window.cth?.rosterReadSync?.() ?? null; } catch { return null; }
+})();
+
+/** Prefer the shared file, but only when it actually holds a roster. An empty
+ *  file must never win over a populated localStorage — that is exactly the
+ *  "opened the build once and my floor went blank" failure this is here to
+ *  prevent. A genuine delete-all clears both stores, so nothing resurrects. */
+const useFileRoster = !!fileRoster
+  && fileRoster.agents.length + fileRoster.archived.length + fileRoster.restorable.length > 0;
+
+/** The renderer's running copy of what should be on disk. Kept as a mutable
+ *  mirror updated slice-by-slice rather than read back out of the store, because
+ *  every persist* call happens INSIDE a zustand `set()` — `getState()` there
+ *  still returns the pre-update state, so a snapshot built that way would
+ *  reliably be one edit stale. */
+const rosterMirror: {
+  agents: PersistedAgent[];
+  archived: PersistedAgent[];
+  restorable: PersistedAgent[];
+  queues: Record<string, QueuedMessage[]>;
+  selectedId: string | null;
+} = { agents: [], archived: [], restorable: [], queues: {}, selectedId: null };
+
+let rosterFlush: ReturnType<typeof setTimeout> | null = null;
+
+function flushRosterNow(): void {
+  if (rosterFlush) { clearTimeout(rosterFlush); rosterFlush = null; }
   try {
-    const slim: PersistedAgent[] = agents.map(({ recentAssistantText, recentTextTs, blockReason, contextTokens, contextLimit, seedPrompt, ...rest }) => {
-      void recentAssistantText; void recentTextTs; void blockReason; void contextTokens; void contextLimit; void seedPrompt;
-      return rest;
+    void window.cth?.rosterWrite?.({
+      version: 1,
+      savedAt: new Date().toISOString(),
+      agents: rosterMirror.agents,
+      archived: rosterMirror.archived,
+      restorable: rosterMirror.restorable,
+      queues: rosterMirror.queues,
+      selectedId: rosterMirror.selectedId
     });
+  } catch { /* the file is a mirror — localStorage already took the write */ }
+}
+
+/** Coalesce a burst of persist* calls into one disk write. Agent edits arrive in
+ *  clusters (spawn writes agents + selection + queues in the same tick). */
+function scheduleRosterFlush(): void {
+  if (rosterFlush) return;
+  rosterFlush = setTimeout(flushRosterNow, 500);
+}
+
+// Don't let a quit inside the debounce window drop the last edit. localStorage
+// would still have it, but only for THIS origin — and the whole point is that
+// the other origin can read it too.
+try {
+  window.addEventListener('beforeunload', flushRosterNow);
+} catch { /* not a browser context (unit tests) */ }
+
+function slimAgents(agents: Agent[]): PersistedAgent[] {
+  return agents.map(({ recentAssistantText, recentTextTs, blockReason, contextTokens, contextLimit, seedPrompt, ...rest }) => {
+    void recentAssistantText; void recentTextTs; void blockReason; void contextTokens; void contextLimit; void seedPrompt;
+    return rest;
+  });
+}
+
+function persistAgents(agents: Agent[], selectedId: string | null): void {
+  const slim = slimAgents(agents);
+  try {
     window.localStorage.setItem(LS_AGENTS, JSON.stringify(slim));
     window.localStorage.setItem(LS_SELECTED, selectedId ?? '');
   } catch { /* noop */ }
+  rosterMirror.agents = slim;
+  rosterMirror.selectedId = selectedId;
+  scheduleRosterFlush();
+}
+
+/** Run-state an agent recomputes from its live pty on every reload. A patch made
+ *  only of these is not worth a localStorage write; anything else is. Listed as
+ *  the volatile set rather than the durable set on purpose — a new durable field
+ *  then persists by default instead of being silently dropped. */
+const VOLATILE_AGENT_FIELDS = new Set<keyof Agent>([
+  'status', 'action', 'progress', 'currentStation', 'carrying',
+  'recentAssistantText', 'recentTextTs', 'blockReason',
+  'contextTokens', 'contextLimit', 'lastPrompt'
+]);
+
+function touchesDurableAgentField(patch: Partial<Agent>): boolean {
+  return Object.keys(patch).some((k) => !VOLATILE_AGENT_FIELDS.has(k as keyof Agent));
+}
+
+/** The persisted list for one slice: the shared file when it has a roster,
+ *  otherwise this origin's localStorage. Returns [] on anything malformed. */
+function persistedSlice(
+  key: string,
+  fromFile: unknown[] | undefined
+): PersistedAgent[] {
+  if (useFileRoster) return Array.isArray(fromFile) ? (fromFile as PersistedAgent[]) : [];
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as PersistedAgent[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 function loadPersistedAgents(): Agent[] {
   try {
-    const raw = window.localStorage.getItem(LS_AGENTS);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as PersistedAgent[];
-    if (!Array.isArray(parsed)) return [];
+    const parsed = persistedSlice(LS_AGENTS, fileRoster?.agents);
+    if (!parsed.length) return [];
     // Reset volatile run-state; the PTY stream / mock loop will repopulate it.
     return parsed.map((a) => ({
       ...a,
@@ -274,21 +395,18 @@ function loadPersistedAgents(): Agent[] {
 }
 
 function persistArchived(archived: Agent[]): void {
+  const slim = slimAgents(archived);
   try {
-    const slim: PersistedAgent[] = archived.map(({ recentAssistantText, recentTextTs, blockReason, contextTokens, contextLimit, seedPrompt, ...rest }) => {
-      void recentAssistantText; void recentTextTs; void blockReason; void contextTokens; void contextLimit; void seedPrompt;
-      return rest;
-    });
     window.localStorage.setItem(LS_ARCHIVED, JSON.stringify(slim));
   } catch { /* noop */ }
+  rosterMirror.archived = slim;
+  scheduleRosterFlush();
 }
 
 function loadPersistedArchived(): Agent[] {
   try {
-    const raw = window.localStorage.getItem(LS_ARCHIVED);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as PersistedAgent[];
-    if (!Array.isArray(parsed)) return [];
+    const parsed = persistedSlice(LS_ARCHIVED, fileRoster?.archived);
+    if (!parsed.length) return [];
     // Archived agents have no live process — force the flag + clear run-state.
     return parsed.map((a) => ({
       ...a,
@@ -304,21 +422,24 @@ function loadPersistedArchived(): Agent[] {
 }
 
 function persistRestorable(restorable: Agent[]): void {
+  // Keeps contextTokens/contextLimit, unlike the other two: a restorable entry
+  // is a spawn recipe for a session that has not been re-entered yet, so its
+  // last known context size is still meaningful.
+  const slim: PersistedAgent[] = restorable.map(({ recentAssistantText, recentTextTs, blockReason, seedPrompt, ...rest }) => {
+    void recentAssistantText; void recentTextTs; void blockReason; void seedPrompt;
+    return rest;
+  });
   try {
-    const slim: PersistedAgent[] = restorable.map(({ recentAssistantText, recentTextTs, blockReason, seedPrompt, ...rest }) => {
-      void recentAssistantText; void recentTextTs; void blockReason; void seedPrompt;
-      return rest;
-    });
     window.localStorage.setItem(LS_RESTORABLE, JSON.stringify(slim));
   } catch { /* noop */ }
+  rosterMirror.restorable = slim;
+  scheduleRosterFlush();
 }
 
 function loadPersistedRestorable(): Agent[] {
   try {
-    const raw = window.localStorage.getItem(LS_RESTORABLE);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as PersistedAgent[];
-    if (!Array.isArray(parsed)) return [];
+    const parsed = persistedSlice(LS_RESTORABLE, fileRoster?.restorable);
+    if (!parsed.length) return [];
     // No live process — clear run-state; the spawn recipe fields are what matter.
     return parsed.map((a) => ({
       ...a,
@@ -337,14 +458,16 @@ function persistQueues(queues: Record<string, QueuedMessage[]>): void {
     const slim: Record<string, QueuedMessage[]> = {};
     for (const [id, q] of Object.entries(queues)) if (q.length) slim[id] = q;
     window.localStorage.setItem(LS_QUEUES, JSON.stringify(slim));
+    rosterMirror.queues = slim;
+    scheduleRosterFlush();
   } catch { /* noop */ }
 }
 
 function loadPersistedQueues(): Record<string, QueuedMessage[]> {
   try {
-    const raw = window.localStorage.getItem(LS_QUEUES);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, QueuedMessage[]>;
+    const parsed = useFileRoster
+      ? (fileRoster?.queues as Record<string, QueuedMessage[]> | undefined)
+      : JSON.parse(window.localStorage.getItem(LS_QUEUES) ?? 'null') as Record<string, QueuedMessage[]> | null;
     if (!parsed || typeof parsed !== 'object') return {};
     // Defensively keep only well-formed entries.
     const out: Record<string, QueuedMessage[]> = {};
@@ -361,7 +484,7 @@ function loadPersistedQueues(): Record<string, QueuedMessage[]> {
 
 function loadPersistedSelectedId(agents: Agent[]): string | null {
   try {
-    const id = window.localStorage.getItem(LS_SELECTED);
+    const id = useFileRoster ? fileRoster?.selectedId : window.localStorage.getItem(LS_SELECTED);
     return id && agents.some((a) => a.id === id) ? id : (agents[0]?.id ?? null);
   } catch {
     return agents[0]?.id ?? null;
@@ -378,7 +501,7 @@ const initialSidebarWidth = (() => {
 const initialSidebarTab: SidebarTab = (() => {
   try {
     const v = window.localStorage.getItem(LS_SIDEBAR_TAB);
-    if (v === 'files' || v === 'terminal' || v === 'messages' || v === 'traces') return v;
+    if (v === 'terminal' || v === 'messages' || v === 'traces' || v === 'git') return v;
   } catch { /* noop */ }
   return 'terminal';
 })();
@@ -388,6 +511,21 @@ const initialArchivedAgents = loadPersistedArchived();
 const initialRestorableAgents = loadPersistedRestorable();
 const initialSelectedId = loadPersistedSelectedId(initialAgents);
 const initialQueues = loadPersistedQueues();
+
+// Prime the mirror with whatever we just loaded, so a later persist of ONE slice
+// writes a complete file rather than blanking the slices it didn't touch.
+rosterMirror.agents = slimAgents(initialAgents);
+rosterMirror.archived = slimAgents(initialArchivedAgents);
+rosterMirror.restorable = slimAgents(initialRestorableAgents);
+rosterMirror.queues = initialQueues;
+rosterMirror.selectedId = initialSelectedId;
+
+// First run with the file: seed it from this origin's localStorage. Only when
+// there is something to seed — writing an empty file here would hand a blank
+// roster to the other side, which is precisely the outcome being designed out.
+if (!useFileRoster && rosterMirror.agents.length + rosterMirror.archived.length + rosterMirror.restorable.length > 0) {
+  scheduleRosterFlush();
+}
 
 let queuedSeq = 0;
 /** Process-unique id for a queued message (timestamp + counter avoids collisions
@@ -409,6 +547,8 @@ export const useStore = create<State>((set) => ({
     set((s) => ({ ccTabRequest: { tab, seq: (s.ccTabRequest?.seq ?? 0) + 1 } })),
   fullscreenAgentId: null,
   fullscreenFilePath: null,
+  fullscreenFileView: 'edit',
+  ideInitialFile: null,
   ideOpen: false,
   sidebarWidth: initialSidebarWidth,
   sidebarTab: initialSidebarTab,
@@ -420,7 +560,23 @@ export const useStore = create<State>((set) => ({
   setGodStatus: (status) => set({ godStatus: status }),
   select: (id) => set((s) => { persistAgents(s.agents, id); return { selectedId: id, ccTabRequest: null }; }),
   updateAgent: (id, patch) =>
-    set((s) => ({ agents: s.agents.map(a => a.id === id ? { ...a, ...patch } : a) })),
+    set((s) => {
+      const agents = s.agents.map(a => a.id === id ? { ...a, ...patch } : a);
+      // Persist only when something DURABLE changed. `updateAgent` is also the
+      // pty parser's per-chunk write (status/action/progress), so persisting
+      // unconditionally would rewrite localStorage on every burst of terminal
+      // output. Persisting nothing was worse: a model or command change lived
+      // only in memory, so the selector snapped back to the old model on reload
+      // and restore relaunched the old command.
+      if (touchesDurableAgentField(patch)) persistAgents(agents, s.selectedId);
+      return { agents };
+    }),
+  setAgentNote: (id, note) =>
+    set((s) => {
+      const agents = s.agents.map((a) => a.id === id ? { ...a, note } : a);
+      persistAgents(agents, s.selectedId);
+      return { agents };
+    }),
   pushFeed: (id, line) =>
     set((s) => ({ feeds: { ...s.feeds, [id]: [...(s.feeds[id] ?? []), line] } })),
   addAgent: (agent) =>
@@ -493,6 +649,20 @@ export const useStore = create<State>((set) => ({
       const restorableAgents = s.restorableAgents.filter((a) => a.id !== id);
       persistRestorable(restorableAgents);
       return { restorableAgents };
+    }),
+  reorderAgents: (fromId, toId) =>
+    set((s) => {
+      if (fromId === toId) return s;
+      const from = s.agents.findIndex((a) => a.id === fromId);
+      const to = s.agents.findIndex((a) => a.id === toId);
+      if (from === -1 || to === -1) return s;
+      const agents = [...s.agents];
+      const [moved] = agents.splice(from, 1);
+      agents.splice(to, 0, moved);
+      // Persist the new roster order so it survives a reload (same slim key the
+      // rest of the roster uses). selectedId is unchanged by a reorder.
+      persistAgents(agents, s.selectedId);
+      return { agents };
     }),
   taskDetailId: null,
   openTaskDetail: (id) => set({ taskDetailId: id }),
@@ -572,8 +742,9 @@ export const useStore = create<State>((set) => ({
   pendingHire: null,
   setPendingHire: (m) => set({ pendingHire: m }),
   setFullscreen: (id) => set({ fullscreenAgentId: id }),
-  setFullscreenFile: (path) => set({ fullscreenFilePath: path }),
+  setFullscreenFile: (path, view) => set({ fullscreenFilePath: path, fullscreenFileView: view ?? 'edit' }),
   setIdeOpen: (open) => set({ ideOpen: open }),
+  setIdeInitialFile: (path) => set({ ideInitialFile: path }),
   setSidebarWidth: (px) => {
     const clamped = Math.min(1200, Math.max(320, Math.round(px)));
     try { window.localStorage.setItem(LS_SIDEBAR_WIDTH, String(clamped)); } catch { /* noop */ }

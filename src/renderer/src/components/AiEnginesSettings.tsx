@@ -39,9 +39,9 @@ const inputStyle: CSSProperties = {
   padding: '6px 8px 4px',
   background: 'var(--cth-paper-100)',
   border: 'none',
-  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
   fontFamily: 'var(--cth-font-ui)',
-  fontSize: 14,
+  fontSize: 13,
   color: 'var(--cth-ink-900)',
   outline: 'none'
 };
@@ -128,7 +128,7 @@ export function AiEnginesSettings({ config }: { config: HarnessConfig }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
         <div style={headStyle}>AI ENGINE PROVIDERS (BYOK)</div>
-        <div style={{ fontSize: 13, color: 'var(--cth-ink-700)', lineHeight: '18px' }}>
+        <div style={{ fontSize: 12, color: 'var(--cth-ink-700)', lineHeight: '18px' }}>
           API keys + local endpoints for the OpenCode, Crush, pi.dev and Qwen engines.
           Keys are stored <strong>write-only</strong> (encrypted at rest; never shown again)
           and used only when those engines spawn. Claude Code and Codex use their own login.

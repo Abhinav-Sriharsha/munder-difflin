@@ -40,14 +40,14 @@ function relTime(ms: number): string {
 const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', padding: '6px 8px', resize: 'vertical',
   background: 'var(--cth-paper-100)', border: 'none',
-  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
   fontFamily: 'var(--cth-font-mono)', fontSize: 12, lineHeight: '17px',
   color: 'var(--cth-ink-900)', outline: 'none'
 };
 
 const selectStyle: React.CSSProperties = {
   padding: '4px 6px', background: 'var(--cth-paper-100)', border: 'none',
-  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)', fontFamily: 'var(--cth-font-ui)',
+  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)', fontFamily: 'var(--cth-font-ui)',
   fontSize: 12, color: 'var(--cth-ink-900)', cursor: 'pointer'
 };
 
@@ -124,7 +124,7 @@ export function SchedulesTab() {
             color: 'var(--cth-ink-900)', flexShrink: 0
           }}>{isCompact ? '⚙ compact' : hb ? '♥ beat' : intervalLabel(m.intervalMs)}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: 'var(--cth-ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</div>
+            <div style={{ fontSize: 12, color: 'var(--cth-ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</div>
             <div style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>
               {isCompact
                 ? `every ${intervalLabel(m.intervalMs)} · keeps every agent's terminal context lean`
@@ -157,7 +157,7 @@ export function SchedulesTab() {
             style={{
               padding: '2px 6px 1px', border: 'none', cursor: 'pointer', flexShrink: 0,
               background: 'var(--cth-cream-200)',
-              boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+              boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
               fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-coral)'
             }}
           >✕</button>

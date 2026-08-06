@@ -49,10 +49,10 @@ export function CommandBar({ accent, busy, blocked, onSend }: CommandBarProps) {
               background: mode === m ? `var(--cth-${accent})` : 'var(--cth-cream-200)',
               color: 'var(--cth-ink-900)',
               boxShadow: mode === m
-                ? 'inset 0 0 0 1px var(--cth-ink-900), 0 -2px 0 var(--cth-ink-900) inset'
-                : 'inset 0 0 0 1px var(--cth-ink-700)',
+                ? 'inset 0 0 0 1px var(--cth-ink-300), 0 -2px 0 var(--cth-ink-900) inset'
+                : 'inset 0 0 0 1px var(--cth-ink-100)',
               fontFamily: 'var(--cth-font-ui)',
-              fontSize: 14,
+              fontSize: 13,
               cursor: 'pointer'
             }}
           >
@@ -94,8 +94,8 @@ export function CommandBar({ accent, busy, blocked, onSend }: CommandBarProps) {
           </PixelButton>
         </div>
       </PixelPanel>
-      {busy && <span style={{ fontSize: 13, color: 'var(--cth-ink-500)' }}>Ada is mid-tool. Queue or hit pause.</span>}
-      {blocked && <span style={{ fontSize: 13, color: 'var(--cth-coral)' }}>Approval needed.</span>}
+      {busy && <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>Ada is mid-tool. Queue or hit pause.</span>}
+      {blocked && <span style={{ fontSize: 12, color: 'var(--cth-coral)' }}>Approval needed.</span>}
     </div>
   );
 }

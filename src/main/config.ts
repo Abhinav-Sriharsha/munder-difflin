@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import {
   autoModeFlagForProvider,
+  defaultCommandForProvider,
   inferAgentProvider,
   providerPreset,
   type AgentProvider
@@ -19,8 +20,10 @@ export interface ScheduledMission {
   to: string;
   body: string;
   enabled: boolean;
-  /** When true, the scheduler also sends `/compact` to every live terminal when
-   *  this mission fires — keeping each agent's context lean on a cadence. */
+  /** When true, the scheduler asks the renderer to `/compact` live terminals when
+   *  this mission fires — but only agents whose context has filled past a
+   *  threshold (30% for ~250k windows, 20% for ~1M windows) are compacted, so
+   *  small/idle sessions are left alone instead of compacting on every tick. */
   autoCompact?: boolean;
   lastFiredAt?: number;
   /** Mission flavor. Absent ⇒ 'dispatch' (the classic interval-dispatch mission,
@@ -83,17 +86,20 @@ export const HEARTBEAT_MISSION: ScheduledMission = {
  *  ops standup so editing/replacing a standup can never silently disable
  *  compaction again (the bug this fixes). It fires ONLY the auto-compact signal —
  *  `kind:'compact'` makes syncMissions skip the hive.send dispatch (empty to/body).
- *  Shipped ENABLED: auto-compact is REQUIRED for long-running agents — without it
- *  each agent's terminal context grows until it overflows and the agent fails. It
- *  is the SINGLE source of truth for compaction (migration drops autoCompact off
- *  other missions), and it's persistent: deleting it makes it reappear DISABLED. */
+ *  Shipped DISABLED (v0.3.4 founder decision): scheduled compaction is opt-in.
+ *  Turn it on in Settings → General or the Schedules tab; the Schedules warning
+ *  panel explains the risk of leaving it off for long-running agents. It is the
+ *  SINGLE source of truth for compaction (migration drops autoCompact off other
+ *  missions), and it's persistent: deleting it makes it reappear DISABLED.
+ *  Existing installs keep whatever enabled state the user already has
+ *  (compactMaintenanceSeeded guards re-seeding). */
 export const COMPACT_MAINTENANCE_MISSION: ScheduledMission = {
   id: 'compact-maintenance',
   label: 'Auto-compact (maintenance)',
   intervalMs: 3_600_000,
   to: '',
   body: '',
-  enabled: true,
+  enabled: false,
   autoCompact: true,
   kind: 'compact'
 };
@@ -180,10 +186,10 @@ export interface HarnessConfig {
    *  later delete makes the mission reappear DISABLED on next boot (compaction is
    *  required, so it's never silently lost — only user-disabled). */
   compactMaintenanceSeeded?: boolean;
-  /** Hard dollar ceiling across all active agents before the circuit breaker
-   *  trips. UNSET by default (Lane A #6.6b decision): the breaker trips on
-   *  behavioral signals; the $-cap is purely opt-in. Legacy — the UI now sets a
-   *  token cap instead (see costCapTokens); both are enforced if present. */
+  /** DEPRECATED (v0.3.4): config-file only, no UI anywhere. Hard dollar ceiling
+   *  across all active agents. Still enforced if present so legacy configs keep
+   *  their guard, but the token cap (costCapTokens) is the real budget —
+   *  scheduled for removal next release. */
   costCapUsd?: number;
   /** Hard TOKEN ceiling (total tokens across all active agents) before the
    *  breaker trips. The user-facing budget — set in Settings. Opt-in like the
@@ -194,6 +200,9 @@ export interface HarnessConfig {
    *  tokens exceed its cap the breaker trips that agent alone (independent of the
    *  floor budget). Set from each agent's card in the Command Center. */
   agentTokenCaps?: Record<string, number>;
+  /** Agent ids whose automatic inbox/queue delivery is paused. Pending messages
+   *  stay durable until the operator explicitly resumes delivery. */
+  autoDeliveryPausedAgents?: string[];
   /** Passed to every spawned agent as `--max-turns <n>` when set; unset = no cap
    *  (Claude Code's default). A coarse runaway guard independent of the breaker. */
   maxTurns?: number;
@@ -230,9 +239,15 @@ export interface HarnessConfig {
    *  AC). Default OFF: the honest default is "survive sleep + catch up once on
    *  resume" (see the powerMonitor 'resume' handler), not "stay awake". */
   strongKeepalive?: boolean;
+  /** Auto-update from GitHub releases (v0.3.4). Default ON. Packaged builds
+   *  check on boot + every ~6h, download in the background, and show a
+   *  "restart to update" toast — installation is always user-initiated. OFF
+   *  disables checking entirely. (Mirrored in preload + renderer config.) */
+  autoUpdate?: boolean;
   /** Multi-window "floors": expose a New Floor action that opens additional
    *  windows, each an independent office with isolated renderer state (its own
-   *  session partition) and per-window PTY routing. OFF by default (opt-in) —
+   *  session partition) and per-window PTY routing. ON by default (v0.3.4: code
+   *  and comment disagreed; the shipped behavior — enabled — wins) —
    *  the window/PTY-ownership plumbing is always active and single-window-safe,
    *  but the New Floor entry points (app menu item + IPC) only appear when on.
    *  The on-disk hive (god orchestration under harnessHome) stays process-global;
@@ -335,6 +350,10 @@ const DEFAULTS: HarnessConfig = {
   defaultCommand: 'claude',
   godProvider: 'claude',
   godModel: 'claude-opus-4-8',
+  // Global default model for every agent that hasn't picked one explicitly — wins
+  // over the role-based tiers (modelForRole) in the spawn handler, so all agents
+  // (incl. god) default to Fable 5. A per-agent model choice still overrides it.
+  defaultModel: 'claude-fable-5',
   // Seeded from the MCP catalog so the consent defaults never drift from it
   // (safe-readonly ON, write/secret OFF).
   mcpDefaults: defaultMcpDefaults(),
@@ -347,6 +366,7 @@ const DEFAULTS: HarnessConfig = {
   missions: [OPS_STANDUP_MISSION],
   notifications: false,
   strongKeepalive: false,
+  autoUpdate: true,
   multiWindow: true,
   tvShowOffices: false,
   officeTheme: 'office',
@@ -374,7 +394,10 @@ const DEFAULTS: HarnessConfig = {
   reflectRecentKeep: 12,
   reflectMinBytes: 16_384,
   // Enterprise Knowledge Graph — opt-in; dark until the user enables it.
-  knowledgeGraph: { enabled: true }
+  // v0.3.4 fix: default OFF, matching the field's own documentation ("Default
+  // OFF / dark until enabled") — the true default contradicted it. Existing
+  // installs keep their persisted value.
+  knowledgeGraph: { enabled: false }
 };
 
 function configPath(): string {
@@ -452,17 +475,18 @@ export function modelForRole(
   return MODEL_WORKER;
 }
 
-/** Auto-suggested command string given current autoMode preference.
- *  Provider-aware: Claude gets --permission-mode bypassPermissions; Codex gets
- *  --full-auto; custom providers receive no extra flags. */
+/** Auto-suggested command string given current autoMode preference. */
 export function commandForAutoMode(
   config: HarnessConfig,
   provider?: AgentProvider
 ): string {
-  if (!config.autoMode) return config.defaultCommand;
   const p = provider ?? inferAgentProvider(config.defaultCommand);
+  const base = p === 'claude' || p === 'custom'
+    ? config.defaultCommand
+    : defaultCommandForProvider(p, config.defaultCommand);
+  if (!config.autoMode) return base;
   const flag = autoModeFlagForProvider(p);
-  return flag ? `${config.defaultCommand} ${flag}` : config.defaultCommand;
+  return flag ? `${base} ${flag}` : base;
 }
 
 /** Ensure harnessHome exists on disk. */

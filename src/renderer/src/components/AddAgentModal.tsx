@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
 import { SpritePortrait } from './SpritePortrait';
@@ -34,8 +34,8 @@ const ACCENTS: AccentColorName[] = ['coral', 'mint', 'sky', 'lemon', 'lilac', 'p
 const ossChip = (active: boolean, accent: AccentColorName): CSSProperties => ({
   padding: '3px 8px 1px',
   background: active ? `var(--cth-${accent}-light)` : 'var(--cth-cream-100)',
-  boxShadow: active ? 'inset 0 0 0 2px var(--cth-ink-900)' : 'inset 0 0 0 1px var(--cth-ink-700)',
-  fontFamily: 'var(--cth-font-ui)', fontSize: 13,
+  boxShadow: active ? 'inset 0 0 0 1.5px var(--cth-ink-500)' : 'inset 0 0 0 1px var(--cth-ink-100)',
+  fontFamily: 'var(--cth-font-ui)', fontSize: 12,
   color: 'var(--cth-ink-900)', cursor: 'pointer', border: 'none'
 });
 const ossGroupHead: CSSProperties = {
@@ -195,6 +195,11 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
     // the CLI default. This is what makes that Settings field live (Dwight NIT-1).
     const nextModel = isClaudeProvider(id) ? config.defaultModel : config.providerDefaultModels?.[id];
     setModel(nextModel);
+    const nextPreset = providerPreset(id);
+    if (!isClaudeProvider(id) && !nextPreset.resumeFlag && !nextPreset.resumeSubcommand) {
+      setResumeSessionId('');
+      setFolderNote(undefined);
+    }
     if (id === 'custom') {
       setCommand(command.trim() || config.defaultCommand || '');
       return;
@@ -224,6 +229,19 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
       setTimeout(() => setCopiedPrompt(false), 1500);
     } catch { /* clipboard blocked — the textarea below is selectable as a fallback */ }
   };
+
+  // Close only the modal on Esc. Capture prevents the fullscreen terminal's
+  // window-level handler from also closing the view underneath.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
 
   // Zero-step resume: when a session id is entered, look up the cwd it originally
   // ran in (from the transcript) and pre-fill the Folder so the user doesn't have
@@ -394,11 +412,9 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
         position: 'fixed', inset: 0,
         background: 'rgba(26, 19, 32, 0.6)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        // Dialog tier (matches SettingsModal / QuitWarningModal at 300). Must sit
-        // ABOVE FullscreenTerminal (250) and the fullscreen file/kanban overlays
-        // (280): the "+ agent" button is reachable from fullscreen, so a lower
-        // z-index made this modal open BEHIND the fullscreen view.
-        zIndex: 300
+        // Must sit above fullscreen terminal/file overlays (250/280) and their
+        // hover popovers. The fullscreen Add Agent button uses this same modal.
+        zIndex: 500
       }}
     >
       <div onClick={(e) => e.stopPropagation()} style={{ width: 940, maxWidth: '95vw' }}>
@@ -419,8 +435,8 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
               <div style={{
                 padding: '6px 10px',
                 background: 'var(--cth-lemon-light, #fdf3cf)',
-                boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
-                fontSize: 13,
+                boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
+                fontSize: 12,
                 color: 'var(--cth-ink-900)',
                 display: 'flex', flexDirection: 'column', gap: 2
               }}>
@@ -528,8 +544,8 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                         textAlign: 'left', padding: '6px 9px 5px', border: 'none', cursor: 'pointer',
                         background: active ? `var(--cth-${accent}-light)` : 'var(--cth-cream-100)',
                         boxShadow: active
-                          ? 'inset 0 0 0 2px var(--cth-ink-900)'
-                          : 'inset 0 0 0 1px var(--cth-ink-700)',
+                          ? 'inset 0 0 0 1.5px var(--cth-ink-500)'
+                          : 'inset 0 0 0 1px var(--cth-ink-100)',
                         display: 'flex', flexDirection: 'column', gap: 1
                       }}
                     >
@@ -573,8 +589,8 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                               padding: 4,
                               background: character === c.name ? `var(--cth-${accent}-light)` : 'var(--cth-cream-100)',
                               boxShadow: character === c.name
-                                ? 'inset 0 0 0 2px var(--cth-ink-900)'
-                                : 'inset 0 0 0 1px var(--cth-ink-700)',
+                                ? 'inset 0 0 0 1.5px var(--cth-ink-500)'
+                                : 'inset 0 0 0 1px var(--cth-ink-100)',
                               cursor: 'pointer',
                               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                               border: 'none', width: 56
@@ -599,8 +615,8 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                               width: 32, height: 32,
                               background: `var(--cth-${a})`,
                               boxShadow: accent === a
-                                ? 'inset 0 0 0 2px var(--cth-ink-900), 0 0 0 2px var(--cth-ink-900)'
-                                : 'inset 0 0 0 1px var(--cth-ink-900)',
+                                ? 'inset 0 0 0 1.5px var(--cth-ink-500), 0 0 0 2px var(--cth-ink-900)'
+                                : 'inset 0 0 0 1px var(--cth-ink-300)',
                               cursor: 'pointer',
                               border: 'none'
                             }}
@@ -624,7 +640,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                           title="Pick a folder and register it as a project"
                           style={{
                             flexShrink: 0, padding: '2px 8px 1px', border: 'none', cursor: 'pointer',
-                            background: 'var(--cth-cream-200)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+                            background: 'var(--cth-cream-200)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
                             fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)',
                             display: 'inline-flex', alignItems: 'center', gap: 4
                           }}
@@ -643,10 +659,10 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                                 padding: '3px 8px 1px',
                                 background: cwd === r ? `var(--cth-${accent}-light)` : 'var(--cth-cream-100)',
                                 boxShadow: cwd === r
-                                  ? 'inset 0 0 0 2px var(--cth-ink-900)'
-                                  : 'inset 0 0 0 1px var(--cth-ink-700)',
+                                  ? 'inset 0 0 0 1.5px var(--cth-ink-500)'
+                                  : 'inset 0 0 0 1px var(--cth-ink-100)',
                                 fontFamily: 'var(--cth-font-ui)',
-                                fontSize: 13,
+                                fontSize: 12,
                                 cursor: 'pointer',
                                 border: 'none'
                               }}
@@ -661,7 +677,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                           value={cwd}
                           onChange={(e) => setCwd(e.target.value)}
                           placeholder="/path/to/your/project"
-                          style={{ ...inputStyle, flex: 1, fontFamily: 'var(--cth-font-mono)', fontSize: 14 }}
+                          style={{ ...inputStyle, flex: 1, fontFamily: 'var(--cth-font-mono)', fontSize: 13 }}
                         />
                         <PixelButton variant="secondary" size="md" onClick={pickFolder}>
                           <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
@@ -676,7 +692,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                           style={{
                             alignSelf: 'flex-start', marginTop: 2,
                             padding: '2px 8px 1px', border: 'none', cursor: 'pointer',
-                            background: 'var(--cth-mint-light)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+                            background: 'var(--cth-mint-light)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
                             fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)',
                             display: 'inline-flex', alignItems: 'center', gap: 4
                           }}
@@ -694,7 +710,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                         onChange={(e) => setIsolate(e.target.checked)}
                         style={{ width: 16, height: 16, cursor: resuming ? 'not-allowed' : 'pointer' }}
                       />
-                      <span style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 14, color: 'var(--cth-ink-900)' }}>
+                      <span style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 13, color: 'var(--cth-ink-900)' }}>
                         Git isolation (own worktree)
                       </span>
                     </label>
@@ -705,7 +721,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                         onChange={(e) => { setResumeSessionId(e.target.value); setFolderNote(undefined); }}
                         onBlur={resolveFolderFromSession}
                         placeholder="paste a Claude session id to continue its conversation"
-                        style={{ ...inputStyle, fontFamily: 'var(--cth-font-mono)', fontSize: 14 }}
+                        style={{ ...inputStyle, fontFamily: 'var(--cth-font-mono)', fontSize: 13 }}
                       />
                       {folderNote && (
                         <span style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-mint, var(--cth-ink-700))' }}>
@@ -744,9 +760,9 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                                 padding: '3px 8px 1px',
                                 background: active ? `var(--cth-${accent}-light)` : 'var(--cth-cream-100)',
                                 boxShadow: active
-                                  ? 'inset 0 0 0 2px var(--cth-ink-900)'
-                                  : 'inset 0 0 0 1px var(--cth-ink-700)',
-                                fontFamily: 'var(--cth-font-ui)', fontSize: 13,
+                                  ? 'inset 0 0 0 1.5px var(--cth-ink-500)'
+                                  : 'inset 0 0 0 1px var(--cth-ink-100)',
+                                fontFamily: 'var(--cth-font-ui)', fontSize: 12,
                                 color: 'var(--cth-ink-900)', cursor: 'pointer', border: 'none',
                                 display: 'inline-flex', alignItems: 'center', gap: 6
                               }}
@@ -781,9 +797,9 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                                 padding: '3px 8px 1px',
                                 background: active ? `var(--cth-${accent}-light)` : 'var(--cth-cream-100)',
                                 boxShadow: active
-                                  ? 'inset 0 0 0 2px var(--cth-ink-900)'
-                                  : 'inset 0 0 0 1px var(--cth-ink-700)',
-                                fontFamily: 'var(--cth-font-ui)', fontSize: 13,
+                                  ? 'inset 0 0 0 1.5px var(--cth-ink-500)'
+                                  : 'inset 0 0 0 1px var(--cth-ink-100)',
+                                fontFamily: 'var(--cth-font-ui)', fontSize: 12,
                                 color: 'var(--cth-ink-900)', cursor: 'pointer', border: 'none'
                               }}
                             >
@@ -893,8 +909,8 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                             style={{
                               padding: '3px 8px 1px',
                               background: 'var(--cth-cream-100)',
-                              boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
-                              fontFamily: 'var(--cth-font-ui)', fontSize: 13,
+                              boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
+                              fontFamily: 'var(--cth-font-ui)', fontSize: 12,
                               color: 'var(--cth-ink-900)', cursor: 'pointer', border: 'none'
                             }}
                           >
@@ -932,7 +948,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                 padding: '6px 10px',
                 background: 'var(--cth-coral-light)',
                 boxShadow: 'inset 0 0 0 1px var(--cth-coral)',
-                fontSize: 14,
+                fontSize: 13,
                 color: 'var(--cth-ink-900)'
               }}>
                 {error}
@@ -957,7 +973,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                     flexShrink: 0,
                     padding: '2px 8px 1px', border: 'none', cursor: 'pointer',
                     background: showHirePrompt ? 'var(--cth-lemon-light)' : 'var(--cth-cream-200)',
-                    boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+                    boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
                     fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-900)'
                   }}
                 >
@@ -1013,7 +1029,7 @@ const inputStyle: React.CSSProperties = {
   padding: '6px 8px 4px',
   background: 'var(--cth-paper-100)',
   border: 'none',
-  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
   fontFamily: 'var(--cth-font-ui)',
   fontSize: 16,
   color: 'var(--cth-ink-900)',

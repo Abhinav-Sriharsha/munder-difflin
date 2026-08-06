@@ -106,8 +106,8 @@ export function FileTree({ root, activeRel, onOpenFile, onCopyPath }: FileTreePr
       return (
         <div>
           {node.children?.map(c => renderNode(c, 0))}
-          {node.loading && <div style={{ padding: 8, fontSize: 13, color: 'var(--cth-ink-500)' }}>loading…</div>}
-          {node.error && <div style={{ padding: 8, fontSize: 13, color: 'var(--cth-coral)' }}>{node.error}</div>}
+          {node.loading && <div style={{ padding: 8, fontSize: 12, color: 'var(--cth-ink-500)' }}>loading…</div>}
+          {node.error && <div style={{ padding: 8, fontSize: 12, color: 'var(--cth-coral)' }}>{node.error}</div>}
         </div>
       );
     }
@@ -123,7 +123,7 @@ export function FileTree({ root, activeRel, onOpenFile, onCopyPath }: FileTreePr
             background: isActive ? 'var(--cth-lemon-light)' : 'transparent',
             cursor: 'pointer',
             fontFamily: 'var(--cth-font-ui)',
-            fontSize: 13,
+            fontSize: 12,
             color: 'var(--cth-ink-900)',
             userSelect: 'none'
           }}

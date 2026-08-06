@@ -101,7 +101,7 @@ export function OfficeThemePicker({ config }: { config: HarnessConfig }) {
       {/* Experimental feature flag */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ fontSize: 14, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+          <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
             TV-show office themes <span style={{ color: 'var(--cth-ink-500)' }}>(experimental)</span>
           </span>
           <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
@@ -128,18 +128,18 @@ export function OfficeThemePicker({ config }: { config: HarnessConfig }) {
                   padding: 8, cursor: busy ? 'default' : 'pointer',
                   background: isCurrent ? 'var(--cth-paper-100)' : 'transparent',
                   boxShadow: isCurrent
-                    ? 'inset 0 0 0 2px var(--cth-ink-900)'
+                    ? 'inset 0 0 0 1.5px var(--cth-ink-500)'
                     : 'inset 0 0 0 1px var(--cth-ink-300)',
                   opacity: busy && !isCurrent ? 0.6 : 1,
                 }}
               >
                 <span style={{
                   width: 28, height: 28, flexShrink: 0, background: t.swatch,
-                  boxShadow: 'inset 0 0 0 2px var(--cth-ink-900)',
+                  boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500)',
                 }} />
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, lineHeight: '16px', color: 'var(--cth-ink-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {t.label}
                     </span>
                     {isCurrent && (
@@ -211,7 +211,7 @@ function ThemeSwitchConfirmModal({
               <div style={{
                 width: 32, height: 32, flexShrink: 0,
                 background: 'var(--cth-coral-light)',
-                boxShadow: 'inset 0 0 0 2px var(--cth-ink-900)',
+                boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <Icon name="bell" />

@@ -8,7 +8,14 @@ import {
   tokenizeCommand,
   type HarnessConfig
 } from '@/store/config';
-import { acquireTerminal, resetTerminal } from '@/components/terminalPool';
+import {
+  compactionCommandForProvider,
+  remoteControlCommandForProvider,
+  terminalReadyToReceive
+} from '../../../shared/providerAutomation';
+import type { AgentProvider } from '../../../shared/agentProvider';
+import { acquireTerminal, resetTerminal, isTerminalAutomationSafe } from '@/components/terminalPool';
+import { deliverWithAcknowledgement } from './queueDelivery';
 import { OFFICE_CAST, DEFAULT_CHARACTER } from '@/scene/office/cast';
 
 const GOD_ID = 'god';
@@ -18,12 +25,6 @@ const GOD_ID = 'god';
 const SPAWN_ACCENTS = ['coral', 'mint', 'sky', 'lemon', 'lilac', 'peach'] as const;
 const GOD_PTY = `pty-${GOD_ID}`;
 
-// How long to let Claude Code's TUI finish booting before we type the first
-// thing into Michael's terminal, and how long to PAUSE after the /remote-control
-// command so the slash command lands + executes on its own line before the
-// orientation prompt follows (otherwise they jam into one line and the TUI shows
-// "Unknown command: /remote-control…").
-const GOD_BOOT_MS = 4000;
 const REMOTE_CONTROL_SETTLE_MS = 1500;
 // Provider-agnostic PTY-quiescence idle fallback (#2e). A non-Claude bridge that
 // fires a 'working' event but never its turn-end signal (Stop / session.idle /
@@ -36,9 +37,12 @@ const REMOTE_CONTROL_SETTLE_MS = 1500;
 const QUIESCE_IDLE_MS = 12000;
 const QUIESCE_POLL_MS = 4000;
 // After a god/agent spawn, hold off the inbox-wake + queue-drain typers for this
-// long so they can't interleave with the boot sequence (remote-control +
-// orientation) and jam the input line.
-const BOOT_GRACE_MS = GOD_BOOT_MS + REMOTE_CONTROL_SETTLE_MS + 2500;
+// long while the readiness handshake + provider-specific boot sequence runs.
+const BOOT_GRACE_MS = 35_000;
+// Delay before typing a one-time TUI protocol seed into a fresh worker (3b) —
+// long enough for the TUI to finish painting and surface any permission prompt.
+// submitToPty additionally waits for the terminal's readiness handshake.
+const SEED_BOOT_MS = 12_000;
 
 // The first thing Michael (god) is told on a fresh spawn — orient him and put
 // him to work running the floor. Kept terse and action-oriented.
@@ -51,19 +55,32 @@ const INITIAL_GOD_PROMPT = [
   'Then begin orchestrating: triage requests, delegate work to the team, and keep everyone unblocked. You are fully autonomous — there is no approval queue, so handle tool-permission prompts in this session yourself (the human can approve them remotely from their phone).'
 ].join('\n');
 
-// Scheduled auto-compact command (from the ops standup). Queued per agent and
-// delivered when idle, so it never interrupts a working agent. The focus
-// instructions make the agent record its current task + next step into the
-// summary, so it resumes from the same point after compacting.
-const COMPACT_CMD =
-  '/compact Summarise exactly what you are currently working on and the next step, ' +
-  'so you can resume from the same point — then continue that work after compacting.';
-
 // Per-pty submission chain. Every submitToPty for a given pty is appended here so
 // two callers (e.g. the boot sequence's /remote-control and the inbox-wake nudge)
 // can NEVER interleave their text + Enter — which jammed them onto one line and
 // produced "Unknown command: /remote-control<next prompt>".
 const writeChains = new Map<string, Promise<void>>();
+const readyPids = new Map<string, number>();
+
+async function waitForTerminalReady(
+  ptyId: string,
+  provider: AgentProvider,
+  timeoutMs = 30_000
+): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const live = await window.cth.listPtys();
+    const pty = live.find((entry) => entry.id === ptyId);
+    if (!pty) throw new Error(`PTY exited before becoming ready: ${ptyId}`);
+    if (readyPids.get(ptyId) === pty.pid) return;
+    if (terminalReadyToReceive(pty.hasOutput, Date.now() - started, provider)) {
+      readyPids.set(ptyId, pty.pid);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`PTY did not become ready within ${timeoutMs}ms: ${ptyId}`);
+}
 
 /**
  * Type a line into an agent's Claude Code TUI and actually submit it.
@@ -83,9 +100,15 @@ const writeChains = new Map<string, Promise<void>>();
  * input box. Without them, every "\n" in a multi-line message acted as Enter —
  * the message submitted line-by-line in fragments (the agent saw only the last
  * chunk). The closing Enter, sent a tick later, submits the whole block. (#24) */
-function submitToPty(ptyId: string, text: string, settleMs = 250): Promise<void> {
+function submitToPty(
+  ptyId: string,
+  text: string,
+  provider: AgentProvider,
+  settleMs = 250
+): Promise<void> {
   const prev = writeChains.get(ptyId) ?? Promise.resolve();
   const next = prev.catch(() => { /* a failed prior write must not stall the chain */ }).then(async () => {
+    await waitForTerminalReady(ptyId, provider);
     // Bracketed paste (ESC[200~ … ESC[201~) only matters for MULTI-LINE text, so a
     // stray "\n" doesn't submit early (#24). Single-line text (nudges, slash
     // commands) is sent raw — some TUIs (Antigravity's agy) treat the paste
@@ -227,7 +250,6 @@ export function useHive(config: HarnessConfig | null): void {
   useEffect(() => {
     if (!config?.onboardingComplete || !config.harnessHome) return;
     let cancelled = false;
-    const timers: ReturnType<typeof setTimeout>[] = [];
     useStore.getState().setGodStatus('booting');
     const t = setTimeout(async () => {
       if (cancelled) return;
@@ -297,21 +319,26 @@ export function useHive(config: HarnessConfig | null): void {
       // Michael until he's settled. The live-PTY branch above skips this entirely.
       const resumedGod = res.resumed === true;
       bootGraceUntil.current[GOD_ID] = Date.now() + BOOT_GRACE_MS;
-      timers.push(setTimeout(() => {
-        if (cancelled) return;
-        // settleMs pauses the chain ~1.5s after /remote-control before the
-        // orientation prompt (fresh spawns only) is submitted next.
-        submitToPty(GOD_PTY, '/remote-control', REMOTE_CONTROL_SETTLE_MS).catch(() => { /* best-effort */ });
-        if (!resumedGod) {
-          // A type-into-tui god (Crush) can't ride its hive protocol on argv, so the
-          // main process hands it back as seedPrompt — type it FIRST (identity), then
-          // the orientation kick. Serialized via writeChains so they can't jam. (ondev-b)
-          if (res.seedPrompt) submitToPty(GOD_PTY, res.seedPrompt).catch(() => { /* pty may have died */ });
-          submitToPty(GOD_PTY, INITIAL_GOD_PROMPT).catch(() => { /* pty may have died */ });
-        }
-      }, GOD_BOOT_MS));
+      void (async () => {
+        try {
+          const remoteCommand = remoteControlCommandForProvider(godProvider, 'Michael');
+          if (remoteCommand) {
+            // settleMs pauses the chain ~1.5s after /remote-control before the
+            // orientation prompt (fresh spawns only) is submitted next.
+            await submitToPty(GOD_PTY, remoteCommand, godProvider, REMOTE_CONTROL_SETTLE_MS);
+          }
+          if (!cancelled && !resumedGod) {
+            // A type-into-tui god (Crush) can't ride its hive protocol on argv, so the
+            // main process hands it back as seedPrompt — type it FIRST (identity), then
+            // the orientation kick. Serialized via writeChains so they can't jam. (ondev-b)
+            if (res.seedPrompt) await submitToPty(GOD_PTY, res.seedPrompt, godProvider);
+            await submitToPty(GOD_PTY, INITIAL_GOD_PROMPT, godProvider);
+          }
+        } catch { /* PTY may have died during startup */ }
+        finally { bootGraceUntil.current[GOD_ID] = 0; }
+      })();
     }, 1200);
-    return () => { cancelled = true; clearTimeout(t); timers.forEach(clearTimeout); };
+    return () => { cancelled = true; clearTimeout(t); };
   }, [config?.onboardingComplete, config?.harnessHome]);
 
   // 2) Drive avatars from real hook events emitted by each agent's shim.
@@ -511,26 +538,22 @@ export function useHive(config: HarnessConfig | null): void {
     return () => clearInterval(iv);
   }, [config?.onboardingComplete]);
 
-  // 3) Wake idle agents holding unread inbox messages. The assistant is
-  //    send-only (it never receives inbox mail), so it's excluded.
+  // 3) Wake agents holding unread inbox messages. The assistant is send-only
+  //    (it never receives inbox mail), so it's excluded.
+  //
+  //    QUEUES the nudge rather than typing it. This loop used to write straight
+  //    into the terminal, which made it the one automatic writer that could land
+  //    on top of whatever the user was typing — its text fused onto the user's
+  //    half-written line and the pair got submitted as one garbled prompt. Going
+  //    through the queue means effect #4 owns every decision about when a
+  //    terminal may be typed into: idle, off cooldown, past boot grace, delivery
+  //    not paused, and no user draft in the way. One gate, one place, and this
+  //    loop stops needing prompt logic of its own. /compact (effect #6) has
+  //    always worked this way.
   useEffect(() => {
     if (!config?.onboardingComplete) return;
     const iv = setInterval(async () => {
-      const now = Date.now();
-      // STRICTLY idle (#5 — permission-prompt safety). 'waiting'/'blocked' mean a
-      // real approval/notification prompt is on screen (hook Notification
-      // needs-human → effect #2; BLOCK_HINTS like "❯ 1. Yes" → usePtyParser), and
-      // submitToPty always follows its text with a bare '\r' — at a Claude Code
-      // menu that Enter SILENTLY CONFIRMS the highlighted "1. Yes". So the nudge
-      // never types into a prompted agent; it simply defers (nudged is only
-      // stamped when we actually type) and fires once the prompt clears and the
-      // agent drifts idle. This matches the queue-drain's idle-only gate (#4).
-      const agents = useStore.getState().agents.filter(
-        (a) => a.ptyId && a.status === 'idle'
-          // Don't type into an agent still running its boot sequence — the nudge
-          // would collide with /remote-control + the orientation prompt.
-          && (bootGraceUntil.current[a.id] ?? 0) < now
-      );
+      const agents = useStore.getState().agents.filter((a) => a.ptyId);
       for (const a of agents) {
         try {
           const inbox = await window.cth.hiveInbox(a.id);
@@ -540,11 +563,11 @@ export function useHive(config: HarnessConfig | null): void {
             ? inbox.map((m) => m.id).sort().slice(-1)[0]
             : '';
           if (newest && nudged.current[a.id] !== newest) {
-            nudged.current[a.id] = newest;
-            await submitToPty(
-              a.ptyId!,
+            useStore.getState().enqueueMessage(
+              a.id,
               'You have new hive inbox message(s) — read your inbox, act on them now, and move handled ones to inbox/.done/. Act autonomously; only message god if you genuinely need a decision.'
             );
+            nudged.current[a.id] = newest;
           } else if (!newest) {
             nudged.current[a.id] = '';
           }
@@ -588,8 +611,9 @@ export function useHive(config: HarnessConfig | null): void {
             useStore.getState().updateAgent(a.id, { seedPrompt: seed });
             return;
           }
-          submitToPty(ptyId, seed).catch(() => { /* pty may have died */ });
-        }, GOD_BOOT_MS);
+          submitToPty(ptyId, seed, inferAgentProvider(live.command, live.provider))
+            .catch(() => { /* pty may have died */ });
+        }, SEED_BOOT_MS);
       }
     }, 1500);
     return () => clearInterval(iv);
@@ -604,64 +628,83 @@ export function useHive(config: HarnessConfig | null): void {
     const FLUSH_COOLDOWN_MS = 4500;
     // A message that fails this many PTY writes (dead/crashed pty that the store
     // still thinks is idle) is dropped WITH a console.warn — bounded so the drain
-    // never spins forever on a corpse, loud so the loss is diagnosable.
+    // never spins forever on a corpse, loud so the loss is diagnosable. (#113)
     const MAX_SEND_ATTEMPTS = 3;
+    const inFlight = new Set<string>();
+    const sendFailures: Record<string, number> = {};
 
     // Send the front of `srcId`'s queue into `target`'s pty (verbatim or wrapped),
-    // gated on the target being idle + off cooldown. Keyed cooldown per target so
-    // strict one-by-one delivery holds. Returns true if it INITIATED a send (the
-    // message is only removed from the queue once the write chain resolves).
-    const dispatch = (srcId: string, target: Agent | undefined, wrap?: (m: QueuedMessage) => string): boolean => {
-      const { messageQueues } = useStore.getState();
+    // gated on the target being idle, free of interactive menus, and off
+    // cooldown. The queue item is acknowledged only after BOTH PTY writes
+    // succeed; failures stay visible and retry automatically (bounded by
+    // MAX_SEND_ATTEMPTS so the drain never spins forever on a corpse).
+    const dispatch = async (
+      srcId: string,
+      target: Agent | undefined,
+      wrap?: (m: QueuedMessage) => string
+    ): Promise<{ sent: boolean; message?: QueuedMessage }> => {
+      const { messageQueues, removeQueuedMessage } = useStore.getState();
       const next = messageQueues[srcId]?.[0];
-      if (!next || !target?.ptyId || target.status !== 'idle') return false;
-      // Already mid-write — the head hasn't been confirmed delivered yet.
-      if (inFlightSends.current.has(next.id)) return false;
+      if (!next || !target?.ptyId || target.status !== 'idle') return { sent: false };
       const now = Date.now();
+      const control = await window.cth.controlSnapshot(target.id);
+      if (control?.autoDeliveryPaused) return { sent: false };
       // Hold queued messages until the target finishes its boot sequence.
-      if ((bootGraceUntil.current[target.id] ?? 0) >= now) return false;
-      if (now - (lastFlush.current[target.id] ?? 0) < FLUSH_COOLDOWN_MS) return false;
+      if ((bootGraceUntil.current[target.id] ?? 0) >= now) return { sent: false };
+      // The user owns the prompt: a draft they are writing, or a menu they
+      // opened, holds delivery. Both blocks expire after half an hour, and when
+      // one does we simply type after whatever is there — automation never
+      // erases the user's text and never closes the user's menu.
+      if (!isTerminalAutomationSafe(target.ptyId, now)) return { sent: false };
+      if (now - (lastFlush.current[target.id] ?? 0) < FLUSH_COOLDOWN_MS) return { sent: false };
+      const flightKey = `${srcId}:${next.id}`;
+      if (inFlight.has(flightKey)) return { sent: false };
+      inFlight.add(flightKey);
       lastFlush.current[target.id] = now;
-      // Remove only AFTER the write chain confirms delivery (#36). The old
-      // remove-first ordering + writePty's resolve-on-{ok:false} contract meant a
-      // message to a crashed-but-'idle' agent was popped, the write failed, and
-      // nothing ever heard about it — one message silently destroyed per cooldown.
-      // Double-send safety now comes from inFlightSends + the cooldown above.
-      inFlightSends.current.add(next.id);
-      const ptyId = target.ptyId;
-      const targetId = target.id;
-      // `instruction` (when present) is the authoritative text to type into the
-      // PTY — e.g. Slack-origin work carries the autonomy preamble there while the
-      // kanban card keeps `text` (raw) as its readable title. UI/card surfaces
-      // never read `instruction`, so this stays invisible to the human board.
-      submitToPty(ptyId, wrap ? wrap(next) : (next.instruction ?? next.text))
-        .then(() => {
-          inFlightSends.current.delete(next.id);
-          delete sendFailures.current[next.id];
-          useStore.getState().removeQueuedMessage(srcId, next.id);
-          // Zero the gauge on a DELIVERED /clear — the new session's context isn't
-          // known until statusLine fires after the first post-clear response, so
-          // leaving it at the old value shows a stale-full bar during that window.
-          if (next.text.trim().toLowerCase() === '/clear') {
-            useStore.getState().updateAgent(targetId, { contextTokens: 0, contextLimit: undefined, progress: 0 });
+      try {
+        const sent = await deliverWithAcknowledgement(
+          // `instruction` (when present) is the authoritative text to type into
+          // the PTY; UI/card surfaces continue to show the readable `text`.
+          () => submitToPty(
+            target.ptyId!,
+            wrap ? wrap(next) : (next.instruction ?? next.text),
+            inferAgentProvider(target.command, target.provider)
+          ),
+          () => {
+            removeQueuedMessage(srcId, next.id);
+            // Zero the gauge on a DELIVERED /clear — the new session's context
+            // isn't known until statusLine fires after the first post-clear
+            // response, so leaving it at the old value shows a stale-full bar.
+            if (next.text.trim().toLowerCase() === '/clear') {
+              useStore.getState().updateAgent(target.id, {
+                contextTokens: 0,
+                contextLimit: undefined,
+                progress: 0
+              });
+            }
           }
-        })
-        .catch((err) => {
-          inFlightSends.current.delete(next.id);
-          const attempts = (sendFailures.current[next.id] ?? 0) + 1;
-          sendFailures.current[next.id] = attempts;
-          if (attempts >= MAX_SEND_ATTEMPTS) {
-            delete sendFailures.current[next.id];
-            useStore.getState().removeQueuedMessage(srcId, next.id);
-            console.warn(
-              `[queue-drain] dropping message ${next.id} for ${targetId} after ${attempts} failed pty writes ` +
-              `("${next.text.slice(0, 80)}${next.text.length > 80 ? '…' : ''}")`,
-              err
-            );
-          }
-          // else: still queued — the cooldown-spaced flush retries it.
-        });
-      return true;
+        );
+        if (sent) {
+          delete sendFailures[next.id];
+          return { sent: true, message: next };
+        }
+        // Failed write (dead/crashed pty the store still thinks is idle): retry
+        // on the next cooldown-spaced flush, but only MAX_SEND_ATTEMPTS times —
+        // then drop LOUDLY so the loss is diagnosable. (#113/#36)
+        const attempts = (sendFailures[next.id] ?? 0) + 1;
+        sendFailures[next.id] = attempts;
+        if (attempts >= MAX_SEND_ATTEMPTS) {
+          delete sendFailures[next.id];
+          removeQueuedMessage(srcId, next.id);
+          console.warn(
+            `[queue-drain] dropping message ${next.id} for ${target.id} after ${attempts} failed pty writes ` +
+            `("${next.text.slice(0, 80)}${next.text.length > 80 ? '…' : ''}")`
+          );
+        }
+        return { sent: false };
+      } finally {
+        inFlight.delete(flightKey);
+      }
     };
 
     // Promote a genuine Slack-origin work item to a stamped kanban card the first
@@ -704,8 +747,9 @@ export function useHive(config: HarnessConfig | null): void {
       for (const a of agents) {
         if (!a.ptyId || a.status !== 'idle') continue;
         if (!messageQueues[a.id]?.length) continue;
-        const head = messageQueues[a.id][0];
-        if (dispatch(a.id, a) && head.slack) void ensureSlackCard(head);
+        void dispatch(a.id, a).then(({ sent, message }) => {
+          if (sent && message?.slack) void ensureSlackCard(message);
+        });
       }
     };
 
@@ -814,6 +858,20 @@ export function useHive(config: HarnessConfig | null): void {
     return () => { offSpawn?.(); offArchive?.(); };
   }, [config?.onboardingComplete]);
 
+  // 5c) v0.3.4 voice bridge: main stages queue insertions (clear_context) and
+  //     pushes them here, so delivery rides EVERY existing gate — idle-only,
+  //     boot grace, draft/picker safety, auto-delivery pause. Main owns the
+  //     confirm policy; this is just the enqueue.
+  useEffect(() => {
+    if (!config?.onboardingComplete) return;
+    return window.cth.onRealtimeEnqueue?.((evt) => {
+      if (!evt?.agentId || typeof evt.text !== 'string' || !evt.text.trim()) return;
+      const { agents, enqueueMessage } = useStore.getState();
+      if (!agents.some((a) => a.id === evt.agentId)) return;
+      enqueueMessage(evt.agentId, evt.text.trim());
+    });
+  }, [config?.onboardingComplete]);
+
   // 6) Auto-compact (scheduled standup). Main fires this per tick; we queue a
   //    /compact for each live agent so the drain (#4) delivers it only when the
   //    agent is idle — never jamming a working terminal. Deduped: if a /compact
@@ -824,12 +882,12 @@ export function useHive(config: HarnessConfig | null): void {
       const { agents, messageQueues, enqueueMessage } = useStore.getState();
       for (const a of agents) {
         if (!a.ptyId) continue;
-        // /compact is a Claude Code slash command — non-Claude CLIs (agy, codex)
-        // would just receive it as literal prompt text. Skip them.
-        if (!isClaudeProvider(inferAgentProvider(a.command, a.provider))) continue;
+        const provider = inferAgentProvider(a.command, a.provider);
+        const compactCommand = compactionCommandForProvider(provider);
+        if (!compactCommand) continue;
         const queued = messageQueues[a.id] ?? [];
         if (queued.some((m) => m.text.trimStart().startsWith('/compact'))) continue;
-        enqueueMessage(a.id, COMPACT_CMD);
+        enqueueMessage(a.id, compactCommand);
       }
     });
   }, [config?.onboardingComplete]);

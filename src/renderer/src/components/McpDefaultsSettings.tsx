@@ -92,7 +92,7 @@ export function McpDefaultsSettings({ config }: McpDefaultsSettingsProps) {
                     }}
                   >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 13, lineHeight: '18px', color: 'var(--cth-ink-900)', fontWeight: 600 }}>
+                      <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--cth-ink-900)', fontWeight: 600 }}>
                         {entry.label}
                         <code style={{
                           marginLeft: 6,

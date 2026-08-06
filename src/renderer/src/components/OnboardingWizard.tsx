@@ -203,7 +203,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                   <div style={{
                     width: 56, height: 56, flexShrink: 0,
                     background: 'var(--cth-sky-light)',
-                    boxShadow: 'inset 0 0 0 2px var(--cth-ink-900)',
+                    boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500)',
                     display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden'
                   }}>
                     <SpritePortrait character="michael" scale={2} />
@@ -212,7 +212,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: 12, lineHeight: '18px' }}>
                       RUN AN OFFICE OF AI AGENTS
                     </div>
-                    <div style={{ fontSize: 13, color: 'var(--cth-ink-700)', lineHeight: '19px' }}>
+                    <div style={{ fontSize: 12, color: 'var(--cth-ink-700)', lineHeight: '19px' }}>
                       Munder Difflin lets you run an office of long-running, highly capable AI
                       agents that can take on almost any task. It uses the CLI agents you already
                       have and manages everything around them — their context, memory, tasks,
@@ -250,7 +250,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                   <div style={{
                     width: 56, height: 56, flexShrink: 0,
                     background: 'var(--cth-sky-light)',
-                    boxShadow: 'inset 0 0 0 2px var(--cth-ink-900)',
+                    boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500)',
                     display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden'
                   }}>
                     <SpritePortrait character="michael" scale={2} />
@@ -260,7 +260,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                       fontFamily: 'var(--cth-font-display)',
                       fontSize: 12, lineHeight: '18px'
                     }}>A CONTROL ROOM FOR A TEAM OF AGENTS</div>
-                    <div style={{ fontSize: 13, color: 'var(--cth-ink-700)', lineHeight: '18px' }}>
+                    <div style={{ fontSize: 12, color: 'var(--cth-ink-700)', lineHeight: '18px' }}>
                       {plain
                         ? "Think of it as a small office of AI workers you manage from one screen. Here's what's inside:"
                         : "You run a hive of AI coding agents — coordinated, persistent, and watchable. Here's what's inside:"}
@@ -280,7 +280,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                         width: 28, height: 28, flexShrink: 0,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         background: 'var(--cth-paper-100)',
-                        boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
+                        boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
                       }}>
                         <Icon name={f.icon} />
                       </div>
@@ -334,7 +334,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     </span>
                   </PixelButton>
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--cth-ink-500)' }}>
+                <div style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>
                   {plain
                     ? "You won't need to open this folder day-to-day — it's just where the app keeps its notes so nothing is lost when you restart."
                     : 'Think of this as the "town hall." The harness pins agent state there so sessions can be picked back up after a restart.'}
@@ -425,7 +425,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                           <span style={{
                             fontSize: 10, padding: '1px 5px', lineHeight: '16px',
                             background: 'var(--cth-lemon)',
-                            boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+                            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
                             fontFamily: 'var(--cth-font-display)', flexShrink: 0
                           }}>RECOMMENDED</span>
                         )}
@@ -471,7 +471,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                   {repos.length === 0 && (
                     <div style={{
                       padding: 12,
-                      fontSize: 14,
+                      fontSize: 13,
                       color: 'var(--cth-ink-500)',
                       background: 'var(--cth-paper-200)',
                       textAlign: 'center'
@@ -486,12 +486,12 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '6px 10px',
                       background: 'var(--cth-paper-100)',
-                      boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)'
+                      boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)'
                     }}>
                       <Icon name="folder" />
                       <span style={{
                         flex: 1,
-                        fontFamily: 'var(--cth-font-mono)', fontSize: 14,
+                        fontFamily: 'var(--cth-font-mono)', fontSize: 13,
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                       }}>{r}</span>
                       <PixelButton variant="ghost" size="sm" onClick={() => removeRepo(r)}>
@@ -534,7 +534,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px' }}>
                       {plain ? 'LET AGENTS WORK ON THEIR OWN' : 'WORK AUTONOMOUSLY (AUTO MODE)'}
                     </div>
-                    <div style={{ fontSize: 14, color: 'var(--cth-ink-700)' }}>
+                    <div style={{ fontSize: 13, color: 'var(--cth-ink-700)' }}>
                       {plain
                         ? (autoMode
                             ? 'On. Agents carry out tasks without stopping to ask — the smoothest experience.'
@@ -545,7 +545,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     </div>
                   </div>
                 </label>
-                <div style={{ fontSize: 13, color: 'var(--cth-ink-500)' }}>
+                <div style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>
                   {plain
                     ? 'Best when agents work in their own projects. You can change this later, including for individual agents.'
                     : 'The right default for the "control room" experience; a foot-gun on production repos. Override per agent in the Add Agent dialog.'}
@@ -557,7 +557,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: 10, color: 'var(--cth-ink-700)' }}>
                   KEEP THINGS RUNNING WHILE YOU'RE AWAY
                 </div>
-                <p style={{ margin: 0, lineHeight: '20px', fontSize: 13, color: 'var(--cth-ink-700)' }}>
+                <p style={{ margin: 0, lineHeight: '20px', fontSize: 12, color: 'var(--cth-ink-700)' }}>
                   {plain
                     ? 'Your agents keep working on a schedule and in live terminals, even when you step away. These settings keep you in the loop and keep things running.'
                     : 'Your agents keep working on a schedule and in live terminals. If your Mac fully sleeps those timers pause and catch up the moment you\'re back — nothing is lost, it may just run late.'}
@@ -602,7 +602,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                   <span style={{
                     width: 28, height: 28, flexShrink: 0, display: 'flex',
                     alignItems: 'center', justifyContent: 'center',
-                    background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
+                    background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
                   }}>
                     <Icon name="gear" />
                   </span>
@@ -635,7 +635,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 padding: '6px 10px',
                 background: 'var(--cth-coral-light)',
                 boxShadow: 'inset 0 0 0 1px var(--cth-coral)',
-                fontSize: 14,
+                fontSize: 13,
                 color: 'var(--cth-ink-900)'
               }}>{error}</div>
             )}
@@ -697,7 +697,7 @@ function PersonaCard({ icon, title, desc, selected, onClick }: {
     >
       <span style={{
         width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
+        background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
       }}>
         <Icon name={icon} />
       </span>
@@ -736,7 +736,7 @@ function ToggleRow({ icon, label, desc, on, tint, edge, onChange }: {
       <span style={{
         width: 28, height: 28, flexShrink: 0, display: 'flex',
         alignItems: 'center', justifyContent: 'center',
-        background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
+        background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
       }}>
         <Icon name={icon} />
       </span>
@@ -760,7 +760,7 @@ function Dots({ step }: { step: Step }) {
         <span key={s} style={{
           width: 8, height: 8,
           background: s === step ? 'var(--cth-ink-900)' : 'var(--cth-cream-300)',
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
         }} />
       ))}
     </div>
@@ -789,9 +789,9 @@ const inputStyle: React.CSSProperties = {
   padding: '6px 8px 4px',
   background: 'var(--cth-paper-100)',
   border: 'none',
-  boxShadow: 'inset 0 0 0 1px var(--cth-ink-700)',
+  boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)',
   fontFamily: 'var(--cth-font-mono)',
-  fontSize: 14,
+  fontSize: 13,
   color: 'var(--cth-ink-900)',
   outline: 'none'
 };

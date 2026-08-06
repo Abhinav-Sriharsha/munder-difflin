@@ -18,7 +18,7 @@ export function RecentText({ accent, text, seed }: RecentTextProps) {
   return (
     <div style={{
       background: 'var(--cth-cream-50)',
-      boxShadow: `inset 0 0 0 1px var(--cth-ink-700), inset 4px 0 0 var(--cth-${accent})`,
+      boxShadow: `inset 0 0 0 1px var(--cth-ink-100), inset 4px 0 0 var(--cth-${accent})`,
       padding: '8px 10px 8px 16px',
       display: 'flex',
       flexDirection: 'column',
@@ -39,7 +39,7 @@ export function RecentText({ accent, text, seed }: RecentTextProps) {
           <span style={{
             width: 6, height: 6,
             background: done ? 'var(--cth-ink-500)' : `var(--cth-${accent})`,
-            boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             animation: done ? 'none' : 'cth-pulse 800ms steps(2, end) infinite'
           }} />
           {done ? 'idle' : 'live'}
@@ -47,7 +47,7 @@ export function RecentText({ accent, text, seed }: RecentTextProps) {
       </div>
       <div style={{
         fontFamily: 'var(--cth-font-ui)',
-        fontSize: 14,
+        fontSize: 13,
         lineHeight: '18px',
         color: 'var(--cth-ink-900)',
         minHeight: 36

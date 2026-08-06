@@ -209,6 +209,25 @@ export async function getDiff(
   };
 }
 
+/** The MAIN working tree of the repository `cwd` belongs to.
+ *
+ *  For a normal checkout that's just the repo root. For a linked worktree it is
+ *  the original repo, NOT the worktree directory — an isolated agent's cwd is
+ *  `<harnessHome>/worktrees/<agent-id>`, whose basename is the agent id and says
+ *  nothing about which project it's working on. `--git-common-dir` resolves to
+ *  the shared `.git` of the main checkout from anywhere in the worktree family.
+ *  Returns null when `cwd` isn't a git repo (or git is unavailable). */
+export async function mainRepoRoot(cwd: string): Promise<string | null> {
+  const res = await runGit(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  if (!res.ok) return null;
+  const gitDir = res.stdout.trim();
+  if (!gitDir) return null;
+  // `<repo>/.git` → `<repo>`. A bare repo has no working tree to name, so its
+  // own path is the best answer we have.
+  const stripped = gitDir.replace(/[\\/]\.git[\\/]?$/, '');
+  return stripped || gitDir;
+}
+
 /** Derive a safe `agent/<id>` branch name from a worktree path's basename. */
 function agentBranchFor(wtPath: string): string {
   const base = wtPath.split(/[\\/]/).filter(Boolean).pop() ?? 'agent';
@@ -307,4 +326,164 @@ export async function worktreeIsGcSafe(
   if (diff.ok) return { gc: true, detail: `clean + tree identical to ${baseBranch} (integrated/squashed)` };
   // Either there are real un-integrated commits, or a query failed → keep.
   return { gc: false, detail: `clean but content not yet in ${baseBranch}` };
+}
+
+// ─── v0.3.4: history / compare / checkout plumbing (git visualization) ───────
+
+/** Renderer-supplied revs/refs are untrusted strings. Allow the conservative
+ *  charset git refs actually use, refuse leading '-' (option injection), and
+ *  always pass '--' before any path arguments at call sites. */
+export function isSafeRev(rev: string): boolean {
+  return rev.length > 0 && rev.length <= 256 && !rev.startsWith('-') && /^[0-9A-Za-z._/^~@{}-]+$/.test(rev);
+}
+
+/** Full-history DAG page for the commit graph. Same record shape as getLog but
+ *  topologically ordered (the graph layout assumes it) and pageable. Run this
+ *  against mainRepoRoot(cwd) so every agent worktree branch appears. */
+export async function getLogGraph(cwd: string, n: number, skip = 0): Promise<GitCommit[] | { error: string }> {
+  const sep = '\x1e';
+  const fsep = '\x1f';
+  const fmt = ['%H', '%P', '%s', '%an', '%at', '%D'].join(fsep) + sep;
+  const res = await runGit(cwd, [
+    'log', '--all', '--topo-order', `--max-count=${n}`, ...(skip > 0 ? [`--skip=${skip}`] : []),
+    `--pretty=format:${fmt}`
+  ], 15000);
+  if (!res.ok) return { error: res.error };
+  const out: GitCommit[] = [];
+  for (const rec of res.stdout.split(sep)) {
+    if (!rec.trim()) continue;
+    const [sha, parents, subject, author, atime, refs] = rec.split(fsep);
+    if (!sha) continue;
+    out.push({
+      sha: sha.trim(),
+      shortSha: sha.trim().slice(0, 7),
+      parents: (parents ?? '').split(' ').filter(Boolean),
+      subject: subject ?? '',
+      author: author ?? '',
+      time: parseInt(atime, 10) || 0,
+      refs: (refs ?? '').split(', ').map(s => s.trim()).filter(Boolean)
+    });
+  }
+  return out;
+}
+
+export interface GitCommitFile {
+  path: string;
+  status: string;      // A/M/D/R/C/T…
+  oldPath?: string;    // for renames/copies
+}
+
+/** Parse `-z --name-status` output shared by diff-tree and diff. Records are
+ *  STATUS\0path\0 — with renames/copies STATUS<score>\0old\0new\0. */
+function parseNameStatusZ(stdout: string): GitCommitFile[] {
+  const tokens = stdout.split('\0').filter((t) => t.length > 0);
+  const files: GitCommitFile[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const status = tokens[i];
+    if (!/^[A-Z]/.test(status)) continue; // skip stray commit ids
+    const kind = status[0];
+    if (kind === 'R' || kind === 'C') {
+      const oldPath = tokens[i + 1];
+      const path = tokens[i + 2];
+      i += 2;
+      if (path) files.push({ path, status: kind, oldPath });
+    } else {
+      const path = tokens[i + 1];
+      i += 1;
+      if (path) files.push({ path, status: kind });
+    }
+  }
+  return files;
+}
+
+/** Files touched by one commit (rename-aware). */
+export async function getCommitFiles(cwd: string, sha: string): Promise<GitCommitFile[] | { error: string }> {
+  if (!isSafeRev(sha)) return { error: 'invalid revision' };
+  const res = await runGit(cwd, ['diff-tree', '--no-commit-id', '-r', '--root', '-z', '-M', '--name-status', sha, '--']);
+  if (!res.ok) return { error: res.error };
+  return parseNameStatusZ(res.stdout);
+}
+
+const MAX_SHOW_BYTES = 2 * 1024 * 1024; // match getDiff's cap
+
+/** One side of a rev-pinned diff: the file's content at `rev` ('' + exists:false
+ *  when the path doesn't exist there — e.g. an added file's parent side). */
+export async function getFileAtRev(cwd: string, rev: string, relPath: string): Promise<
+  { ok: true; exists: boolean; isBinary: boolean; content: string } | { ok: false; error: string }
+> {
+  if (!isSafeRev(rev)) return { ok: false, error: 'invalid revision' };
+  if (!safeJoin(cwd, relPath)) return { ok: false, error: 'path escapes repository root' };
+  const size = await runGit(cwd, ['cat-file', '-s', `${rev}:${relPath}`]);
+  if (!size.ok) return { ok: true, exists: false, isBinary: false, content: '' };
+  if ((parseInt(size.stdout.trim(), 10) || 0) > MAX_SHOW_BYTES) {
+    return { ok: false, error: 'file too large to diff (>2 MB)' };
+  }
+  const res = await runGit(cwd, ['show', `${rev}:${relPath}`]);
+  if (!res.ok) return { ok: true, exists: false, isBinary: false, content: '' };
+  if (res.stdout.includes('\0')) return { ok: true, exists: true, isBinary: true, content: '' };
+  return { ok: true, exists: true, isBinary: false, content: res.stdout };
+}
+
+export interface GitCompare {
+  ahead: number;        // commits in head, not base
+  behind: number;       // commits in base, not head
+  mergeBase: string | null;
+  files: GitCommitFile[];
+}
+
+/** Compare two refs. mode 'three' (default, PR-style): what head adds since the
+ *  merge base. mode 'two': the literal state difference base→head. */
+export async function compareRefs(cwd: string, base: string, head: string, mode: 'two' | 'three'): Promise<GitCompare | { error: string }> {
+  if (!isSafeRev(base) || !isSafeRev(head)) return { error: 'invalid revision' };
+  const counts = await runGit(cwd, ['rev-list', '--left-right', '--count', `${base}...${head}`]);
+  if (!counts.ok) return { error: counts.error };
+  const [behind, ahead] = counts.stdout.trim().split('\t').map((x) => parseInt(x, 10) || 0);
+  const mb = await runGit(cwd, ['merge-base', base, head]);
+  const mergeBase = mb.ok ? mb.stdout.trim() : null;
+  const diffArgs = mode === 'three'
+    ? ['diff', '-z', '-M', '--name-status', `${base}...${head}`, '--']
+    : ['diff', '-z', '-M', '--name-status', base, head, '--'];
+  const res = await runGit(cwd, diffArgs, 15000);
+  if (!res.ok) return { error: res.error };
+  return { ahead, behind, mergeBase, files: parseNameStatusZ(res.stdout) };
+}
+
+export interface GitWorktreeInfo { path: string; head: string; branch: string | null }
+
+export async function listWorktrees(cwd: string): Promise<GitWorktreeInfo[] | { error: string }> {
+  const res = await runGit(cwd, ['worktree', 'list', '--porcelain']);
+  if (!res.ok) return { error: res.error };
+  const out: GitWorktreeInfo[] = [];
+  let cur: Partial<GitWorktreeInfo> = {};
+  for (const line of res.stdout.split('\n')) {
+    if (line.startsWith('worktree ')) { if (cur.path) out.push(cur as GitWorktreeInfo); cur = { path: line.slice(9), head: '', branch: null }; }
+    else if (line.startsWith('HEAD ')) cur.head = line.slice(5);
+    else if (line.startsWith('branch ')) cur.branch = line.slice(7).replace(/^refs\/heads\//, '');
+  }
+  if (cur.path) out.push(cur as GitWorktreeInfo);
+  return out;
+}
+
+/** Guarded checkout (v0.3.4). FAIL-SAFE philosophy like worktreeHasUnintegratedWork:
+ *  any doubt → refuse. Guards here cover the repo itself; the IPC layer adds the
+ *  "no agent actively working in this tree" guard (it owns the pty registry). */
+export async function checkoutRef(cwd: string, ref: string, detach: boolean): Promise<{ ok: true; detached: boolean } | { ok: false; error: string }> {
+  if (!isSafeRev(ref)) return { ok: false, error: 'invalid revision' };
+  const st = await getStatus(cwd);
+  if ('error' in st) return { ok: false, error: `could not verify a clean tree: ${st.error}` };
+  const dirty = st.staged.length + st.unstaged.length;
+  if (dirty > 0) {
+    return { ok: false, error: `working tree has ${dirty} uncommitted change${dirty === 1 ? '' : 's'} — commit or stash first` };
+  }
+  const res = await runGit(cwd, detach ? ['switch', '--detach', ref] : ['switch', ref], 15000);
+  if (!res.ok) {
+    // A branch held by another worktree: name the holder instead of raw stderr.
+    if (/already checked out|already used by worktree/i.test(res.error)) {
+      const wts = await listWorktrees(cwd);
+      const holder = Array.isArray(wts) ? wts.find((w) => w.branch === ref.replace(/^refs\/heads\//, '')) : undefined;
+      return { ok: false, error: holder ? `'${ref}' is checked out in another worktree: ${holder.path}` : res.error };
+    }
+    return { ok: false, error: res.error };
+  }
+  return { ok: true, detached: detach };
 }

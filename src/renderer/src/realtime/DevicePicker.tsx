@@ -50,7 +50,7 @@ const labelStyle: React.CSSProperties = {
 };
 const selectStyle: React.CSSProperties = {
   fontFamily: 'var(--cth-font-mono)',
-  fontSize: 13,
+  fontSize: 12,
   padding: '6px 8px',
   border: '2px solid var(--cth-ink-300)',
   background: 'var(--cth-paper-100)',

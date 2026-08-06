@@ -15,16 +15,19 @@ export interface CommitGraphProps {
   commits: CommitLite[];
   /** Name of the currently checked-out branch, for highlighting. */
   currentBranch?: string | null;
+  /** v0.3.4: commit click → per-commit file list / diff in the IDE HISTORY pane. */
+  onCommitClick?: (sha: string) => void;
 }
 
 // CTH palette → branch lane colors (commit-graph renders raw colors into SVG).
+// v0.3.4 recalibration: the muted set, matching tokens.css.
 const BRANCH_COLORS = [
-  '#4ECDC4', // sky
-  '#FFD93D', // lemon
-  '#6BCF7F', // mint
-  '#FF6B6B', // coral
-  '#B197FC', // lilac
-  '#FFA07A'  // peach
+  '#4F9FAF', // sky
+  '#DCAB3C', // lemon/amber
+  '#5CA97A', // mint/sage
+  '#D96A62', // coral
+  '#9482D3', // lilac
+  '#D99168'  // peach
 ];
 
 const GRAPH_STYLE = {
@@ -44,7 +47,7 @@ function relTime(d: string | number | Date): string {
   return `${Math.round(delta / (86400 * 30))}mo`;
 }
 
-export function CommitGraph({ commits, currentBranch }: CommitGraphProps) {
+export function CommitGraph({ commits, currentBranch, onCommitClick }: CommitGraphProps) {
   // Adapt our flat git-log rows into the GitHub-style shape commit-graph expects.
   const libCommits: Commit[] = useMemo(() => commits.map(c => ({
     sha: c.sha,
@@ -84,6 +87,7 @@ export function CommitGraph({ commits, currentBranch }: CommitGraphProps) {
         graphStyle={GRAPH_STYLE}
         currentBranch={currentBranch ?? undefined}
         dateFormatFn={relTime}
+        onCommitClick={onCommitClick ? (c) => onCommitClick(c.hash) : undefined}
       />
     </div>
   );

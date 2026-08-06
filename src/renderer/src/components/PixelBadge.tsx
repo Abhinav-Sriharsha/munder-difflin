@@ -4,7 +4,12 @@ export type StatusKind =
   | 'idle' | 'thinking' | 'working' | 'waiting' | 'blocked' | 'success' | 'ghost'
   // #5C — richer states driven by real events: PreCompact/PostCompact hooks and
   // the Lane A circuit breaker (#6) respectively.
-  | 'compacting' | 'looping';
+  | 'compacting' | 'looping'
+  // Not an agent state at all — the USER has unsubmitted text on that agent's
+  // prompt, which holds its queue. Never stored on the agent (the pty parser
+  // would overwrite it); derived at render, see `hasTerminalDraft`. Without it
+  // a held queue looked identical to an idle agent doing nothing.
+  | 'typing';
 
 export interface PixelBadgeProps {
   status: StatusKind;
@@ -21,7 +26,8 @@ const colorByStatus: Record<StatusKind, string> = {
   success:  'var(--cth-status-success)',
   ghost:    'var(--cth-status-ghost)',
   compacting: 'var(--cth-status-compacting)',
-  looping:    'var(--cth-status-looping)'
+  looping:    'var(--cth-status-looping)',
+  typing:     'var(--cth-status-typing)'
 };
 
 // Human-readable labels. "blocked" is reserved for the god agent waiting on YOU,
@@ -36,7 +42,10 @@ const labelByStatus: Record<StatusKind, string> = {
   success:  'done',
   ghost:    'gone',
   compacting: 'compacting',
-  looping:    'looping'
+  looping:    'looping',
+  // Reads as "you are typing", not "the agent is typing" — it is your text
+  // sitting on the prompt, and it is why nothing is being delivered.
+  typing:     'your draft'
 };
 
 export function PixelBadge({ status, label, style }: PixelBadgeProps) {
@@ -63,7 +72,7 @@ export function PixelBadge({ status, label, style }: PixelBadgeProps) {
           width: 8,
           height: 8,
           background: colorByStatus[status],
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-900)'
+          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
         }}
       />
       {text}
