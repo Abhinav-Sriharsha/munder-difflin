@@ -162,7 +162,7 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
     : !idle
     ? `${agent.name} is busy — ${queue.length} queued`
     : deliveryPaused && !queue[0]?.manual
-    ? 'held — auto-delivery is paused floor-wide (resume it in the Command Center, or "send now" a message below)'
+    ? 'held — delivery paused floor-wide'
     : block === 'draft'
     ? `held — ${agent.name}'s terminal has unsent text on its prompt`
     : block === 'picker'
@@ -212,11 +212,16 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
           }}>{queue.length}</span>
         )}
         {statusHint && (
-          <span style={{
-            fontSize: 12,
-            color: idle ? 'var(--cth-ink-700)' : 'var(--cth-ink-500)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-          }}>{statusHint}</span>
+          <span
+            title={deliveryPaused && !queue[0]?.manual
+              ? 'Auto-delivery is paused for the whole floor. Resume it in the Command Center, or use "send now" on a message below.'
+              : statusHint}
+            style={{
+              fontSize: 12,
+              color: idle ? 'var(--cth-ink-700)' : 'var(--cth-ink-500)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+            }}
+          >{statusHint}</span>
         )}
         {(block === 'draft' || block === 'picker') && agent.ptyId && (
           <button
@@ -247,7 +252,7 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
             onClick={() => clearQueue(agent.id)}
             title="Clear all queued messages"
             style={{
-              marginLeft: 'auto',
+              marginLeft: 'auto', flexShrink: 0, whiteSpace: 'nowrap',
               border: 'none', background: 'transparent', cursor: 'pointer',
               fontFamily: 'var(--cth-font-ui)', fontSize: 12,
               color: 'var(--cth-ink-500)'

@@ -139,33 +139,48 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
         }}>
           <SpritePortrait character={agent.character} scale={1} />
         </div>
+        {/* Title + subtitle truncate; the control cluster never shrinks. At
+            sidebar width the old header wrapped its 24-char display-font title
+            onto three lines and "runs the floor" word-per-line under the two
+            wide buttons — everything here is single-line by construction. */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px', color: 'var(--cth-ink-900)'
-          }}>MICHAEL · COMMAND CENTER</div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 1 }}>
+            fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px', color: 'var(--cth-ink-900)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+          }}>COMMAND CENTER</div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 1, minWidth: 0 }}>
             <PixelBadge status={agent.status} />
-            <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>runs the floor</span>
+            <span style={{
+              fontSize: 12, color: 'var(--cth-ink-500)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+            }}>Michael runs the floor</span>
           </div>
         </div>
         {/* v0.3.4: floor-wide auto-delivery lives HERE (one switch for every
-            agent's queue), and the IDE opens from agent level, not the toolbar. */}
-        <PixelButton
-          variant={floorDeliveryPaused ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => { void toggleFloorDelivery(); }}
-        >
-          <span title={floorDeliveryPaused
-            ? 'Automatic queue delivery is PAUSED for every agent — messages stay queued until resumed'
-            : 'Automatic queue delivery is ON for every agent — click to pause the whole floor'}>
-            {floorDeliveryPaused ? 'delivery paused' : 'auto-delivery on'}
-          </span>
-        </PixelButton>
-        <PixelButton variant="secondary" size="sm" onClick={() => useStore.getState().setIdeOpen(true)}>
-          <span title="Open the IDE — file editor + git diff" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <Icon name="code" /> IDE
-          </span>
-        </PixelButton>
+            agent's queue), and the IDE opens from agent level, not the toolbar.
+            Short labels — the tooltips carry the full explanation. */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+          <PixelButton
+            variant={floorDeliveryPaused ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => { void toggleFloorDelivery(); }}
+          >
+            <span
+              title={floorDeliveryPaused
+                ? 'Automatic queue delivery is PAUSED for every agent — messages stay queued until resumed'
+                : 'Automatic queue delivery is ON for every agent — click to pause the whole floor'}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              <Icon name={floorDeliveryPaused ? 'pause' : 'play'} />
+              {floorDeliveryPaused ? 'paused' : 'auto'}
+            </span>
+          </PixelButton>
+          <PixelButton variant="secondary" size="sm" onClick={() => useStore.getState().setIdeOpen(true)}>
+            <span title="Open the IDE — file editor + git diff" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Icon name="code" /> IDE
+            </span>
+          </PixelButton>
+        </div>
       </div>
 
       {/* Tab bar — an auto-fit grid of equal-width cells. The tabs wrap onto
