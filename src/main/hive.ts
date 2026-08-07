@@ -375,6 +375,54 @@ export class HiveManager {
     return p && existsSync(p) ? p : null;
   }
 
+  /**
+   * `<root>/bin/runtime` — the same bundled-node trick as `hive-node`, but the
+   * wrapper is NAMED `node`, so anything that resolves `node` off PATH finds one.
+   *
+   * `hive-node` only covers commands WE generate. It does nothing for node that
+   * the agent's own work needs at runtime: an MCP server declared as
+   * `node ./server.js`, a provider CLI that shells out to node, a `.cjs` helper an
+   * agent wrote itself. On a machine with no system node those all die with 127
+   * exactly like the hooks did.
+   *
+   * This dir is APPENDED to the agent's PATH (see pty.spawn), never prepended: a
+   * user who has their own node keeps their own version — we are strictly the
+   * fallback. Prepending would silently swap every agent's node for Electron's
+   * (the v22 line at time of writing) underneath the user's own projects.
+   *
+   * NOTE: `node` only — deliberately no `npm`/`npx`. Electron bundles the Node
+   * RUNTIME, not the npm CLI (which is ~12MB of JS we do not ship), so an `npm`
+   * wrapper here could only be a stub that fails confusingly. A missing `npm` is
+   * the honest signal; see the missing-CLI ladder in index.ts, which detects it.
+   */
+  runtimeBinDir(): string | null {
+    const root = this.root();
+    return root ? join(root, 'bin', 'runtime') : null;
+  }
+
+  /** Write the `node` shim described above. Best-effort: on failure the dir is
+   *  simply absent from PATH and behavior is exactly as before. */
+  private writeRuntimeShims(): void {
+    const dir = this.runtimeBinDir();
+    if (!dir) return;
+    try {
+      mkdirSync(dir, { recursive: true });
+      if (process.platform === 'win32') {
+        writeFileSync(
+          join(dir, 'node.cmd'),
+          `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${process.execPath}" %*\r\n`,
+          'utf8'
+        );
+      } else {
+        const p = join(dir, 'node');
+        writeFileSync(p, `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec "${process.execPath}" "$@"\n`, 'utf8');
+        chmodSync(p, 0o755);
+      }
+    } catch (e) {
+      console.error('[hive] writeRuntimeShims failed:', e);
+    }
+  }
+
   /** Build a hook command string that runs `script` under the guaranteed node,
    *  DOUBLE-QUOTED (safe for paths with spaces). */
   private nodeRun(script: string, ...args: string[]): string {
@@ -441,6 +489,8 @@ export class HiveManager {
     // The bundled-node launcher every shim above is invoked through — MUST be
     // written before any hook installer runs (they probe for it).
     this.writeNodeLauncher();
+    // …and the PATH-visible `node` fallback for the agent's OWN subprocesses.
+    this.writeRuntimeShims();
 
     if (!existsSync(join(root, '.git'))) {
       this.git(['init', '-q'], root);

@@ -54,9 +54,9 @@ import {
   nonInteractiveEnvForProvider,
   providerPreset,
   installInfoForProvider,
-  type AgentProvider,
-  type ProviderInstallInfo
+  type AgentProvider
 } from '../shared/agentProvider';
+import { buildMissingCliScript, chooseInstallRung } from './cliInstall';
 import {
   CODEX_REMOTE_SOCKET_RELATIVE,
   codexRemoteAliasPath,
@@ -1848,89 +1848,6 @@ function installAppMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-/** Build the shell script the missing-CLI auto-install path runs IN PLACE of a
- *  missing engine CLI. When the provider has a known installer it prints a banner
- *  then RUNS the install visibly (so the user can watch + finish any sign-in);
- *  otherwise it prints a manual instruction only and runs nothing. The script is
- *  emitted in the current platform shell's syntax ($SHELL on unix, cmd.exe on
- *  Windows). The only user-derived value (the missing binary name) is sanitized to
- *  a safe identifier; the install command itself is a trusted hardcoded constant. */
-function buildMissingCliScript(bin: string, provider: AgentProvider): string {
-  const info: ProviderInstallInfo = installInfoForProvider(provider);
-  const safeBin = (bin || provider).replace(/[^A-Za-z0-9._-]/g, '') || provider;
-  const cmd = info.command; // trusted constant, or undefined → manual hint only
-  const label = info.label;
-  const docs = info.docsUrl;
-  const rule = '------------------------------------------------------------';
-
-  if (process.platform === 'win32') {
-    // ONE cmd.exe line: `&` chains steps, `^&` prints a literal ampersand, and the
-    // script carries NO double-quotes (it is wrapped verbatim in `/d /s /c "..."`).
-    // We avoid `if errorlevel` branching (untestable here) — a combined success/
-    // failure hint after the install is robust and satisfies the manual-fallback DoD.
-    const parts: string[] = ['echo.', `echo ${rule}`, `echo   Engine CLI not found:  ${safeBin}`, 'echo.'];
-    if (cmd) {
-      parts.push(
-        `echo   Installing the ${label} CLI now so you can watch:`,
-        'echo.',
-        `echo     ${cmd}`,
-        `echo ${rule}`,
-        'echo.',
-        cmd,
-        'echo.',
-        'echo   [done] If it succeeded, the agent launches automatically.',
-        'echo   If it failed, run the command above manually, then restart the agent.'
-      );
-    } else {
-      parts.push(
-        `echo   No bundled installer for the ${label} provider.`,
-        'echo   Install it manually, then restart the agent to launch it.'
-      );
-      if (docs) parts.push(`echo   Docs: ${docs}`);
-      parts.push(`echo ${rule}`);
-    }
-    return parts.join(' & ');
-  }
-
-  // unix ($SHELL -lc <script>): one statement per line, single-quoted echo text so
-  // no shell metacharacter expands. We avoid `!` so any shell with history
-  // expansion never fires. npm is found via the interactive PATH spawn() injects.
-  const lines: string[] = [
-    `echo ''`,
-    `echo '${rule}'`,
-    `echo '  Engine CLI not found:  ${safeBin}'`,
-    `echo ''`
-  ];
-  if (cmd) {
-    lines.push(
-      `echo '  Installing the ${label} CLI now so you can watch — finish any'`,
-      `echo '  sign-in it prompts for, then come back to this terminal.'`,
-      `echo ''`,
-      `echo '    ${cmd}'`,
-      `echo '${rule}'`,
-      `echo ''`,
-      cmd,
-      `__clirc=$?`,
-      `echo ''`,
-      `if [ $__clirc -eq 0 ]; then`,
-      `  echo '  [done] Installed — launching the agent…'`,
-      `else`,
-      `  echo "  [x] Install exited with code $__clirc — finish it manually:"`,
-      `  echo '    ${cmd}'`,
-      ...(docs ? [`  echo '    Docs: ${docs}'`] : []),
-      `  echo '  Then restart the agent to launch it.'`,
-      `fi`
-    );
-  } else {
-    lines.push(
-      `echo '  No bundled installer for the ${label} provider.'`,
-      `echo '  Install it manually, then restart the agent to launch it.'`,
-      ...(docs ? [`echo '  Docs: ${docs}'`] : []),
-      `echo '${rule}'`
-    );
-  }
-  return lines.join(String.fromCharCode(10));
-}
 
 // ─── IPC: pty lifecycle ─────────────────────────────────────────────────────
 /** Codex stores its rollout transcripts under a PER-AGENT CODEX_HOME
@@ -2049,6 +1966,11 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   {
     const bin = opts.command.trim().split(/\s+/)[0] || opts.command;
     if (bin && !opts.noAutoInstall && !ptyManager.isCommandAvailable(bin)) {
+      // The installer commands are `npm install -g …`. Probe for npm the same way
+      // we probe for the engine CLI, so a no-Node machine gets the node-free rung
+      // (or an honest manual hint) instead of watching `npm: not found` scroll by.
+      const npmAvailable = ptyManager.isCommandAvailable('npm');
+      const rung = chooseInstallRung(installInfoForProvider(provider), npmAvailable);
       const res = ptyManager.spawn(
         {
           id: opts.id,
@@ -2056,7 +1978,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           command: bin,
           cols: opts.cols,
           rows: opts.rows,
-          shellScript: buildMissingCliScript(bin, provider)
+          shellScript: buildMissingCliScript(bin, provider, npmAvailable)
         },
         owner
       );
@@ -2065,7 +1987,11 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       // (no user click). Only when an installer actually RAN (a provider with no
       // bundled installer just prints a manual hint and exits 0 — relaunching there
       // would spawn the still-missing binary and die) and the PTY actually started.
-      if (res.ok && installInfoForProvider(provider).command) {
+      // …keyed on the RUNG, not on `installCommand`: the manual rung prints a hint
+      // and exits 0, and relaunching there would just respawn the still-missing
+      // binary and die with the bare "process exited (code 1)" this whole path exists
+      // to replace.
+      if (res.ok && rung.command) {
         pendingInstallRelaunch.set(opts.id, { opts, owner, bin });
       }
       syncKeepAwake();
