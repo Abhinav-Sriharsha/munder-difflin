@@ -1640,6 +1640,76 @@ export class HiveManager {
     if (!root) return;
     try { writeFileSync(join(root, 'fleet.json'), JSON.stringify(snapshot, null, 2), 'utf8'); } catch { /* noop */ }
   }
+
+  /** Is this agent the hive's god/orchestrator? */
+  isGod(agentId: string): boolean {
+    try {
+      const reg = this.registry();
+      return reg.godId === agentId || !!reg.agents[agentId]?.isGod;
+    } catch { return false; }
+  }
+
+  /**
+   * A compact, one-shot LIVE ROSTER line built from `fleet.json` — injected into
+   * god's context as `additionalContext` on SessionStart and every
+   * UserPromptSubmit (see HookServer).
+   *
+   * Why: fleet.json/registry.json are always fresh on disk (8s snapshot +
+   * archiveOrphanedAgents on boot + PTY-exit archiving), but god's CONTEXT is not.
+   * After an app restart god resumes a session whose transcript still describes
+   * the OLD floor, and it will happily message agents that no longer exist. It is
+   * told to read fleet.json, but "told to" is not "always knows" — so we push the
+   * truth in on every turn instead. One line, so the cost is negligible.
+   *
+   * Returns null when there is nothing to say (no hive, no snapshot, no agents),
+   * so the hook stays a no-op rather than injecting noise.
+   */
+  rosterContext(): string | null {
+    const root = this.root();
+    if (!root) return null;
+    try {
+      const raw = readFileSync(join(root, 'fleet.json'), 'utf8');
+      const snap = JSON.parse(raw) as {
+        ts?: number;
+        agents?: Array<{
+          id: string; name?: string; role?: string; isGod?: boolean;
+          breaker?: string; tokens?: number; usd?: number;
+          lastTool?: string | null; lastActiveSecAgo?: number | null; inboxBacklog?: number;
+        }>;
+      };
+      const agents = Array.isArray(snap.agents) ? snap.agents : [];
+      if (!agents.length) return null;
+
+      const ago = (s: number | null | undefined): string =>
+        typeof s !== 'number' ? 'unknown'
+          : s < 90 ? `${s}s ago`
+            : s < 5400 ? `${Math.round(s / 60)}m ago`
+              : `${Math.round(s / 3600)}h ago`;
+
+      // Cap the list so a big floor can't crowd out the actual prompt. The
+      // remainder is still counted, and fleet.json is one Read away.
+      const MAX = 24;
+      const shown = agents.slice(0, MAX);
+      const rows = shown.map((a) => {
+        const bits = [a.role ?? 'agent',
+          typeof a.lastActiveSecAgo === 'number' ? `active ${ago(a.lastActiveSecAgo)}` : 'no activity yet'];
+        if (a.tokens) bits.push(`${Math.round(a.tokens / 1000)}k tok`);
+        if (a.usd) bits.push(`$${a.usd.toFixed(2)}`);
+        if (a.inboxBacklog) bits.push(`inbox ${a.inboxBacklog}`);
+        if (a.breaker && a.breaker !== 'ok' && a.breaker !== 'none') bits.push(`breaker ${a.breaker}`);
+        if (a.isGod) bits.push('you');
+        return `${a.id}${a.name ? ` "${a.name}"` : ''} (${bits.join(', ')})`;
+      });
+      const more = agents.length > shown.length ? ` +${agents.length - shown.length} more` : '';
+      const age = typeof snap.ts === 'number' ? ago(Math.round((Date.now() - snap.ts) / 1000)) : 'unknown';
+
+      return `[LIVE ROSTER — auto-injected from ${join(root, 'fleet.json')}, snapshot ${age}] `
+        + `${agents.length} ACTIVE agent(s): ${rows.join('; ')}.${more} `
+        + 'This is the CURRENT floor and it SUPERSEDES any roster earlier in this conversation — '
+        + 'agents you remember that are absent here have been archived or killed, so do not message them. '
+        + 'Route work to someone on this list before spawning anyone new.';
+    } catch { return null; }
+  }
   logTail(n = 200): unknown[] {
     const root = this.root();
     if (!root || !existsSync(join(root, 'log.jsonl'))) return [];
