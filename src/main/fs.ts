@@ -84,6 +84,34 @@ export async function writeFileText(root: string, rel: string, content: string):
   }
 }
 
+/**
+ * Expand a leading `~` to the user's home dir and return an absolute, normalized
+ * path. SYNC on purpose — every consumer (spawn guards, cwd validation, config
+ * writes) is synchronous.
+ *
+ * Only a SHELL expands `~`; Node's `fs`/`child_process` treat it as a literal
+ * directory name, so a user-typed `~/dev/foo` fails every existsSync/statSync and
+ * dies with `cwd does not exist`. This is applied at INGESTION (project add,
+ * `pty:spawn`) so the registry only ever stores an ABSOLUTE cwd, with
+ * defense-in-depth at the consumers.
+ *
+ * Non-tilde absolute paths are returned resolved/normalized. Anything that is
+ * still RELATIVE after expansion is returned untouched (trimmed) so callers keep
+ * their own "not-absolute" errors instead of it being silently resolved against
+ * the Electron process cwd. Empty input passes straight through. Windows paths
+ * (`C:\…`, UNC) are unaffected — they never start with `~`.
+ */
+export function expandTilde(p: string): string {
+  if (typeof p !== 'string') return p;
+  const t = p.trim();
+  if (!t) return p;
+  let out = t;
+  if (t === '~') out = homedir();
+  else if (t.startsWith('~/') || t.startsWith('~\\')) out = join(homedir(), t.slice(2));
+  if (!isAbsolute(out)) return t;
+  return resolve(out);
+}
+
 /** Existence/metadata check for an ABSOLUTE path (v0.3.4 — backs the terminal
  *  ⌘-click markdown flow). `~/` is expanded here (the renderer doesn't know
  *  the home dir). Read-only metadata: returns whether a regular file exists and

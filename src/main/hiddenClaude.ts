@@ -2,6 +2,7 @@ import * as pty from 'node-pty';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { resolveCommand, userShellPath } from './shellEnv';
+import { expandTilde } from './fs';
 import { projectDir } from './transcript';
 import { ensureKilled } from './procKill';
 
@@ -98,10 +99,13 @@ function extractLastAssistantText(cwd: string, spawnedAt: number): string | null
 export function runHiddenClaude(prompt: string, opts: HiddenClaudeOptions): Promise<HiddenClaudeResult> {
   return new Promise((resolve) => {
     if (!prompt.trim()) { resolve({ ok: false, error: 'empty prompt' }); return; }
-    if (!opts.cwd || !existsSync(opts.cwd)) {
+    // Defense-in-depth: `~` is shell syntax, not a path Node understands.
+    const cwd = opts.cwd ? expandTilde(opts.cwd) : opts.cwd;
+    if (!cwd || !existsSync(cwd)) {
       resolve({ ok: false, error: `cwd does not exist: ${opts.cwd}` });
       return;
     }
+    opts = { ...opts, cwd };
 
     const binary = (opts.command || 'claude').trim().split(/\s+/)[0] || 'claude';
     const exe = resolveCommand(binary);

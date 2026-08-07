@@ -19,7 +19,7 @@
  */
 import {
   existsSync, mkdirSync, readFileSync, writeFileSync, renameSync,
-  readdirSync, statSync, rmSync, appendFileSync, symlinkSync, copyFileSync
+  readdirSync, statSync, rmSync, appendFileSync, symlinkSync, copyFileSync, chmodSync
 } from 'node:fs';
 import { join, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
@@ -36,6 +36,7 @@ import {
   type AgentProvider
 } from '../shared/agentProvider';
 import { MCP_CATALOG } from '../shared/mcpCatalog';
+import { expandTilde } from './fs';
 
 /** The subset of HarnessConfig the hive consumes for the default-MCP merge.
  *  Kept as a local shape so hive.ts never imports the foundation-owned config
@@ -324,6 +325,72 @@ export class HiveManager {
     return root ? join(root, 'bin', 'hive-proxy.cjs') : null;
   }
 
+  /**
+   * The BUNDLED-NODE launcher: `<root>/bin/hive-node` (POSIX) / `hive-node.cmd`
+   * (Windows). Every `.cjs` shim in the hive is executed through it.
+   *
+   * Why it exists: hooks are run by the agent CLI through a plain
+   * `/bin/sh -c` with a bare `PATH=/usr/bin:/bin:/usr/sbin:/sbin`. A user whose
+   * node comes from nvm (PATH set only by an interactive login shell) has NO node
+   * there, so a hook written as `node "<shim>"` exits **127 — command not found**
+   * and every payload is silently lost: no live status, no Stop→inbox drain, no
+   * session ids. Electron's own binary IS a full Node runtime under
+   * `ELECTRON_RUN_AS_NODE=1`, and it is guaranteed present (it is us).
+   *
+   * A wrapper SCRIPT rather than an inline `ELECTRON_RUN_AS_NODE=1 "<exe>" …`
+   * prefix because that prefix is POSIX-sh syntax — it is a hard error under
+   * cmd.exe, which is what runs hook commands on Windows. The wrapper also gives
+   * agents a `$HIVE_NODE` they can invoke directly (running the Electron binary
+   * WITHOUT the env var would launch a second app window, not a script).
+   *
+   * Rewritten on every bootstrap, so an app update/move re-bakes execPath.
+   */
+  private nodeLauncherPath(): string | null {
+    const root = this.root();
+    if (!root) return null;
+    return join(root, 'bin', process.platform === 'win32' ? 'hive-node.cmd' : 'hive-node');
+  }
+
+  /** Write the launcher described above. Best-effort: on failure callers fall
+   *  back to bare `node`, i.e. exactly the pre-fix behavior. */
+  private writeNodeLauncher(): void {
+    const p = this.nodeLauncherPath();
+    if (!p) return;
+    try {
+      if (process.platform === 'win32') {
+        writeFileSync(p, `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${process.execPath}" %*\r\n`, 'utf8');
+      } else {
+        writeFileSync(p, `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec "${process.execPath}" "$@"\n`, 'utf8');
+        chmodSync(p, 0o755);
+      }
+    } catch (e) {
+      console.error('[hive] writeNodeLauncher failed:', e);
+    }
+  }
+
+  /** The launcher path if it is actually on disk, else null (→ callers fall back
+   *  to bare `node`, i.e. exactly the pre-fix behavior — never worse than before). */
+  private nodeLauncher(): string | null {
+    const p = this.nodeLauncherPath();
+    return p && existsSync(p) ? p : null;
+  }
+
+  /** Build a hook command string that runs `script` under the guaranteed node,
+   *  DOUBLE-QUOTED (safe for paths with spaces). */
+  private nodeRun(script: string, ...args: string[]): string {
+    const launcher = this.nodeLauncher();
+    return [launcher ? `"${launcher}"` : 'node', `"${script}"`, ...args].join(' ');
+  }
+
+  /** Same, but UNQUOTED — for the CLIs whose hook config mangles embedded quotes
+   *  (agy on cmd.exe) or stores the command in a quote-sensitive literal (codex's
+   *  single-quoted TOML). Safe because both the hive root and the launcher inside
+   *  it are space-free by construction; this only preserves each installer's
+   *  existing quoting convention while swapping `node` for the bundled runtime. */
+  private nodeRunUnquoted(script: string, ...args: string[]): string {
+    return [this.nodeLauncher() ?? 'node', script, ...args].join(' ');
+  }
+
   /** One proxy sidecar per live proxy-tier agent, keyed by agentId. Spawned in
    *  ensureAgent, killed on PTY exit / removeAgent / app quit (index.ts) — so a
    *  dead agent never leaks an orphan loopback listener. */
@@ -371,6 +438,9 @@ export class HiveManager {
     writeFileSync(this.shimPath()!, HOOK_SHIM, 'utf8');
     // The proxy-bridge sidecar for hookless CLIs (qwen). Same refresh policy.
     writeFileSync(this.proxyShimPath()!, PROXY_BRIDGE_SHIM, 'utf8');
+    // The bundled-node launcher every shim above is invoked through — MUST be
+    // written before any hook installer runs (they probe for it).
+    this.writeNodeLauncher();
 
     if (!existsSync(join(root, '.git'))) {
       this.git(['init', '-q'], root);
@@ -384,6 +454,10 @@ export class HiveManager {
    *  Best-effort; never throws (a stat error degrades to invalid). */
   private cwdValidity(cwd: string | undefined): { valid: boolean; issue: string | null } {
     if (!cwd || typeof cwd !== 'string') return { valid: false, issue: 'missing' };
+    // Defense-in-depth: a `~/…` cwd from an older registry entry (written before
+    // ingestion-time expansion) would read as 'not-absolute' forever. Expand first
+    // so the roster reports the truth about the directory the spawn would use.
+    cwd = expandTilde(cwd);
     if (!isAbsolute(cwd)) return { valid: false, issue: 'not-absolute' };
     try {
       return statSync(cwd).isDirectory()
@@ -447,6 +521,9 @@ export class HiveManager {
     const prev = reg.agents[meta.id];
     // Validate the working directory at the source so a bad value is visible on
     // the roster (cwdValid) rather than silently spawning into a nonexistent dir.
+    // Store the EXPANDED cwd, never the raw `~/…` the user typed — the registry is
+    // read by hooks, the roster and the worker watcher, none of which run a shell.
+    if (meta.cwd) meta = { ...meta, cwd: expandTilde(meta.cwd) };
     const cwd = this.cwdValidity(meta.cwd);
     reg.agents[meta.id] = {
       ...prev,
@@ -475,6 +552,14 @@ export class HiveManager {
       HIVE_ROOT: root,
       AGENT_DIR: dir
     };
+    // The bundled-node launcher, so an agent can run the hive's .cjs helpers (KG
+    // CLI, Slack reply helper) even when `node` is not on its PATH. The agent's
+    // system prompt tells it to use `"$HIVE_NODE" <script>`; invoking the Electron
+    // binary directly would open a second app window, so this must stay the
+    // wrapper path and never process.execPath.
+    // Always set (falls back to plain `node`) so agent-facing commands can be
+    // written as `"$HIVE_NODE" <script>` unconditionally and never expand to "".
+    env.HIVE_NODE = this.nodeLauncher() ?? 'node';
 
     const claudeProvider = isClaudeProvider(meta.provider ?? 'claude');
 
@@ -686,7 +771,9 @@ export class HiveManager {
    *  scopes the filesystem/git servers; cfg (the consent map) gates which servers
    *  are written. Claude-only — this is invoked solely on the Claude spawn path. */
   private hookSettings(shim: string, cwd: string, cfg: McpDefaultsMap, theme?: 'light' | 'dark'): unknown {
-    const cmd = `node "${shim}"`;
+    // Bundled node, NOT bare `node` — see nodeLauncherPath(). Claude runs each of
+    // these through `sh -c` with a stripped PATH, where `node` is often absent.
+    const cmd = this.nodeRun(shim);
     const entry = (matcher?: string) => ({
       ...(matcher ? { matcher } : {}),
       hooks: [{ type: 'command', command: cmd }]
@@ -921,7 +1008,7 @@ export class HiveManager {
     // stable $KG_CLI / $KG_ROOT env vars injected at spawn — no paths/counts that
     // would change per spawn and bust the prompt cache.
     const knowledgeLine = knowledgeGraph
-      ? 'Enterprise knowledge: this organisation has a private Knowledge Graph of its own documents, policies, and business context. When a task needs that context — company-specific facts, house style, internal processes — query it instead of guessing: run `node "$KG_CLI" search "<query>"` for ranked passages, `node "$KG_CLI" list` to see what is available, and `node "$KG_CLI" get <id>` for a full document.'
+      ? 'Enterprise knowledge: this organisation has a private Knowledge Graph of its own documents, policies, and business context. When a task needs that context — company-specific facts, house style, internal processes — query it instead of guessing: run `"$HIVE_NODE" "$KG_CLI" search "<query>"` for ranked passages, `"$HIVE_NODE" "$KG_CLI" list` to see what is available, and `"$HIVE_NODE" "$KG_CLI" get <id>` for a full document. ($HIVE_NODE is the harness\'s bundled Node — use it instead of bare `node`, which may not be on your PATH.)'
       : '';
     const godLine = meta.isGod
       ? 'You are the GOD / ORCHESTRATOR of this hive — your job is to ORCHESTRATE, not to implement: maintain live situational awareness and delegate the work. (1) AWARENESS — always know what is going on: keep an accurate picture of every agent (active vs archived/idle), the task board, and all in-flight work; drain your inbox continually and triage every other agent\'s requests, answering clarifications so the team runs autonomously. (2) DELEGATE — decompose work and fan it out to the hive agents via their inboxes (route messages and assign owners; do not do their jobs); do NOT take on grunt implementation yourself. Stay aware of who is already on the floor and delegate OPPORTUNISTICALLY: BEFORE you spawn anything, CHECK THE LIVE ROSTER (active agents in registry.json + their state in fleet.json) and prefer routing to an EXISTING agent that fits — above all when the request names one ("ask Pam to…", "have Jim…"), route to that agent instead of reflexively creating a new one. Reuse an idle or already-running agent whose role matches; only spawn a fresh agent when no existing one is a sensible fit, and say that you checked. One capable owner beats a duplicate. (3) OWN ONLY THE IMPORTANT, high-leverage things — task decomposition, dispatch decisions, sign-offs, conflict resolution, branch integration, and final QA — and remain the sole scribe of board.md. You are otherwise fully autonomous — there is NO separate approval queue. For the genuinely critical (destructive actions, spending real money, scope changes, unresolvable conflicts), ask the human directly in your own session and let the tool-permission prompt gate the action; the human approves natively, including remotely from their phone via /remote-control. Keep the team unblocked. When you DISPATCH a task, write it as a 4-part contract so the agent can run autonomously: (1) OBJECTIVE — the concrete goal; (2) OUTPUT — the expected deliverable/format; (3) TOOLS — what to use or avoid, and any references to read instead of re-deriving; (4) BOUNDARIES — scope limits + the definition of done. Pass references (file paths, message ids, board sections), not pasted content — keep dispatches short.'
@@ -932,7 +1019,7 @@ export class HiveManager {
     const guardrailsLine = 'Guardrails: a circuit breaker watches the floor — a "Circuit breaker: steer/constrain" message means you are looping or overspending, so STOP repeating, summarize what you tried, and follow it. Be token-frugal (a floor-wide or per-agent token budget can pause you). The shared plan has two parts: board.md (freeform; god is the sole scribe) and tasks.json (structured kanban — todo/doing/blocked/done).';
     const slackLine = meta.isGod
       ? 'SLACK REPLIES: When composing a Slack reply (or writing the `result` field of a Slack-origin kanban card), you MUST: (1) directly address what the user asked — never a bare "done"; (2) include the relevant specifics, outcome, and details; (3) format for Slack mrkdwn — open with a short *bold* headline, use bullet points for multiple items, wrap code/paths in `backtick` blocks, keep it concise (no walls of text). When finishing a Slack-origin task, always write a complete, user-facing, well-formatted `result` on the kanban card — the system posts it verbatim to Slack as the done reply.'
-      : 'SLACK REPLIES: If god dispatches you a task that came from Slack, it will include an exact `node "<helper>" --channel … --thread … --text "…"` reply command — when you finish, run it to post your result back to that thread yourself. The reply must be SUBSTANTIVE Slack mrkdwn (a short *bold* headline + the actual outcome/specifics/links), NEVER a bare "done".';
+      : 'SLACK REPLIES: If god dispatches you a task that came from Slack, it will include an exact `"$HIVE_NODE" "<helper>" --channel … --thread … --text "…"` reply command — when you finish, run it VERBATIM to post your result back to that thread yourself. The reply must be SUBSTANTIVE Slack mrkdwn (a short *bold* headline + the actual outcome/specifics/links), NEVER a bare "done".';
     return [
       `You are "${meta.name}" (${meta.id}), an autonomous agent in a collaborating hive of Claude agents.`,
       `Your private workspace is ${dir}. The shared hive is ${root}. Full protocol: ${root}/PROTOCOL.md.`,
@@ -1316,12 +1403,13 @@ export class HiveManager {
     const shim = join(root, 'bin', 'agy-hook.cjs');
     mkdirSync(join(root, 'bin'), { recursive: true });
     writeFileSync(shim, AGY_HOOK_SHIM, 'utf8');
+    // Bundled node, not bare `node` — agy's hooks run with a stripped PATH too.
     const tool = (event: string) => ({
       matcher: '*',
-      hooks: [{ type: 'command', command: `node ${shim} ${event}`, timeout: 0 }]
+      hooks: [{ type: 'command', command: this.nodeRunUnquoted(shim, event), timeout: 0 }]
     });
     const plain = (event: string) => ({
-      hooks: [{ type: 'command', command: `node ${shim} ${event}`, timeout: 0 }]
+      hooks: [{ type: 'command', command: this.nodeRunUnquoted(shim, event), timeout: 0 }]
     });
     const group = {
       PreToolUse: [tool('PreToolUse')],
@@ -1405,7 +1493,7 @@ export class HiveManager {
           'SessionStart', 'UserPromptSubmit', 'PreCompact', 'PostCompact'];
         config += '\n# --- munder-hive lifecycle hooks (auto-generated; do not edit) ---\n';
         for (const ev of events) {
-          config += `\n[[hooks.${ev}]]\n[[hooks.${ev}.hooks]]\ntype = "command"\ncommand = 'node ${shim}'\ntimeout = 0\n`;
+          config += `\n[[hooks.${ev}]]\n[[hooks.${ev}.hooks]]\ntype = "command"\ncommand = '${this.nodeRunUnquoted(shim)}'\ntimeout = 0\n`;
         }
       }
       writeFileSync(join(home, 'config.toml'), config, 'utf8');
@@ -1521,7 +1609,9 @@ export class HiveManager {
       const tool = (matcher?: string) => ({
         ...(matcher ? { matcher } : {}),
         // Let Grok apply its event-aware defaults (5s normally, 600s for Stop).
-        hooks: [{ type: 'command', command: `node ${shim}` }]
+        // Grok is a HOOK bridge (not a proxy sidecar), so it is hit by the same
+        // `node: command not found` 127 — bundled node here too.
+        hooks: [{ type: 'command', command: this.nodeRun(shim) }]
       });
       const hooks = {
         PreToolUse: [tool('.*')],

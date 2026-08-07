@@ -3,6 +3,7 @@ import type { WebContents } from 'electron';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { ensureKilled } from './procKill';
+import { expandTilde } from './fs';
 import { captureFromLoginShell, userShellPath } from './shellEnv';
 
 interface PtySession {
@@ -234,6 +235,10 @@ export class PtyManager {
     if (this.sessions.has(opts.id)) {
       return { ok: false, error: `pty already exists for id ${opts.id}` };
     }
+    // Defense-in-depth: cwd is already tilde-expanded at ingestion (spawnAgentCore),
+    // but any other caller reaching the PTY directly gets the same treatment —
+    // `existsSync('~/dev/foo')` is always false, only a shell expands `~`.
+    opts = { ...opts, cwd: expandTilde(opts.cwd) };
     if (!existsSync(opts.cwd)) {
       return { ok: false, error: `cwd does not exist: ${opts.cwd}` };
     }
