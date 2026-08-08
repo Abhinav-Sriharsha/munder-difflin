@@ -16,7 +16,7 @@ import {
   readConfig, writeConfig, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
 } from './config';
-import { listDir, readFileText, writeFileText, statAbs } from './fs';
+import { listDir, readFileText, writeFileText, statAbs, expandTilde } from './fs';
 import {
   getBranch, getStatus, getLog, getBranches, getAheadBehind, isRepo, getDiff, mainRepoRoot,
   addWorktree, removeWorktree, worktreeHasUnintegratedWork, worktreeIsGcSafe,
@@ -54,9 +54,10 @@ import {
   nonInteractiveEnvForProvider,
   providerPreset,
   installInfoForProvider,
-  type AgentProvider,
-  type ProviderInstallInfo
+  type AgentProvider
 } from '../shared/agentProvider';
+import { buildMissingCliScript, chooseInstallRung } from './cliInstall';
+import { detectNodeVersion, nodeIsUsable, resolveNodeInstaller } from './nodeInstall';
 import {
   CODEX_REMOTE_SOCKET_RELATIVE,
   codexRemoteAliasPath,
@@ -422,7 +423,9 @@ function teardownPty(id: string): void {
 function informGod(subject: string, body: string, slack?: { channel: string; thread_ts: string }): void {
   try {
     const slackLine = slack
-      ? `\n\n[SLACK] Close the loop — post a reply to channel ${slack.channel} thread ${slack.thread_ts} via:\n  node "${slackReplyScriptPath()}" --channel ${slack.channel} --thread ${slack.thread_ts} --text "<your message>"`
+      // `$HIVE_NODE` (injected into every agent's env) — NOT bare `node`, which is
+      // absent from the PATH of any machine whose node comes from nvm.
+      ? `\n\n[SLACK] Close the loop — post a reply to channel ${slack.channel} thread ${slack.thread_ts} via:\n  "$HIVE_NODE" "${slackReplyScriptPath()}" --channel ${slack.channel} --thread ${slack.thread_ts} --text "<your message>"`
       : '';
     hive.send({ to: 'god', act: 'inform', subject, body: body + slackLine }, 'ephemeral-worker');
   } catch (e) {
@@ -1029,7 +1032,7 @@ let lastSlackUrl: string | undefined;
 function buildAutonomousRequestProtocol(channel: string, threadTs: string, helperPath: string): string {
   return `[AUTONOMOUS REQUEST PROTOCOL — this request arrived via Slack; no interactive human is watching] Handle it under this protocol:
 1. ROUTE FAST — triage and hand this to the single most-relevant agent right away. CHECK THE LIVE ROSTER FIRST (active agents in registry.json + their state in fleet.json) and prefer an EXISTING agent that fits — especially when the request names one ("ask Pam…", "have Jim…"): route to that agent and only spawn a new one if none is a sensible fit. Decompose only if it genuinely needs several. Don't sit on it.
-2. DELEGATE WITH THE REPLY HANDLE — tell that agent to do the work autonomously AND to post its result back to THIS Slack thread itself when done, using exactly: node "${helperPath}" --channel ${channel} --thread ${threadTs} --text "<substantive result>"
+2. DELEGATE WITH THE REPLY HANDLE — tell that agent to do the work autonomously AND to post its result back to THIS Slack thread itself when done, using exactly: "$HIVE_NODE" "${helperPath}" --channel ${channel} --thread ${threadTs} --text "<substantive result>" ($HIVE_NODE is the harness's bundled Node, injected into every agent's env — bare "node" is not on the hook/agent PATH on many machines.)
 3. AUTONOMOUS EXECUTION — no interactive questions. PAUSE/ask ONLY for high-severity actions: pushing to main or any remote; buying or spawning infrastructure or paid services; deleting an existing repo, file, or folder it did not create. Stay READ-ONLY at critical infrastructure and git-push-type changes unless explicitly approved.
 4. DIRECT, SUBSTANTIVE REPLY — the agent posts a real Slack-mrkdwn answer (short *bold* headline + the actual outcome/specifics/links), NEVER a bare "done"/":white_check_mark:".
 5. REPORT TO GOD — the agent then tells you (Michael) what it did.
@@ -1846,89 +1849,6 @@ function installAppMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-/** Build the shell script the missing-CLI auto-install path runs IN PLACE of a
- *  missing engine CLI. When the provider has a known installer it prints a banner
- *  then RUNS the install visibly (so the user can watch + finish any sign-in);
- *  otherwise it prints a manual instruction only and runs nothing. The script is
- *  emitted in the current platform shell's syntax ($SHELL on unix, cmd.exe on
- *  Windows). The only user-derived value (the missing binary name) is sanitized to
- *  a safe identifier; the install command itself is a trusted hardcoded constant. */
-function buildMissingCliScript(bin: string, provider: AgentProvider): string {
-  const info: ProviderInstallInfo = installInfoForProvider(provider);
-  const safeBin = (bin || provider).replace(/[^A-Za-z0-9._-]/g, '') || provider;
-  const cmd = info.command; // trusted constant, or undefined → manual hint only
-  const label = info.label;
-  const docs = info.docsUrl;
-  const rule = '------------------------------------------------------------';
-
-  if (process.platform === 'win32') {
-    // ONE cmd.exe line: `&` chains steps, `^&` prints a literal ampersand, and the
-    // script carries NO double-quotes (it is wrapped verbatim in `/d /s /c "..."`).
-    // We avoid `if errorlevel` branching (untestable here) — a combined success/
-    // failure hint after the install is robust and satisfies the manual-fallback DoD.
-    const parts: string[] = ['echo.', `echo ${rule}`, `echo   Engine CLI not found:  ${safeBin}`, 'echo.'];
-    if (cmd) {
-      parts.push(
-        `echo   Installing the ${label} CLI now so you can watch:`,
-        'echo.',
-        `echo     ${cmd}`,
-        `echo ${rule}`,
-        'echo.',
-        cmd,
-        'echo.',
-        'echo   [done] If it succeeded, the agent launches automatically.',
-        'echo   If it failed, run the command above manually, then restart the agent.'
-      );
-    } else {
-      parts.push(
-        `echo   No bundled installer for the ${label} provider.`,
-        'echo   Install it manually, then restart the agent to launch it.'
-      );
-      if (docs) parts.push(`echo   Docs: ${docs}`);
-      parts.push(`echo ${rule}`);
-    }
-    return parts.join(' & ');
-  }
-
-  // unix ($SHELL -lc <script>): one statement per line, single-quoted echo text so
-  // no shell metacharacter expands. We avoid `!` so any shell with history
-  // expansion never fires. npm is found via the interactive PATH spawn() injects.
-  const lines: string[] = [
-    `echo ''`,
-    `echo '${rule}'`,
-    `echo '  Engine CLI not found:  ${safeBin}'`,
-    `echo ''`
-  ];
-  if (cmd) {
-    lines.push(
-      `echo '  Installing the ${label} CLI now so you can watch — finish any'`,
-      `echo '  sign-in it prompts for, then come back to this terminal.'`,
-      `echo ''`,
-      `echo '    ${cmd}'`,
-      `echo '${rule}'`,
-      `echo ''`,
-      cmd,
-      `__clirc=$?`,
-      `echo ''`,
-      `if [ $__clirc -eq 0 ]; then`,
-      `  echo '  [done] Installed — launching the agent…'`,
-      `else`,
-      `  echo "  [x] Install exited with code $__clirc — finish it manually:"`,
-      `  echo '    ${cmd}'`,
-      ...(docs ? [`  echo '    Docs: ${docs}'`] : []),
-      `  echo '  Then restart the agent to launch it.'`,
-      `fi`
-    );
-  } else {
-    lines.push(
-      `echo '  No bundled installer for the ${label} provider.'`,
-      `echo '  Install it manually, then restart the agent to launch it.'`,
-      ...(docs ? [`echo '  Docs: ${docs}'`] : []),
-      `echo '${rule}'`
-    );
-  }
-  return lines.join(String.fromCharCode(10));
-}
 
 // ─── IPC: pty lifecycle ─────────────────────────────────────────────────────
 /** Codex stores its rollout transcripts under a PER-AGENT CODEX_HOME
@@ -2010,7 +1930,17 @@ ipcMain.handle('pty:spawn', async (evt, opts: AgentSpawnOptions) => {
  *  it can ALSO be invoked by the god-triggered ephemeral-worker watcher (which has
  *  no renderer `evt`). `owner` is the window that should receive this PTY's output
  *  (null → the primary window). Behavior-identical to the prior inline handler. */
-async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebContents | null): Promise<{ ok: boolean; error?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string }> {
+async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebContents | null): Promise<{ ok: boolean; error?: string; cwd?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string }> {
+  // ── cwd INGESTION — expand `~` exactly once, here ───────────────────────────
+  // This is the single door every agent spawn comes through (`pty:spawn` IPC and
+  // the god-triggered ephemeral-worker watcher), so it is where a user-typed
+  // `~/dev/foo` becomes an absolute path. Only a shell expands `~`; Node treats it
+  // as a literal dir, so without this every downstream existsSync/statSync fails
+  // with `cwd does not exist`. Expanding BEFORE hive provisioning is what makes the
+  // registry store an ABSOLUTE cwd (and `cwdValid: true`). The resolved value is
+  // returned to the caller so the renderer records the same absolute path.
+  opts.cwd = expandTilde(opts.cwd);
+  if (opts.hive) opts.hive = { ...opts.hive, cwd: expandTilde(opts.hive.cwd) };
   // Which CLI is this? Explicit wins; else inferred from the binary
   // (claude/codex/grok/agy). Non-Claude providers skip every Claude-only spawn step
   // below. Persist the resolved provider onto opts (+ hive meta) so the registry
@@ -2037,6 +1967,20 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   {
     const bin = opts.command.trim().split(/\s+/)[0] || opts.command;
     if (bin && !opts.noAutoInstall && !ptyManager.isCommandAvailable(bin)) {
+      // The installer commands are `npm install -g …`. Probe for npm the same way
+      // we probe for the engine CLI, so a no-Node machine gets the node-free rung
+      // (or an honest manual hint) instead of watching `npm: not found` scroll by.
+      // An npm whose Node is BELOW the floor counts as unavailable: founder rule
+      // (2026-08-07) is "their Node newer than ours → leave it alone; absent or
+      // older → install the latest stable for them".
+      const npmAvailable =
+        ptyManager.isCommandAvailable('npm') &&
+        nodeIsUsable(detectNodeVersion(ptyManager.commandPath('node')));
+      // Only reach the network when we actually need to (npm missing/too old);
+      // resolveNodeInstaller is timeout-bounded and returns null offline, which
+      // simply drops the ladder to the native/manual rung.
+      const nodeInstaller = npmAvailable ? null : await resolveNodeInstaller();
+      const rung = chooseInstallRung(installInfoForProvider(provider), npmAvailable, nodeInstaller);
       const res = ptyManager.spawn(
         {
           id: opts.id,
@@ -2044,7 +1988,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           command: bin,
           cols: opts.cols,
           rows: opts.rows,
-          shellScript: buildMissingCliScript(bin, provider)
+          shellScript: buildMissingCliScript(bin, provider, npmAvailable, process.platform, nodeInstaller)
         },
         owner
       );
@@ -2053,7 +1997,11 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       // (no user click). Only when an installer actually RAN (a provider with no
       // bundled installer just prints a manual hint and exits 0 — relaunching there
       // would spawn the still-missing binary and die) and the PTY actually started.
-      if (res.ok && installInfoForProvider(provider).command) {
+      // …keyed on the RUNG, not on `installCommand`: the manual rung prints a hint
+      // and exits 0, and relaunching there would just respawn the still-missing
+      // binary and die with the bare "process exited (code 1)" this whole path exists
+      // to replace.
+      if (res.ok && rung.command) {
         pendingInstallRelaunch.set(opts.id, { opts, owner, bin });
       }
       syncKeepAwake();
@@ -2336,7 +2284,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // The restore flow re-enters this exact worktree (cwd = worktreePath) so a
   // restored isolated agent resumes in the CORRECT checkout, not the base repo.
   const worktreePath = worktreePaths.get(opts.id);
-  return { ...res, ...(worktreePath ? { worktreePath } : {}), ...(resumeNotFound ? { resumeNotFound: true } : {}), ...(didResume ? { resumed: true } : {}), ...(seedPrompt ? { seedPrompt } : {}) };
+  // `cwd` echoes back the TILDE-EXPANDED absolute path so the renderer's agent
+  // record matches what the registry and the PTY actually used.
+  return { ...res, cwd: opts.cwd, ...(worktreePath ? { worktreePath } : {}), ...(resumeNotFound ? { resumeNotFound: true } : {}), ...(didResume ? { resumed: true } : {}), ...(seedPrompt ? { seedPrompt } : {}) };
 }
 ipcMain.handle('pty:write', (_evt, id: string, data: string) => {
   if (typeof id !== 'string' || typeof data !== 'string') return { ok: false, error: 'invalid args' };
@@ -3498,7 +3448,9 @@ async function processSpawnRequest(filePath: string): Promise<void> {
   const workerId = `worker-${reqId}`;
   if (liveWorkers.has(workerId)) { fail(`worker "${workerId}" already running`); return; }
 
-  const cwd = typeof raw.cwd === 'string' && raw.cwd.trim() ? raw.cwd.trim() : '';
+  // Worker request files are hand/LLM-authored, so `~/…` shows up here too — expand
+  // before the existence check (Node reads `~` literally).
+  const cwd = typeof raw.cwd === 'string' && raw.cwd.trim() ? expandTilde(raw.cwd) : '';
   if (!cwd || !existsSync(cwd)) { fail(`"cwd" missing or not found (${cwd || 'unset'})`); return; }
 
   const command = typeof raw.command === 'string' && raw.command.trim() ? raw.command.trim() : (readConfig().defaultCommand ?? 'claude');

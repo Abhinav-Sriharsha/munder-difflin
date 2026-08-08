@@ -146,6 +146,17 @@ export interface AgentProviderPreset {
    *  when undefined, the user is shown a manual instruction only and nothing is
    *  auto-run. MUST be a trusted, hardcoded constant — never user/manifest input. */
   installCommand?: string;
+  /** A SELF-CONTAINED installer that needs no Node/npm at all, per platform.
+   *
+   *  `installCommand` is `npm install -g …` for every provider, which silently
+   *  assumes npm — i.e. node — is already on the machine. When it isn't, the
+   *  missing-CLI banner prints a command that CANNOT succeed, so the user watches
+   *  an installer fail instead of an app work. Where the vendor ships a native
+   *  installer we run that instead (see buildMissingCliScript's ladder).
+   *
+   *  Trusted, hardcoded constants — never user/manifest input. MUST contain no
+   *  double-quotes: the Windows form is wrapped verbatim in `cmd /d /s /c "…"`. */
+  nativeInstallCommand?: { posix: string; win32: string };
   /** Optional docs URL surfaced as a manual-setup hint in the missing-CLI banner. */
   docsUrl?: string;
   resumeSubcommand?: string; // CLIs that resume via a subcommand instead of a flag (Codex: `codex resume [OPTIONS] [SESSION_ID]`)
@@ -169,6 +180,12 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     resumeFlag: '--resume',
     // Official Claude Code install (npm global). Used by the missing-CLI auto-install.
     installCommand: 'npm install -g @anthropic-ai/claude-code',
+    // Anthropic's official native installer — a standalone binary, no node/npm.
+    // The only rung of the ladder that works on a machine with no Node at all.
+    nativeInstallCommand: {
+      posix: 'curl -fsSL https://claude.ai/install.sh | bash',
+      win32: 'powershell -c irm https://claude.ai/install.ps1 ^| iex'
+    },
     docsUrl: 'https://docs.claude.com/en/docs/claude-code'
   },
   {
@@ -566,11 +583,22 @@ export function commandGroupsForProvider(provider: AgentProvider): CmdGroup[] {
  *  is the friendly CLI name; `docsUrl` is an optional manual-setup link. */
 export interface ProviderInstallInfo {
   command?: string;
+  /** A node-free installer for this platform, when the vendor ships one. */
+  nativeCommand?: string;
   label: string;
   docsUrl?: string;
 }
 
-export function installInfoForProvider(provider: AgentProvider): ProviderInstallInfo {
+export function installInfoForProvider(
+  provider: AgentProvider,
+  platform: string = process.platform
+): ProviderInstallInfo {
   const p = providerPreset(provider);
-  return { command: p.installCommand, label: p.label, docsUrl: p.docsUrl };
+  const native = p.nativeInstallCommand;
+  return {
+    command: p.installCommand,
+    nativeCommand: native ? (platform === 'win32' ? native.win32 : native.posix) : undefined,
+    label: p.label,
+    docsUrl: p.docsUrl
+  };
 }

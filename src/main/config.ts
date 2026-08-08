@@ -10,6 +10,7 @@ import {
   type AgentProvider
 } from '../shared/agentProvider';
 import { defaultMcpDefaults } from '../shared/mcpCatalog';
+import { expandTilde } from './fs';
 import type { IntegrationRecord } from '../shared/integrations';
 
 /** A recurring auto-dispatched mission fired on an interval by the scheduler. */
@@ -419,6 +420,16 @@ export function readConfig(): HarnessConfig {
 export function writeConfig(patch: Partial<HarnessConfig>): HarnessConfig {
   const current = readConfig();
   const next: HarnessConfig = { ...current, ...patch };
+  // Project INGESTION — a registered repo is typed by hand ("~/dev/foo") as often
+  // as it is picked from the folder dialog. Expand `~` here so the persisted list
+  // (and therefore every agent's default cwd) is ABSOLUTE; Node's fs/spawn treat
+  // `~` as a literal directory name and the spawn dies with `cwd does not exist`.
+  if (Array.isArray(patch.registeredRepos)) {
+    const seen = new Set<string>();
+    next.registeredRepos = patch.registeredRepos
+      .map((r) => expandTilde(r))
+      .filter((r) => r && !seen.has(r) && (seen.add(r), true));
+  }
   // Track recently-opened hive homes so the launch picker can list them. Any write
   // that SETS harnessHome (onboarding finish, changeHome) promotes it to the front,
   // deduped and capped. Skips empty/null so a clear doesn't pollute the list.
