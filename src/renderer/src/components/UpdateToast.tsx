@@ -13,16 +13,27 @@
  */
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/Icon';
+import type { UpdateStatus } from '@shared/updateState';
 
-type UpdateStatus =
-  | { state: 'downloaded'; version: string; notes?: string }
-  | { state: 'available-manual'; version: string; url: string };
+/** The toast is the LOUD half — it only interrupts for the two states a user has
+ *  to act on. Everything else (checking, available, download progress, errors)
+ *  lives quietly in the toolbar badge next to the logo. */
+type ToastStatus = Extract<UpdateStatus, { state: 'downloaded' | 'available-manual' }>;
+
+function toastable(s: UpdateStatus): ToastStatus | null {
+  return s.state === 'downloaded' || s.state === 'available-manual' ? s : null;
+}
 
 export function UpdateToast() {
-  const [status, setStatus] = useState<UpdateStatus | null>(null);
+  const [status, setStatus] = useState<ToastStatus | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => window.cth.onUpdateStatus?.(setStatus), []);
+  useEffect(() => window.cth.onUpdateStatus?.((next) => {
+    const t = toastable(next);
+    // A non-toastable state (a re-check, say) must not erase a toast the user
+    // hasn't answered yet — only a new actionable state replaces it.
+    if (t) setStatus(t);
+  }), []);
 
   if (!status) return null;
 
