@@ -622,13 +622,13 @@
           <li><b>The version is now a button.</b> Top-left, next to the logo: it shows download progress and turns into "restart to update" when a release is staged.</li>
           <li><b>Nothing fails silently.</b> Update errors now reach the UI and a log file instead of being swallowed.</li>
         </ul>
-        <a class="more" href="/blog/why-our-auto-update-never-ran/">Read the write-up →</a>
+        <a class="more" href="/blog/whats-up-with-munder-difflin/">What's up with Munder Difflin →</a>
       </div>
     </div>
-    <h1 class="hero-title reveal">An always-on cluster of CLI agents doing your work</h1>
+    <h1 class="hero-title reveal">Forever running cli agent cluster to do all your work</h1>
     <p class="hero-sub reveal">
-      Your coding agents are already good enough to do the job. Munder Difflin wraps the CLIs you
-      already pay for into one local hive that keeps working — and answers to you.
+      CLI agents are really smart, they are already better at your job, why not just let it do all your work?
+      Munder Difflin is a local agent harness that wraps around any cli agent to make it part of a forever running agent hive that you control
     </p>
     <div class="hero-cta reveal">
       <a class="btn primary lg" data-download href="https://github.com/chaitanyagiri/munder-difflin/releases/latest"><span class="ic">⤓</span> Download free</a>
@@ -808,10 +808,13 @@
       <div class="mini"><span class="ic">📋</span><div class="t"><span class="lbl">Command Center</span><span class="sub">Kanban + live fleet + budgets</span></div></div>
       <div class="mini"><span class="ic">⏰</span><div class="t"><span class="lbl">Scheduled missions</span><span class="sub">Set it once, runs automatically</span></div></div>
       <div class="mini"><span class="ic">🔭</span><div class="t"><span class="lbl">Full observability</span><span class="sub">OTel, per-agent cost, waterfall</span></div></div>
+      <div class="mini"><span class="ic">🔔</span><div class="t"><span class="lbl">Desktop notifications</span><span class="sub">Agent done or needs your input</span></div></div>
       <div class="mini"><span class="ic">🔄</span><div class="t"><span class="lbl">Session resume</span><span class="sub">Agents pick up where they left off</span></div></div>
       <div class="mini"><span class="ic">🧩</span><div class="t"><span class="lbl">Agent Gallery</span><span class="sub">Off-the-shelf hires you review &amp; spawn</span></div></div>
+      <div class="mini"><span class="ic">🔐</span><div class="t"><span class="lbl">Integrations registry</span><span class="sub">Services behind a write-only secret broker</span></div></div>
       <div class="mini"><span class="ic">📡</span><div class="t"><span class="lbl">Remote control</span><span class="sub">Check in and steer from your phone</span></div></div>
       <div class="mini"><span class="ic">⬆️</span><div class="t"><span class="lbl">Auto-update</span><span class="sub">Downloads in the background; you click restart</span></div></div>
+      <div class="mini"><span class="ic">📄</span><div class="t"><span class="lbl">Markdown previews</span><span class="sub">⌘-click any .md an agent prints</span></div></div>
       <div class="mini"><span class="ic">🎛️</span><div class="t"><span class="lbl">Six-tab Settings</span><span class="sub">Models, autonomy, budgets, voice, memory</span></div></div>
     </div>
   </div>
@@ -956,10 +959,14 @@
         <tbody>
           <tr><td>Agents in parallel</td><td class="c-no">One, babysat by you</td><td class="c-yes"><span class="ck">✓</span> A whole floor, orchestrated</td></tr>
           <tr><td>Multiple CLI tools</td><td class="c-no">One at a time</td><td class="c-yes"><span class="ck">✓</span> Seven engines, one office — Claude Code to Copilot</td></tr>
+          <tr><td>Talk to your agents</td><td class="c-no">Typing only</td><td class="c-yes"><span class="ck">✓</span> Talk mode — run the floor by voice</td></tr>
           <tr><td>Trigger from Slack</td><td class="c-no">—</td><td class="c-yes"><span class="ck">✓</span> Message a channel; the reply comes back when it's done</td></tr>
+          <tr><td>Webhooks &amp; schedules</td><td class="c-no">Cron + duct tape</td><td class="c-yes"><span class="ck">✓</span> POST a webhook or set it on a schedule</td></tr>
           <tr><td>Runs unattended</td><td class="c-no">Stops when you close the lid</td><td class="c-yes"><span class="ck">✓</span> Hours to days, autonomously</td></tr>
           <tr><td>Long-term memory</td><td class="c-no">Forgets every session</td><td class="c-yes"><span class="ck">✓</span> MemPalace, shared by every agent</td></tr>
+          <tr><td>See what's happening</td><td class="c-no">Scrollback archaeology</td><td class="c-yes"><span class="ck">✓</span> A live office floor + Command Center</td></tr>
           <tr><td>Safety rails</td><td class="c-no">Hope</td><td class="c-yes"><span class="ck">✓</span> Human gates on spend, scope &amp; deletes</td></tr>
+          <tr><td>Cost</td><td class="c-yes">Your existing subscription</td><td class="c-yes"><span class="ck">✓</span> Same — free &amp; open source on top</td></tr>
           <tr><td>Cool to look at?</td><td class="c-no">It's… a terminal</td><td class="c-fun">😎 Extremely. It's <em>The Office</em>, starring your agents.</td></tr>
         </tbody>
       </table>
@@ -978,23 +985,27 @@
     <div class="faq-list">
       <details class="faq-item reveal">
         <summary>Is it really free?</summary>
-        <div class="a">Yes — <b>MIT-licensed and free forever</b>. It drives the agent subscriptions you already pay for, so there's no new bill from us. If it's useful, <a href="https://github.com/chaitanyagiri/munder-difflin">a star</a> is all we ask.</div>
+        <div class="a">Yes. Munder Difflin is <b>MIT-licensed and free forever</b> — download it or build from source. It drives the agent subscriptions you already pay for (Claude Code, Codex, Antigravity…), so there's no new bill from us. If it's useful, <a href="https://github.com/chaitanyagiri/munder-difflin">a GitHub star</a> is all we ask.</div>
       </details>
       <details class="faq-item reveal">
         <summary>Do I need new API keys?</summary>
-        <div class="a">No. If <code>claude</code>, <code>codex</code>, or <code>agy</code> already work in your terminal, they work here — it runs the <b>same CLI processes</b> under your existing login. Your own keys and local LLMs are optional extras.</div>
+        <div class="a">No. If <code>claude</code>, <code>codex</code>, or <code>agy</code> already work in your terminal, they'll work here — the harness runs the <b>same CLI processes</b> under your existing login/subscription. You can optionally add your own keys or local LLMs in Settings → AI Engines.</div>
       </details>
       <details class="faq-item reveal">
         <summary>Does my code leave my machine?</summary>
-        <div class="a"><b>No.</b> Agents are real CLI processes in local terminals, each in its own git worktree, with state in a local SQLite file. The only network traffic is what your own CLIs already make.</div>
+        <div class="a"><b>No.</b> The harness is local-first: agents are real CLI processes in local terminals, each in its own isolated git worktree, with state in a local SQLite file. The only network traffic is what your own CLIs already make to their providers.</div>
       </details>
       <details class="faq-item reveal">
         <summary>Which agent CLIs are supported?</summary>
-        <div class="a">Claude Code, OpenAI Codex, Antigravity (Gemini), GitHub Copilot CLI, OpenCode, Crush, pi.dev, xAI Grok, and Kimi Code. Each gets a desk, a mailbox, and shared memory — mix and match on the same floor.</div>
+        <div class="a">Claude Code, OpenAI Codex, Antigravity (Gemini), GitHub Copilot CLI, OpenCode, Crush, pi.dev — plus <b>xAI Grok</b> and <b>Kimi Code</b>. Each gets a desk, a mailbox, and shared memory; most can even play the orchestrator. Mix and match on the same floor.</div>
       </details>
       <details class="faq-item reveal">
         <summary>How is this different from YC's qm?</summary>
-        <div class="a"><a href="https://github.com/yc-software/qm" rel="nofollow">qm</a> is headless and built for teams, in Slack and a web UI. Munder Difflin is the <b>local-first desktop version</b> of the same idea: real terminals you can watch, voice orchestration, and a built-in IDE. <a href="/blog/qm-vs-munder-difflin/">Full comparison →</a></div>
+        <div class="a">They're solving the same problem from different ends. <a href="https://github.com/yc-software/qm" rel="nofollow">qm</a> is a multiplayer agent harness for teams — headless, living in Slack and a web UI. Munder Difflin covers the same jobs — security postures, background crons and watches, Slack triggers, shareable skills — as a <b>simpler, local-first desktop app</b> that's been shipping stably since v0.2: real terminals you can watch, voice orchestration, a built-in IDE with commit history and branch compare, and auto-update. If you want your agent office on your own machine with everything visible, that's us. <a href="/blog/qm-vs-munder-difflin/">Full comparison →</a></div>
+      </details>
+      <details class="faq-item reveal">
+        <summary>Can it really run for days without me?</summary>
+        <div class="a">Yes — that's the point. The hive keeps iterating on its own, and <b>escalates to you</b> (desktop, Slack, or voice) only when something needs a human: spend limits, scope changes, or destructive operations. You can steer mid-run or stop gracefully at any time.</div>
       </details>
       <details class="faq-item reveal">
         <summary>Why does everything look like The Office?</summary>
@@ -1049,13 +1060,13 @@
   <div class="wrap">
     <div class="eyebrow reveal">Show some support</div>
     <h2 class="h2 reveal">Keep the office running.</h2>
-    <p class="lead reveal">The download is free and always will be. Two small things keep it going.</p>
+    <p class="lead reveal">The download is, and always will be, free. If Munder Difflin is useful to you, two small things keep it going.</p>
 
     <div class="grid-2">
       <div class="support-card reveal">
         <div class="ic">⭐</div>
         <h3>Drop a star on GitHub</h3>
-        <p>Two seconds, and the single biggest way to help the project reach more people.</p>
+        <p>It costs nothing, takes two seconds, and is the single biggest way to help the project reach more people.</p>
         <a class="btn ghost" data-gh-stars href="https://github.com/chaitanyagiri/munder-difflin"><span class="star-ic">★</span> Star the repo<span class="star-count"></span></a>
       </div>
       <div class="support-card reveal">
@@ -1090,7 +1101,8 @@
   <section class="final" style="padding-top: 84px;">
     <div class="eyebrow reveal">v0.3.7 · Free &amp; open source</div>
     <h2 class="reveal">Your virtual office is <span class="hl">one download away.</span></h2>
-    <p class="reveal">A full floor of AI agents — planning, building, and shipping around the clock, on your machine.</p>
+    <p class="reveal">A full floor of AI agents — planning, building, and shipping around the clock, on your machine.
+      Free, local, and MIT-licensed.</p>
     <div class="center-cta reveal">
       <a class="btn primary lg" data-download href="https://github.com/chaitanyagiri/munder-difflin/releases/latest"><span class="ic">⤓</span> Download free</a>
       <a class="btn ghost lg" data-gh-stars href="https://github.com/chaitanyagiri/munder-difflin"><span class="star-ic">★</span> Star on GitHub<span class="star-count"></span></a>
