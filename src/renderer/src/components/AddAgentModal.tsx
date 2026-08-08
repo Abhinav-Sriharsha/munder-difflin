@@ -272,6 +272,12 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
     setCwd(p);
     try {
       const updated = await window.cth.updateConfig({ registeredRepos: next });
+      // Main expands `~` when it persists registeredRepos, so adopt the stored
+      // (absolute) list — otherwise a typed "~/dev/foo" stays literal in this
+      // modal's state and rides along into the spawn.
+      const stored = updated.registeredRepos ?? next;
+      setRepos(stored);
+      if (stored[0]) setCwd(stored[0]);
       onConfigChange?.(updated);
     } catch { /* best-effort persist */ }
   };
@@ -358,15 +364,19 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
       console.warn(`[add-agent] resume session "${resumeSessionId.trim()}" not found — started a fresh session`);
     }
 
+    // Main expands `~` at ingestion and echoes back the absolute path it actually
+    // spawned into — record THAT, so this agent's cwd matches the hive registry
+    // (and survives a restart, where nothing re-expands it).
+    const spawnedCwd = spawnRes.cwd || cwd;
     const agent: Agent = {
       id,
       name: name.trim(),
       character,
       accent,
       description: description.trim() || 'a fresh harness',
-      project: basename(cwd),
+      project: basename(spawnedCwd),
       tmuxTarget: '',
-      cwd,
+      cwd: spawnedCwd,
       goal: goal.trim() || undefined,
       status: 'idle',
       action: resuming && spawnRes.resumeNotFound ? 'session not found — fresh start' : 'starting up',
@@ -388,8 +398,8 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
     // Remember the folder for the next hire: promote it to the front of the
     // registeredRepos quick-picks (the modal's default cwd) so back-to-back
     // hires land in the same project without re-picking.
-    if (cwd && repos[0] !== cwd) {
-      const nextRepos = [cwd, ...repos.filter((r) => r !== cwd)];
+    if (spawnedCwd && repos[0] !== spawnedCwd) {
+      const nextRepos = [spawnedCwd, ...repos.filter((r) => r !== spawnedCwd && r !== cwd)];
       void window.cth.updateConfig({ registeredRepos: nextRepos })
         .then((updated) => onConfigChange?.(updated))
         .catch(() => { /* best-effort */ });

@@ -1,9 +1,32 @@
 import * as pty from 'node-pty';
 import type { WebContents } from 'electron';
 import { existsSync } from 'node:fs';
+import { delimiter, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ensureKilled } from './procKill';
+import { expandTilde } from './fs';
 import { captureFromLoginShell, userShellPath } from './shellEnv';
+
+/** APPEND the hive's bundled-node dir (`<HIVE_ROOT>/bin/runtime`, which holds a
+ *  shim literally named `node`) to a child's PATH.
+ *
+ *  Layer 1 routed the commands WE generate through `hive-node`. This covers the
+ *  ones we don't: an MCP server declared as `node ./server.js`, a provider CLI
+ *  that shells out to node, a helper script the agent wrote itself. With no
+ *  system node those all die with 127 — the same bug, one level down.
+ *
+ *  APPENDED, never prepended: a user who has their own node keeps it, and we are
+ *  only the fallback. Prepending would silently swap the node version under the
+ *  user's own projects for Electron's, which is a different (and wrong) product
+ *  decision. No-ops when there is no hive root or the dir was never written. */
+export function withHiveRuntimeFallback(path: string, hiveRoot?: string): string {
+  if (!hiveRoot) return path;
+  const dir = join(hiveRoot, 'bin', 'runtime');
+  if (!existsSync(dir)) return path;
+  const entries = path.split(delimiter).filter(Boolean);
+  if (entries.includes(dir)) return path; // re-spawn of a live agent
+  return [...entries, dir].join(delimiter);
+}
 
 interface PtySession {
   id: string;
@@ -144,6 +167,15 @@ export class PtyManager {
     return this.resolveCommand(command).found;
   }
 
+  /** The absolute path a bare command resolves to for THIS user, or null when it
+   *  isn't installed. Same resolution + cache as spawn(), so a caller that probes
+   *  a binary (e.g. `node --version`, to decide whether it is too old to keep)
+   *  inspects exactly the executable an agent would have run. */
+  commandPath(command: string): string | null {
+    const r = this.resolveCommand(command);
+    return r.found ? r.path : null;
+  }
+
   /** Session cache of SUCCESSFUL command resolutions. Each miss costs a full
    *  interactive-shell launch (`$SHELL -ilc which …` sources the user's whole
    *  zshrc — nvm/asdf init is routinely ~1s) run synchronously on the main
@@ -234,6 +266,10 @@ export class PtyManager {
     if (this.sessions.has(opts.id)) {
       return { ok: false, error: `pty already exists for id ${opts.id}` };
     }
+    // Defense-in-depth: cwd is already tilde-expanded at ingestion (spawnAgentCore),
+    // but any other caller reaching the PTY directly gets the same treatment —
+    // `existsSync('~/dev/foo')` is always false, only a shell expands `~`.
+    opts = { ...opts, cwd: expandTilde(opts.cwd) };
     if (!existsSync(opts.cwd)) {
       return { ok: false, error: `cwd does not exist: ${opts.cwd}` };
     }
@@ -243,9 +279,10 @@ export class PtyManager {
       // for the session (shellEnv.userShellPath, fenced against rc-file noise) —
       // the interactive-shell launch it replaces cost ~1s of main-thread freeze
       // on EVERY spawn.
-      const userPath = process.platform === 'win32'
-        ? (process.env.PATH || '')
-        : userShellPath();
+      const userPath = withHiveRuntimeFallback(
+        process.platform === 'win32' ? (process.env.PATH || '') : userShellPath(),
+        opts.env?.HIVE_ROOT
+      );
 
       // On Windows, .cmd/.bat files (and extensionless shims) cannot be executed
       // directly by CreateProcess — only .exe/.com can. Route them through cmd.exe.

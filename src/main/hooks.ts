@@ -241,12 +241,31 @@ export class HookServer {
 
     // 7C.2 — mid-run steering: inject queued operator guidance as context on the
     // next eligible hook (no fragile typing into the TUI). Delivered once.
+    // Merged with the roster line below so the two injections never displace each
+    // other (only ONE additionalContext can be returned per hook).
+    let steer: string | null = null;
     if ((event === 'UserPromptSubmit' || event === 'PostToolUse') && agentId && this.control) {
-      const steer = this.control.takeSteer(agentId);
-      if (steer) {
-        this.emit(agentId, event, p);
-        return { hookSpecificOutput: { hookEventName: event, additionalContext: steer } };
-      }
+      steer = this.control.takeSteer(agentId) ?? null;
+    }
+
+    // Keep god's roster CURRENT. fleet.json is always fresh on disk, but god's
+    // context is not: after a restart it resumes a transcript describing the old
+    // floor and messages agents that are long gone. Push the live roster in as
+    // additionalContext at the start of each session and on every prompt, so god
+    // knows the floor all the time instead of only when it remembers to Read.
+    // God-only and one line — every other agent is unaffected.
+    const wantsRoster = (event === 'SessionStart' || event === 'UserPromptSubmit')
+      && !!agentId && this.hive.isGod(agentId);
+    const roster = wantsRoster ? this.hive.rosterContext() : null;
+
+    if (steer || roster) {
+      this.emit(agentId, event, p);
+      return {
+        hookSpecificOutput: {
+          hookEventName: event,
+          additionalContext: [roster, steer].filter(Boolean).join('\n\n')
+        }
+      };
     }
 
     // A Notification hook that means "the agent is blocked waiting for the user"
