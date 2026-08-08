@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Application, Container, Graphics, Ticker, Texture } from 'pixi.js';
 // PixiJS uses new Function() internally, blocked by Electron CSP — this patches it.
 import 'pixi.js/unsafe-eval';
@@ -12,6 +12,7 @@ import { hexToNumber, DEFAULT_CHARACTER } from './cast';
 import { pickSoloLine, pickExchange, type BreakSpot } from './cafeteriaLines';
 import { colors } from '@/design/tokens';
 import { loadTheme, resolveThemeMap, themeTilesetUrls } from './themeLoader';
+import { installContextLossRecovery } from './glRecovery';
 import type { Tile, Facing, ErrandKind, ErrandSpot } from './themeRegistry';
 
 // The map, tileset atlases, desk-claim order, errand spots, coffee-economy
@@ -159,6 +160,10 @@ export function OfficeFloor() {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
   const mountIdRef = useRef(0);
+  // Bumped when the WebGL context is evicted; a dep of the effect below, so the
+  // whole scene is torn down and rebuilt through the existing mount path rather
+  // than through a second, parallel recovery routine.
+  const [glGeneration, setGlGeneration] = useState(0);
   // The active office theme (store mirror of config.officeTheme). Changing it
   // tears down and rebuilds the whole scene on the new map/cast (see deps below).
   const officeTheme = useStore((s) => s.officeTheme);
@@ -200,6 +205,27 @@ export function OfficeFloor() {
       if (mountIdRef.current !== mountId) { safeDestroy(app); return; }
       while (host.firstChild) host.removeChild(host.firstChild);
       host.appendChild(app.canvas);
+
+      // This canvas holds the OLDEST WebGL context in the process (it is built at
+      // startup), so it is the one Chromium evicts once enough xterm terminals —
+      // each of which takes a context via @xterm/addon-webgl — are open. Pixi
+      // reports nothing when that happens: the floor just goes blank forever.
+      // Rebuild instead. See glRecovery.ts.
+      (app as any).__glRecovery = installContextLossRecovery(app.canvas, {
+        onRebuild: () => { if (mountIdRef.current === mountId) setGlGeneration((n) => n + 1); },
+        onGiveUp: () => {
+          if (mountIdRef.current !== mountId) return;
+          const note = document.createElement('div');
+          note.style.cssText =
+            'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' +
+            'padding:24px;color:#ffd0b5;font-family:monospace;font-size:13px;text-align:center;white-space:pre-wrap;';
+          note.textContent =
+            'The office floor lost its GPU context.\n\n' +
+            'Too many terminals are using the GPU at once.\n' +
+            'Close a few agent terminals, or restart the app, to bring it back.';
+          host.appendChild(note);
+        }
+      });
 
       // Load tilesets in theme order (texture[i] lines up with map tilesets[i]).
       const tilesetTextures = await Promise.all(
@@ -1655,6 +1681,7 @@ export function OfficeFloor() {
       mountIdRef.current++;
       const a = appRef.current;
       if (a) {
+        (a as any).__glRecovery?.();
         (a as any).__resize?.disconnect?.();
         try { (a as any).__unsub?.(); } catch { /* noop */ }
         try { (a as any).__offMessage?.(); } catch { /* noop */ }
@@ -1664,7 +1691,7 @@ export function OfficeFloor() {
       appRef.current = null;
       while (host.firstChild) host.removeChild(host.firstChild);
     };
-  }, [officeTheme]);
+  }, [officeTheme, glGeneration]);
 
   return (
     <div
