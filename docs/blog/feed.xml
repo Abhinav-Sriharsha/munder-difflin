@@ -4,9 +4,17 @@
   <subtitle>Guides, deep dives, and comparisons on running multi-agent Claude Code: orchestration, agent memory, automation, and the tooling landscape.</subtitle>
   <link href="https://munderdiffl.in/blog/feed.xml" rel="self" />
   <link href="https://munderdiffl.in/blog/" />
-  <updated>2026-08-06T00:00:00.000Z</updated>
+  <updated>2026-08-08T00:00:00.000Z</updated>
   <id>https://munderdiffl.in/blog/</id>
   <author><name>Chaitanya Giri</name><uri>https://munderdiffl.in</uri></author>
+  <entry>
+    <title>Our Auto-Update Never Ran Once: A CommonJS Export That Vanished Into an ESM Namespace</title>
+    <link href="https://munderdiffl.in/blog/why-our-auto-update-never-ran/" />
+    <id>https://munderdiffl.in/blog/why-our-auto-update-never-ran/</id>
+    <published>2026-08-08T00:00:00.000Z</published>
+    <updated>2026-08-08T00:00:00.000Z</updated><category term="Internals" />
+    <summary>Munder Difflin shipped auto-update in v0.3.4 and it silently never worked in a single packaged build. The cause was one destructuring assignment across the CommonJS/ESM boundary — and a catch block that threw the evidence away. Here&#39;s how we found it, and what v0.3.7 changes.</summary>
+  </entry>
   <entry>
     <title>Launching Munder Difflin v0.3.5: A Michael Who Knows the Floor, a Git Time-Machine, and an App That Updates Itself</title>
     <link href="https://munderdiffl.in/blog/launching-munder-difflin-v0-3-5/" />
@@ -478,13 +486,5 @@
     <published>2026-06-04T00:00:00.000Z</published>
     <updated>2026-06-04T00:00:00.000Z</updated><category term="Guides" />
     <summary>How to measure whether an AI agent is reliable enough to trust: reliability thresholds, why benchmarks overstate, and evaluating on your own codebase.</summary>
-  </entry>
-  <entry>
-    <title>File-Based Coordination vs Message Queues for AI Agents</title>
-    <link href="https://munderdiffl.in/blog/file-based-coordination-vs-message-queues/" />
-    <id>https://munderdiffl.in/blog/file-based-coordination-vs-message-queues/</id>
-    <published>2026-06-04T00:00:00.000Z</published>
-    <updated>2026-06-04T00:00:00.000Z</updated><category term="Internals" />
-    <summary>Why a local agent hive coordinates through plain files, not Redis or RabbitMQ: the zero-ops wins, the real tradeoffs, and where files hit a ceiling.</summary>
   </entry>
 </feed>
