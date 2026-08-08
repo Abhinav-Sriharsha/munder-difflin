@@ -4,6 +4,48 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.7] — 2026-08-08
+
+**Auto-update, fixed.**
+It never ran. Not once, in any packaged build, since it shipped in v0.3.4 — and the app had no
+way to tell you so.
+
+### Fixed
+- **The native updater actually runs.** `electron-updater` is CommonJS and exposes `autoUpdater`
+  through a lazy `Object.defineProperty` getter, which Node's `cjs-module-lexer` cannot see. So
+  `await import('electron-updater')` produced a namespace with no `autoUpdater` export — only
+  `.default.autoUpdater` — and destructuring it yielded `undefined`. The first line of setup threw
+  `TypeError: Cannot set properties of undefined (setting 'autoDownload')` into a `catch` that
+  silently latched notify-only mode for the whole session. Every packaged build from v0.3.4 to
+  v0.3.6 could therefore only ever offer "open the releases page". Invisible in development,
+  because the whole path sits behind `app.isPackaged`.
+- **Updater failures are no longer swallowed.** Every error is emitted to the renderer *and*
+  appended to `updater.log` in the app's data folder. The old `catch` discarded the message, which
+  is precisely why the bug above survived three releases.
+- **A single blip no longer disables updates for the session.** The notify-only downgrade is
+  per-check now, not a permanent latch, and a re-check can never clobber an already-staged update.
+
+### Added
+- **The toolbar version is an update control.** Next to the logo it shows `checking…`,
+  `vX.Y.Z ready to install` (click to download), live download progress, and **restart to update**
+  (click to apply). With nothing pending, a click runs a manual check — the app previously only
+  checked 30 seconds after launch and then every six hours, with no way to ask.
+- **`update-available` and `download-progress` are surfaced**, so a multi-minute download is
+  visible instead of looking like nothing happened. New `update:download` and `update:current` IPC:
+  one-click download, and a reloaded window pulls the current state instead of waiting for the next
+  tick.
+- **9 tests** over the update state model (`src/shared/updateState.ts`), covering the rule that bit
+  here — a re-check must never wipe a staged "restart to update" — and that the underlying error
+  reaches the UI.
+
+### Changed
+- **Website, README and release notes trimmed.** The landing page drops the demo-video section and
+  dark mode; the README's 48-row feature table becomes a scannable grouped list; `RELEASE.md` leads
+  with the current release instead of stacking every prior one in full.
+
+> **Upgrading from v0.3.5 or v0.3.6?** Those builds carry the broken updater and cannot fetch this
+> fix themselves — install v0.3.7 manually once. From v0.3.7 onward, updates arrive on their own.
+
 ## [0.3.6] — 2026-08-08
 
 **A machine with nothing installed on it can now run agents.**

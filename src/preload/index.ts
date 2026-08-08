@@ -4,6 +4,8 @@ import type { HireManifest } from '../shared/hire';
 export type { HireManifest } from '../shared/hire';
 import type { IntegrationRecord, IntegrationTemplate } from '../shared/integrations';
 export type { IntegrationRecord, IntegrationTemplate } from '../shared/integrations';
+import type { UpdateStatus } from '../shared/updateState';
+export type { UpdateStatus } from '../shared/updateState';
 
 /** Renderer-visible integration record: the secretRef handle is redacted to a
  *  presence boolean. Matches main `integrations.listRecordsRedacted()` — the
@@ -1182,25 +1184,29 @@ const api = {
   rosterWrite: (snap: RosterSnapshot): Promise<{ ok: boolean; skipped?: string; error?: string }> =>
     ipcRenderer.invoke('roster:write', snap),
 
-  // ─── Auto-update (v0.3.4) ───────────────────────────────────────────────────
-  /** Push channel from main's updater: either a downloaded update waiting for a
-   *  restart, or (fallback/notify-only installs) a newer release to link to. */
-  onUpdateStatus: (
-    cb: (status:
-      | { state: 'downloaded'; version: string; notes?: string }
-      | { state: 'available-manual'; version: string; url: string }) => void
-  ): (() => void) => {
-    const listener = (_e: IpcRendererEvent, payload: Parameters<typeof cb>[0]) => cb(payload);
+  // ─── Auto-update (v0.3.4; full state model v0.3.7) ──────────────────────────
+  /** Push channel from main's updater — every stage of the pipeline, so the
+   *  toolbar badge can show "checking", download progress, and the staged
+   *  "restart to update" rather than only the terminal states. */
+  onUpdateStatus: (cb: (status: UpdateStatus) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: UpdateStatus) => cb(payload);
     ipcRenderer.on('update:status', listener);
     return () => ipcRenderer.removeListener('update:status', listener);
   },
-  /** Quit and install the downloaded update — only ever called from the toast's
-   *  explicit "restart to update" button. */
+  /** The last known status — a reloaded window subscribes AFTER main may have
+   *  already emitted, so it pulls the current state instead of waiting 6h. */
+  updateCurrent: (): Promise<UpdateStatus> => ipcRenderer.invoke('update:current'),
+  /** Quit and install the downloaded update — only ever called from an explicit
+   *  "restart to update" click. */
   updateRestartAndInstall: (): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('update:restartAndInstall'),
-  /** Manual re-check (also re-serves a pending status to a fresh window). */
+  /** Manual re-check. */
   updateCheckNow: (): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('update:checkNow'),
+  /** Start the download for an already-detected update (autoDownload normally
+   *  beats the user to it; this is the explicit one-click path). */
+  updateDownload: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('update:download'),
   /** Open the project's releases page for a notify-only update. */
   updateOpenRelease: (url?: string): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('update:openRelease', url)

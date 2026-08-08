@@ -14,6 +14,7 @@ import { HivePicker } from '@/components/HivePicker';
 import { QuitWarningModal, type ClosingTimeState } from '@/components/QuitWarningModal';
 import { CompletionToast } from '@/realtime/CompletionToast';
 import { UpdateToast } from '@/components/UpdateToast';
+import { UpdateBadge } from '@/components/UpdateBadge';
 import { useAppTheme, toggleAppTheme } from '@/design/theme';
 import { SettingsModal } from '@/components/SettingsModal';
 import { PixelPanel } from '@/components/PixelPanel';
@@ -238,12 +239,15 @@ export function App() {
           alt="Munder Difflin"
           style={{ height: 20, width: 'auto', display: 'block' }}
         />
+        {/* v0.3.7: the version is no longer inert text — it doubles as the
+            update control (check / download / restart to update). */}
+        <UpdateBadge />
         <span style={{
           fontFamily: 'var(--cth-font-ui)',
           fontSize: 13,
           color: 'var(--cth-ink-500)'
         }}>
-          v{__APP_VERSION__} · {config.autoMode ? 'auto mode on' : 'auto mode off'}
+          {config.autoMode ? 'auto mode on' : 'auto mode off'}
         </span>
         {/* v0.3.4: theme + fullscreen live HERE (top right), not buried in the
             terminal header — and the theme darkens the whole app, terminals

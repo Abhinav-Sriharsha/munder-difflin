@@ -6,7 +6,7 @@
 > your own computer — each agent a real CLI process in a real terminal, with shared
 > long-term memory, inter-agent messaging, a GOD orchestrator, scheduled missions, Slack
 > and webhook triggers, realtime voice orchestration, a built-in Monaco IDE with git
-> history and branch compare, markdown previews, and auto-update. Current version: 0.3.5
+> history and branch compare, markdown previews, and auto-update. Current version: 0.3.7
 > (August 2026). Desktop app for macOS, Windows, and Linux. No vendor cloud; code never
 > leaves your machine. It covers the same jobs as YC's qm (security postures, background
 > crons/watches, Slack, shared skills) as a simpler local-first desktop app, and adds what
@@ -21,6 +21,8 @@
 
 ## Key guides
 
+- [What's up with Munder Difflin](https://munderdiffl.in/blog/whats-up-with-munder-difflin/): everything shipped from v0.3.3 to v0.3.7
+- [Why our auto-update never ran](https://munderdiffl.in/blog/why-our-auto-update-never-ran/): the v0.3.7 fix — a CommonJS export that vanished into an ESM namespace
 - [What's new in v0.3.5](https://munderdiffl.in/blog/launching-munder-difflin-v0-3-5/): the v0.3.4+v0.3.5 release wave
 - [How to install and use Munder Difflin](https://munderdiffl.in/blog/how-to-install-and-use-munder-difflin/)
 - [Your first hour with Munder Difflin](https://munderdiffl.in/blog/your-first-hour-with-munder-difflin/)

@@ -2,7 +2,7 @@
 
 > Munder Difflin is a free, MIT-licensed, local-first multi-agent harness for CLI coding
 > agents, presented as a virtual office (an affectionate parody of The Office; not
-> affiliated with NBC). Current version: 0.3.5 (August 2026). Desktop app (Electron) for
+> affiliated with NBC). Current version: 0.3.7 (August 2026). Desktop app (Electron) for
 > macOS, Windows, and Linux. Website: https://munderdiffl.in — Source:
 > https://github.com/chaitanyagiri/munder-difflin — Author: Chaitanya Giri.
 
@@ -35,7 +35,7 @@ pi.dev — and turns them into a coordinated, forever-running team on your own m
 - **Background work.** Scheduled missions, Slack triggers (message the office from Slack,
   get replies in-thread), webhook triggers, desktop notifications, Remote Control from a
   phone.
-- **Auto-update (v0.3.4+).** Checks GitHub releases, downloads in the background, installs
+- **Auto-update (working from v0.3.7).** Checks GitHub releases, downloads in the background, installs
   only on the user's "restart to update" click.
 - **Local-first.** No vendor cloud, no code upload, state in local SQLite; the only network
   traffic is what the user's own CLIs already make to their providers.
@@ -60,6 +60,7 @@ drives the CLI logins/subscriptions the user already has.
 
 - Homepage + FAQ: https://munderdiffl.in/
 - Blog index (118 articles): https://munderdiffl.in/blog/
+- v0.3.7 auto-update write-up: https://munderdiffl.in/blog/why-our-auto-update-never-ran/
 - v0.3.5 launch post: https://munderdiffl.in/blog/launching-munder-difflin-v0-3-5/
 - Changelog: https://github.com/chaitanyagiri/munder-difflin/blob/main/CHANGELOG.md
 - Message-queue delivery contract: https://github.com/chaitanyagiri/munder-difflin/blob/main/docs/message-queue.md

@@ -22,7 +22,7 @@
 <meta name="twitter:description" content="Turn the agent CLIs you already have into a coordinated office that plans, builds, and ships around the clock — on a live office floor you can watch. Free &amp; open source." />
 <meta name="twitter:image" content="https://munderdiffl.in/media/og.png" />
 <meta name="twitter:image:alt" content="Munder Difflin office floor — agents at their desks, the GOD orchestrator in Michael's office, and a live terminal session." />
-<meta name="theme-color" content="#0F0E09" />
+<meta name="theme-color" content="#FAF8F1" />
 <link rel="alternate" type="application/rss+xml" title="Munder Difflin Blog" href="https://munderdiffl.in/blog/feed.xml" />
 <script type="application/ld+json">
 {
@@ -91,26 +91,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<script>
-  // theme init — BEFORE first paint. Default: dark on desktop, light on phones
-  // (dark's WebGL hero + grid are tuned for big screens); the toggle persists a choice.
-  (function () {
-    var t;
-    try { t = localStorage.getItem('mdf_theme'); } catch (e) {}
-    if (t !== 'light' && t !== 'dark') {
-      var mobile = false;
-      try { mobile = window.matchMedia('(max-width: 768px)').matches; } catch (e) {}
-      t = mobile ? 'light' : 'dark';
-    }
-    document.documentElement.setAttribute('data-theme', t);
-  })();
-</script>
 <style>
   :root {
     /* canvas — slightly off-white, warm (light theme; dark overrides below) */
     --bg:       #FAF8F1;
     --surface:  #FFFFFF;
-    --dark:     #131208;   /* demo frames, final CTA */
+    --dark:     #131208;   /* final CTA */
     --dark-2:   #1C1A10;
     /* ink */
     --ink:      #17150E;
@@ -144,29 +130,6 @@
     --pad-x: 24px;
     --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  }
-
-  /* ---------- dark theme (the default; toggle in the nav) ---------- */
-  html[data-theme="dark"] {
-    --bg:       #0F0E09;
-    --surface:  #17150F;
-    --ink:      #F4F1E6;
-    --muted:    #B5B0A0;
-    --faint:    #7C7869;
-    --line:        rgba(244,241,230,0.10);
-    --line-strong: rgba(244,241,230,0.22);
-    --ver-accent:   #72C2DF;
-    /* opaque page-color nav: looks transparent (same color, no border) but the
-       body grid pattern never shows through the bar */
-    --nav-bg:       #0F0E09;
-    --frame-border: rgba(244,241,230,0.14);
-    --media-tint:   rgba(244,241,230,0.04);
-    --chip-bg:      rgba(244,241,230,0.14);
-    --grid-line:    rgba(244,241,230,0.05);
-    --green: #4CC38A;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
-    --shadow-md: 0 2px 8px rgba(0,0,0,0.45), 0 12px 32px rgba(0,0,0,0.35);
-    --shadow-lg: 0 4px 16px rgba(0,0,0,0.5), 0 24px 64px rgba(0,0,0,0.45);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -211,12 +174,6 @@
     transition: border-color .2s ease;
   }
   nav.scrolled { border-bottom-color: var(--line); }
-  /* dark mode: fully transparent at the top, frosted only once you scroll */
-  html[data-theme="dark"] nav { backdrop-filter: none; -webkit-backdrop-filter: none; }
-  html[data-theme="dark"] nav.scrolled {
-    background: rgba(15,14,9,0.72);
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  }
   .brand { display: flex; align-items: center; gap: 10px; }
   .brand-logo { height: 34px; width: auto; display: block; }
   .foot-brand .brand-logo { height: 28px; }
@@ -337,22 +294,8 @@
   .center { text-align: center; }
   .center .lead { margin-left: auto; margin-right: auto; }
 
-  /* ---------- theme toggle ---------- */
-  .theme-toggle {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 38px; height: 38px; padding: 0; cursor: pointer;
-    background: var(--surface); border: 1px solid var(--line-strong); border-radius: 999px;
-    color: var(--ink); box-shadow: var(--shadow-sm); font-size: 15px; line-height: 1;
-    transition: transform .12s ease, border-color .12s ease;
-  }
-  .theme-toggle:hover { transform: translateY(-1px); border-color: var(--ink); }
-  .theme-toggle svg { width: 16px; height: 16px; display: block; }
-  .theme-toggle .sun { display: none; } .theme-toggle .moon { display: block; }
-  html[data-theme="dark"] .theme-toggle .sun { display: block; }
-  html[data-theme="dark"] .theme-toggle .moon { display: none; }
-
   /* ---------- hero ---------- */
-  .hero { padding: 84px 0 0; text-align: center; position: relative; }
+  .hero { padding: 84px 0 96px; text-align: center; position: relative; }
   .hero::before {
     content: ""; position: absolute; inset: 0 0 auto 0; height: 720px; z-index: 0;
     background:
@@ -360,24 +303,6 @@
       radial-gradient(900px 500px at 50% 10%, rgba(114,194,223,0.10), transparent 70%);
     pointer-events: none;
   }
-  /* Lightfall (react-bits) — WebGL falling light streaks behind the hero; dark theme only */
-  .lightfall {
-    position: absolute; inset: 0 0 auto 0; height: min(880px, 100%); z-index: 0;
-    pointer-events: none; display: none; overflow: hidden;
-    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 62%, transparent 100%);
-    mask-image: linear-gradient(180deg, #000 0%, #000 62%, transparent 100%);
-  }
-  .lightfall canvas { width: 100%; height: 100%; display: block; }
-  html[data-theme="dark"] .lightfall { display: block; }
-  /* dark hero: drop the sky-blue wash (too bright over the headline), keep a faint warm glow;
-     and lift the description contrast so streaks never wash it out */
-  html[data-theme="dark"] .hero::before {
-    background: radial-gradient(680px 380px at 50% 0%, rgba(255,202,84,0.08), transparent 70%);
-  }
-  html[data-theme="dark"] .hero-sub { color: #CDC8B8; }
-  /* .wrap sits ABOVE .demo so the open download menu never hides behind the video tabs */
-  .hero .wrap { position: relative; z-index: 2; }
-  .hero .demo { position: relative; z-index: 1; }
   .chip-wrap { position: relative; display: inline-block; margin-bottom: 28px; }
   .chip {
     display: inline-flex; align-items: center; gap: 8px;
@@ -415,83 +340,6 @@
   .trust { margin-top: 18px; font-family: var(--font-mono); color: var(--faint); font-size: 12.5px; }
   .trust b { color: var(--ink); font-weight: 600; }
   .trust a { text-decoration: underline; }
-
-  /* ---------- demo: tabs + frame (the Orca-style multi-section demo) ---------- */
-  .demo { margin-top: 56px; padding-bottom: 96px; }
-  .demo-tabs {
-    display: inline-flex; gap: 4px; flex-wrap: nowrap; justify-content: flex-start;
-    background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
-    padding: 5px; box-shadow: var(--shadow-sm); margin-bottom: 26px;
-    max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
-    scrollbar-width: none; scroll-snap-type: x proximity;
-  }
-  .demo-tabs::-webkit-scrollbar { display: none; }
-  .demo-tab {
-    font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--muted);
-    background: transparent; border: 0; border-radius: 999px; padding: 9px 15px; cursor: pointer;
-    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; flex: none;
-    scroll-snap-align: center;
-    transition: background .15s ease, color .15s ease;
-  }
-  .demo-tab:hover { color: var(--ink); }
-  .demo-tab[aria-selected="true"] { background: var(--yellow); color: #17150E; }
-  .demo-tab .dot { width: 6px; height: 6px; border-radius: 50%; background: #17150E; display: none; }
-  .demo-tab[aria-selected="true"] .dot { display: inline-block; }
-  .demo-frame {
-    max-width: 1060px; margin: 0 auto;
-    background: var(--dark); border: 1px solid var(--frame-border); border-radius: var(--r-lg);
-    box-shadow: var(--shadow-lg); overflow: hidden;
-  }
-  .demo-frame .bar {
-    display: flex; align-items: center; gap: 10px; padding: 12px 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
-  .demo-frame .bar .dots { display: flex; gap: 7px; }
-  .demo-frame .bar .dots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.16); display: inline-block; }
-  .demo-frame .bar .title { font-family: var(--font-mono); font-size: 12.5px; color: rgba(255,255,255,0.55); margin-left: 4px; }
-  .demo-frame .bar .status {
-    margin-left: auto; font-family: var(--font-mono); font-size: 11.5px; color: rgba(255,255,255,0.75);
-    display: inline-flex; align-items: center; gap: 7px;
-    border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; padding: 3px 10px;
-  }
-  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sky); animation: pulse 2s infinite; }
-  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(114,194,223,0.55);} 70%{box-shadow:0 0 0 7px rgba(114,194,223,0);} 100%{box-shadow:0 0 0 0 rgba(114,194,223,0);} }
-  /* sliding panels: all five sit in one horizontal track; switching tabs
-     translates the track — pure transform, so it stays 60fps on mobile */
-  .demo-viewport { overflow: hidden; }
-  .demo-track {
-    display: flex; width: 100%;
-    transition: transform .45s cubic-bezier(.45,.05,.2,1);
-    will-change: transform;
-  }
-  .demo-panel { flex: 0 0 100%; min-width: 0; }
-  .demo-media { aspect-ratio: 16 / 10; background: var(--dark); position: relative; }
-  .demo-media img, .demo-media video { width: 100%; height: 100%; object-fit: contain; display: block; }
-  /* click-to-play overlay (videos have narration — no surprise audio) */
-  .demo-play {
-    position: absolute; inset: 0; z-index: 2; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(19,18,8,0.25); border: 0; padding: 0; width: 100%;
-    transition: background .2s ease;
-  }
-  .demo-play:hover { background: rgba(19,18,8,0.12); }
-  .demo-play .pp {
-    width: 74px; height: 74px; border-radius: 50%;
-    background: rgba(250,248,241,0.94); color: var(--ink);
-    display: grid; place-items: center; box-shadow: var(--shadow-lg);
-    transition: transform .15s ease;
-  }
-  .demo-play:hover .pp { transform: scale(1.07); }
-  .demo-play .pp svg { width: 26px; height: 26px; margin-left: 4px; }
-  .demo-play .dur {
-    position: absolute; right: 14px; bottom: 12px;
-    font-family: var(--font-mono); font-size: 11.5px; color: rgba(255,255,255,0.85);
-    background: rgba(19,18,8,0.65); border-radius: 999px; padding: 3px 9px;
-  }
-  .demo-play.hidden { display: none; }
-  @media (prefers-reduced-motion: reduce) { .demo-track { transition: none; } }
-  .demo-cap { text-align: center; font-size: 14px; color: var(--faint); margin-top: 16px; }
-  .demo-cap b { color: var(--ink); font-weight: 600; }
 
   /* ---------- providers strip ---------- */
   .providers { padding: 64px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface); }
@@ -719,20 +567,11 @@
   @media (max-width: 480px) {
     :root { --pad-x: 16px; }
     section { padding: 68px 0; }
-    .hero { padding: 56px 0 0; }
+    .hero { padding: 56px 0 64px; }
     nav { gap: 10px; }
     .brand-logo { height: 28px; }
     .nav-actions { gap: 8px; }
     .chip { font-size: 10.5px; letter-spacing: 0; padding: 6px 11px; gap: 6px; white-space: nowrap; }
-    /* video tabs: edge-to-edge scroll strip on phones */
-    .demo-tabs {
-      display: flex; width: calc(100% + 2 * var(--pad-x));
-      margin-left: calc(-1 * var(--pad-x)); margin-right: calc(-1 * var(--pad-x));
-      padding: 5px var(--pad-x); border-radius: 0; border-left: 0; border-right: 0;
-    }
-    .demo-tab { font-size: 12px; padding: 8px 13px; }
-    .demo-frame { border-radius: var(--r-md); }
-    .demo-cap { font-size: 13px; padding: 0 4px; }
     /* slimmer badges on phones */
     .badge { font-size: 10.5px; padding: 3px 9px; gap: 5px; }
     .badge .dot { width: 6px; height: 6px; }
@@ -751,7 +590,6 @@
   </div>
   <div class="spacer"></div>
   <div class="links" id="navMenu">
-    <a href="#demo">Demo</a>
     <a href="#features">Features</a>
     <a href="#how">How it works</a>
     <a href="#compare">Compare</a>
@@ -762,15 +600,6 @@
     <a class="nav-menu-only btn primary sm" href="https://github.com/chaitanyagiri/munder-difflin/releases/latest"><span class="ic">⤓</span> Download</a>
   </div>
   <div class="nav-actions">
-    <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch between dark and light theme">
-      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="4.2"/>
-        <path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.2 5.2l1.7 1.7M17.1 17.1l1.7 1.7M18.8 5.2l-1.7 1.7M6.9 17.1l-1.7 1.7"/>
-      </svg>
-      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M20.4 14.2A8.3 8.3 0 0 1 9.8 3.6a8.3 8.3 0 1 0 10.6 10.6Z"/>
-      </svg>
-    </button>
     <a class="btn ghost sm nav-desktop-only" data-gh-stars href="https://github.com/chaitanyagiri/munder-difflin"><span class="star-ic">★</span> Star<span class="star-count"></span></a>
     <a class="btn primary sm nav-desktop-only" data-download data-align="right" href="https://github.com/chaitanyagiri/munder-difflin/releases/latest"><span class="ic">⤓</span> Download</a>
     <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navMenu">
@@ -781,20 +610,19 @@
 
 <!-- ===================== HERO ===================== -->
 <header class="hero">
-  <div class="lightfall" id="lightfall" aria-hidden="true"></div>
   <div class="wrap">
     <div class="chip-wrap reveal" id="verWrap">
       <button class="chip" id="verChip" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="verPop">
-        <span class="new">NEW</span> <b>v0.3.5</b> · Local agent harness
+        <span class="new">NEW</span> <b>v0.3.7</b> · Local agent harness
       </button>
-      <div class="ver-pop" id="verPop" role="dialog" aria-label="What's new in v0.3.5">
-        <h4>What's new in v0.3.5</h4>
+      <div class="ver-pop" id="verPop" role="dialog" aria-label="What's new in v0.3.7">
+        <h4>What's new in v0.3.7</h4>
         <ul>
-          <li><b>Michael knows the floor</b> — talk mode opens with a live snapshot of every agent and stays current mid-call; he can now run nearly the whole app by voice.</li>
-          <li><b>Git time-machine in the IDE</b> — clickable commit history, branch compare, and guarded checkout. Plus live markdown previews everywhere (⌘-click a .md path in any terminal).</li>
-          <li><b>The app updates itself</b> — new releases download in the background and wait for your "restart to update" click. Also: xAI Grok joins the engine roster.</li>
+          <li><b>Auto-update actually works.</b> A CommonJS/ESM import bug meant it silently never ran in any packaged build. Fixed, with a regression test.</li>
+          <li><b>The version is now a button.</b> Top-left, next to the logo: it shows download progress and turns into "restart to update" when a release is staged.</li>
+          <li><b>Nothing fails silently.</b> Update errors now reach the UI and a log file instead of being swallowed.</li>
         </ul>
-        <a class="more" href="/blog/launching-munder-difflin-v0-3-5/">Read the launch post →</a>
+        <a class="more" href="/blog/whats-up-with-munder-difflin/">What's up with Munder Difflin →</a>
       </div>
     </div>
     <h1 class="hero-title reveal">Forever running cli agent cluster to do all your work</h1>
@@ -809,80 +637,6 @@
     <p class="trust reveal"><b>Free &amp; open source.</b> macOS · Windows · Linux — or <a href="#install">build from source</a> in two commands.</p>
   </div>
 
-  <!-- ============ MULTI-SECTION DEMO (tabs slide between narrated videos) ============ -->
-  <div class="demo wrap" id="demo">
-    <div class="demo-tabs reveal" role="tablist" aria-label="Product demo">
-      <button class="demo-tab" role="tab" aria-selected="true" data-tab="intro"><span class="dot"></span>Introduction</button>
-      <button class="demo-tab" role="tab" aria-selected="false" data-tab="setup"><span class="dot"></span>Setup &amp; installation</button>
-      <button class="demo-tab" role="tab" aria-selected="false" data-tab="agents"><span class="dot"></span>Adding new agents</button>
-      <button class="demo-tab" role="tab" aria-selected="false" data-tab="orchestrator"><span class="dot"></span>Talking to the orchestrator</button>
-      <button class="demo-tab" role="tab" aria-selected="false" data-tab="features"><span class="dot"></span>Other features &amp; configs</button>
-    </div>
-
-    <div class="demo-frame reveal">
-      <div class="bar">
-        <div class="dots"><i></i><i></i><i></i></div>
-        <span class="title" id="demoTitle">munder-difflin — introduction</span>
-        <span class="status"><span class="live-dot"></span> live</span>
-      </div>
-
-      <div class="demo-viewport">
-        <div class="demo-track" id="demoTrack">
-          <div class="demo-panel" data-panel="intro">
-            <div class="demo-media">
-              <video preload="none" playsinline poster="./media/demo/intro-poster.jpg" data-src="./media/demo/intro.mp4"
-                     aria-label="Introduction — a tour of the office of AI agents running on one computer."></video>
-              <button class="demo-play" type="button" aria-label="Play video: Introduction">
-                <span class="pp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>
-                <span class="dur">0:18</span>
-              </button>
-            </div>
-          </div>
-          <div class="demo-panel" data-panel="setup">
-            <div class="demo-media">
-              <video preload="none" playsinline poster="./media/demo/setup-poster.jpg" data-src="./media/demo/setup.mp4"
-                     aria-label="Setup and installation — download, open, and your floor is live."></video>
-              <button class="demo-play" type="button" aria-label="Play video: Setup and installation">
-                <span class="pp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>
-                <span class="dur">0:51</span>
-              </button>
-            </div>
-          </div>
-          <div class="demo-panel" data-panel="agents">
-            <div class="demo-media">
-              <video preload="none" playsinline poster="./media/demo/agents-poster.jpg" data-src="./media/demo/agents.mp4"
-                     aria-label="Adding new agents — hiring Claude Code, Codex, or Antigravity agents onto the floor."></video>
-              <button class="demo-play" type="button" aria-label="Play video: Adding new agents">
-                <span class="pp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>
-                <span class="dur">0:19</span>
-              </button>
-            </div>
-          </div>
-          <div class="demo-panel" data-panel="orchestrator">
-            <div class="demo-media">
-              <video preload="none" playsinline poster="./media/demo/orchestrator-poster.jpg" data-src="./media/demo/orchestrator.mp4"
-                     aria-label="Talking to the orchestrator — brief one agent and the floor staffs itself."></video>
-              <button class="demo-play" type="button" aria-label="Play video: Talking to the orchestrator">
-                <span class="pp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>
-                <span class="dur">0:36</span>
-              </button>
-            </div>
-          </div>
-          <div class="demo-panel" data-panel="features">
-            <div class="demo-media">
-              <video preload="none" playsinline poster="./media/demo/features-poster.jpg" data-src="./media/demo/features.mp4"
-                     aria-label="Other features and configs — Command Center, schedules, guardrails, and settings."></video>
-              <button class="demo-play" type="button" aria-label="Play video: Other features and configs">
-                <span class="pp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>
-                <span class="dur">0:33</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <p class="demo-cap reveal" id="demoCap"><b>Introduction.</b> The whole idea in 18 seconds — an office of AI agents, working for you.</p>
-  </div>
 </header>
 
 <!-- ===================== PROVIDERS ===================== -->
@@ -1059,7 +813,7 @@
       <div class="mini"><span class="ic">🧩</span><div class="t"><span class="lbl">Agent Gallery</span><span class="sub">Off-the-shelf hires you review &amp; spawn</span></div></div>
       <div class="mini"><span class="ic">🔐</span><div class="t"><span class="lbl">Integrations registry</span><span class="sub">Services behind a write-only secret broker</span></div></div>
       <div class="mini"><span class="ic">📡</span><div class="t"><span class="lbl">Remote control</span><span class="sub">Check in and steer from your phone</span></div></div>
-      <div class="mini"><span class="ic">⬆️</span><div class="t"><span class="lbl">Auto-update</span><span class="sub">Downloads new releases, you click restart</span></div></div>
+      <div class="mini"><span class="ic">⬆️</span><div class="t"><span class="lbl">Auto-update</span><span class="sub">Downloads in the background; you click restart</span></div></div>
       <div class="mini"><span class="ic">📄</span><div class="t"><span class="lbl">Markdown previews</span><span class="sub">⌘-click any .md an agent prints</span></div></div>
       <div class="mini"><span class="ic">🎛️</span><div class="t"><span class="lbl">Six-tab Settings</span><span class="sub">Models, autonomy, budgets, voice, memory</span></div></div>
     </div>
@@ -1243,7 +997,7 @@
       </details>
       <details class="faq-item reveal">
         <summary>Which agent CLIs are supported?</summary>
-        <div class="a">Claude Code, OpenAI Codex, Antigravity (Gemini), GitHub Copilot CLI, OpenCode, Crush, pi.dev — and, new in v0.3.4, <b>xAI Grok</b> and <b>Kimi Code</b>. Each gets a desk, a mailbox, and shared memory; most can even play the orchestrator. Mix and match on the same floor.</div>
+        <div class="a">Claude Code, OpenAI Codex, Antigravity (Gemini), GitHub Copilot CLI, OpenCode, Crush, pi.dev — plus <b>xAI Grok</b> and <b>Kimi Code</b>. Each gets a desk, a mailbox, and shared memory; most can even play the orchestrator. Mix and match on the same floor.</div>
       </details>
       <details class="faq-item reveal">
         <summary>How is this different from YC's qm?</summary>
@@ -1345,7 +1099,7 @@
 <!-- ===================== FINAL CTA ===================== -->
 <div class="final-wrap">
   <section class="final" style="padding-top: 84px;">
-    <div class="eyebrow reveal">v0.3.5 · Free &amp; open source</div>
+    <div class="eyebrow reveal">v0.3.7 · Free &amp; open source</div>
     <h2 class="reveal">Your virtual office is <span class="hl">one download away.</span></h2>
     <p class="reveal">A full floor of AI agents — planning, building, and shipping around the clock, on your machine.
       Free, local, and MIT-licensed.</p>
@@ -1414,265 +1168,6 @@
       if (wrap.classList.contains('open') && !wrap.contains(e.target)) setOpen(false);
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
-  })();
-
-  // theme toggle — dark by default (set pre-paint in <head>), persisted per visitor
-  (function () {
-    var btn = document.getElementById('themeToggle');
-    if (!btn) return;
-    var meta = document.querySelector('meta[name="theme-color"]');
-    function apply(t) {
-      document.documentElement.setAttribute('data-theme', t);
-      if (meta) meta.setAttribute('content', t === 'dark' ? '#0F0E09' : '#FAF8F1');
-      try { localStorage.setItem('mdf_theme', t); } catch (e) {}
-    }
-    apply(document.documentElement.getAttribute('data-theme') || 'dark');
-    btn.addEventListener('click', function () {
-      var cur = document.documentElement.getAttribute('data-theme');
-      apply(cur === 'dark' ? 'light' : 'dark');
-    });
-  })();
-
-  // Lightfall — falling light streaks behind the hero (dark theme only).
-  // Vanilla-WebGL port of the react-bits <Lightfall/> background (MIT,
-  // https://reactbits.dev/backgrounds/lightfall) — same fragment shader, no deps.
-  (function () {
-    var host = document.getElementById('lightfall');
-    if (!host || !window.WebGLRenderingContext) return;
-    var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    var canvas = document.createElement('canvas');
-    var gl = canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: false });
-    if (!gl) return;
-    host.appendChild(canvas);
-
-    var VERT = 'attribute vec2 position;attribute vec2 uv;varying vec2 vUv;' +
-      'void main(){vUv=uv;gl_Position=vec4(position,0.0,1.0);}';
-    var FRAG = [
-      'precision highp float;',
-      'uniform vec3 iResolution;uniform vec2 iMouse;uniform float iTime;',
-      'uniform vec3 uColor0;uniform vec3 uColor1;uniform vec3 uColor2;uniform vec3 uColor3;',
-      'uniform vec3 uColor4;uniform vec3 uColor5;uniform vec3 uColor6;uniform vec3 uColor7;',
-      'uniform int uColorCount;uniform vec3 uBgColor;uniform vec3 uMouseColor;',
-      'uniform float uSpeed;uniform int uStreakCount;uniform float uStreakWidth;uniform float uStreakLength;',
-      'uniform float uGlow;uniform float uDensity;uniform float uTwinkle;uniform float uZoom;',
-      'uniform float uBgGlow;uniform float uOpacity;uniform float uMouseEnabled;uniform float uMouseStrength;uniform float uMouseRadius;',
-      'varying vec2 vUv;',
-      'vec3 palette(float h){int count=uColorCount;if(count<1)count=1;',
-      ' int idx=int(floor(clamp(h,0.0,0.999999)*float(count)));',
-      ' if(idx<=0)return uColor0;if(idx==1)return uColor1;if(idx==2)return uColor2;if(idx==3)return uColor3;',
-      ' if(idx==4)return uColor4;if(idx==5)return uColor5;if(idx==6)return uColor6;return uColor7;}',
-      'vec3 tanhv(vec3 x){vec3 e=exp(-2.0*x);return (1.0-e)/(1.0+e);}',
-      'vec2 sceneC(vec2 frag,vec2 r){vec2 P=(frag+frag-r)/r.x;float z=0.0;float d=1e3;vec4 O=vec4(0.0);',
-      ' for(int k=0;k<39;k++){if(d<=1e-4)break;O=z*normalize(vec4(P,uZoom,0.0))-vec4(0.0,4.0,1.0,0.0)/4.5;',
-      '  d=1.0-sqrt(length(O*O));z+=d;}return vec2(O.x,atan(O.z,O.y));}',
-      'void mainImage(out vec4 o,vec2 C){',
-      ' vec2 r=iResolution.xy;vec2 uv0=(C+C-r)/r.x;float T=0.1*iTime*uSpeed+9.0;',
-      ' float angRings=max(1.0,floor(6.28318530718*max(uDensity,0.05)+0.5));',
-      ' vec2 Y=vec2(5e-3,6.28318530718/angRings);',
-      ' vec2 c0=sceneC(C,r);vec2 cdx=sceneC(C+vec2(1.0,0.0),r);vec2 cdy=sceneC(C+vec2(0.0,1.0),r);',
-      ' vec2 dCx=cdx-c0;vec2 dCy=cdy-c0;',
-      ' dCx.y-=6.28318530718*floor(dCx.y/6.28318530718+0.5);',
-      ' dCy.y-=6.28318530718*floor(dCy.y/6.28318530718+0.5);',
-      ' vec2 fw=abs(dCx)+abs(dCy);C=c0;',
-      ' vec2 P=vec2(2.0,1.0)*uv0-(r/r.x)*vec2(0.0,1.0);',
-      ' vec4 O=vec4(uBgColor*90.0*uBgGlow/(1e3*dot(P,P)+6.0),0.0);',
-      ' float mGlow=0.0;',
-      ' if(uMouseEnabled>0.5){vec2 mN=(iMouse+iMouse-r)/r.x;float md=length(uv0-mN);',
-      '  mGlow=exp(-md*md/max(uMouseRadius*uMouseRadius,1e-4))*uMouseStrength;O.rgb+=uMouseColor*mGlow*0.25;}',
-      ' float zr=5e-4*uStreakWidth;vec2 rr=vec2(max(length(fw),1e-5));float tail=19.0/max(uStreakLength,0.05);',
-      ' for(int m=0;m<16;m++){if(m>=uStreakCount)break;float jf=float(m)+1.0;',
-      '  float ic=fract(sin(dot(vec2(jf,floor(C.x/Y.x+0.5)),vec2(7.0,11.0))*73.0));',
-      '  vec2 Pp=C-(T+T*ic)*vec2(0.0,1.0);Pp-=floor(Pp/Y+0.5)*Y;',
-      '  float h=fract(8663.0*ic);vec3 col=palette(h);',
-      '  float weight=mix(1.5,1.0+sin(T+7.0*h+4.0),uTwinkle);weight*=(1.0+mGlow*2.0);',
-      '  vec2 inner=vec2(length(max(Pp,vec2(-1.0,0.0))),length(Pp)-zr)-zr;',
-      '  vec2 sm=vec2(1.0)-smoothstep(-rr,rr,inner);',
-      '  O.rgb+=dot(sm,vec2(exp(tail*Pp.y),3.0))*col*weight;C.x+=Y.x/8.0;}',
-      ' vec3 colr=sqrt(tanhv(max(O.rgb*uGlow-vec3(0.05),0.0)));o=vec4(colr,uOpacity);}',
-      'void main(){vec4 color;mainImage(color,vUv*iResolution.xy);gl_FragColor=color;}'
-    ].join('\n');
-
-    function sh(type, src) {
-      var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
-      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { return null; }
-      return s;
-    }
-    var vs = sh(gl.VERTEX_SHADER, VERT), fs = sh(gl.FRAGMENT_SHADER, FRAG);
-    if (!vs || !fs) return;
-    var prog = gl.createProgram();
-    gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
-    gl.useProgram(prog);
-
-    // fullscreen triangle (position + uv), same geometry as ogl's Triangle
-    var buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-      -1, -1, 0, 0,   3, -1, 2, 0,   -1, 3, 0, 2
-    ]), gl.STATIC_DRAW);
-    var aPos = gl.getAttribLocation(prog, 'position'), aUv = gl.getAttribLocation(prog, 'uv');
-    gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
-    gl.enableVertexAttribArray(aUv);  gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 16, 8);
-
-    function hexRGB(hex) {
-      var c = hex.replace('#', '');
-      return [parseInt(c.slice(0, 2), 16) / 255, parseInt(c.slice(2, 4), 16) / 255, parseInt(c.slice(4, 6), 16) / 255];
-    }
-    var U = function (n) { return gl.getUniformLocation(prog, n); };
-    // white / blue / yellow streaks over a faint cool-blue core glow
-    var colors = ['#FFFFFF', '#72C2DF', '#FFCA54'];
-    var avg = [0, 0, 0];
-    colors.forEach(function (c) { var v = hexRGB(c); avg[0] += v[0] / 3; avg[1] += v[1] / 3; avg[2] += v[2] / 3; });
-    for (var i = 0; i < 8; i++) gl.uniform3fv(U('uColor' + i), hexRGB(colors[Math.min(i, colors.length - 1)]));
-    gl.uniform1i(U('uColorCount'), colors.length);
-    gl.uniform3fv(U('uBgColor'), hexRGB('#2C6E8A'));
-    gl.uniform3fv(U('uMouseColor'), avg);
-    gl.uniform1f(U('uSpeed'), 0.25);
-    gl.uniform1i(U('uStreakCount'), 10);
-    gl.uniform1f(U('uStreakWidth'), 0.6);
-    gl.uniform1f(U('uStreakLength'), 1);
-    gl.uniform1f(U('uGlow'), 1);
-    gl.uniform1f(U('uDensity'), 0.15);
-    gl.uniform1f(U('uTwinkle'), 0.85);
-    gl.uniform1f(U('uZoom'), 3);
-    gl.uniform1f(U('uBgGlow'), 0.0);
-    gl.uniform1f(U('uOpacity'), 1);
-    gl.uniform1f(U('uMouseEnabled'), 0); // no hover spotlight
-    gl.uniform1f(U('uMouseStrength'), 0);
-    gl.uniform1f(U('uMouseRadius'), 1);
-    var uRes = U('iResolution'), uMouse = U('iMouse'), uTime = U('iTime');
-
-    var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    function resize() {
-      var rect = host.getBoundingClientRect();
-      canvas.width = Math.max(1, Math.round(rect.width * dpr));
-      canvas.height = Math.max(1, Math.round(rect.height * dpr));
-      gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.uniform3f(uRes, canvas.width, canvas.height, 1);
-    }
-    resize();
-    if ('ResizeObserver' in window) new ResizeObserver(resize).observe(host);
-    else window.addEventListener('resize', resize);
-
-    // only render while the hero is on screen, the tab is visible, and theme is dark
-    var onScreen = true;
-    if ('IntersectionObserver' in window) {
-      new IntersectionObserver(function (en) { onScreen = en[0].isIntersecting; }).observe(host);
-    }
-    var t0 = performance.now();
-    function frame(now) {
-      requestAnimationFrame(frame);
-      if (!onScreen || document.hidden) return;
-      if (document.documentElement.getAttribute('data-theme') !== 'dark') return;
-      gl.uniform1f(uTime, (now - t0) / 1000);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-    }
-    if (reduced) { // static frame, no animation
-      gl.uniform2f(uMouse, 0, 0); gl.uniform1f(uTime, 9);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-    } else {
-      requestAnimationFrame(frame);
-    }
-  })();
-
-  // demo: sliding tab switcher + lazy click-to-play videos.
-  // Videos carry narration, so nothing autoplays: the active tab's <video> only
-  // fetches metadata (a few KB, thanks to +faststart) until the user hits play.
-  (function () {
-    var tabs = Array.prototype.slice.call(document.querySelectorAll('.demo-tab'));
-    var panels = Array.prototype.slice.call(document.querySelectorAll('.demo-panel'));
-    var track = document.getElementById('demoTrack');
-    var title = document.getElementById('demoTitle');
-    var cap = document.getElementById('demoCap');
-    if (!track || !tabs.length) return;
-    var META = {
-      'intro':        { title: 'munder-difflin — introduction',           cap: '<b>Introduction.</b> The whole idea in 18 seconds — an office of AI agents, working for you.' },
-      'setup':        { title: 'munder-difflin — setup & installation',   cap: '<b>Setup &amp; installation.</b> Download, open, done — no config files, no YAML, no wiring.' },
-      'agents':       { title: 'munder-difflin — adding new agents',      cap: '<b>Adding new agents.</b> Hire Claude Code, Codex, or Antigravity agents onto the floor — each gets a desk and a mailbox.' },
-      'orchestrator': { title: 'munder-difflin — the orchestrator',       cap: '<b>Talking to the orchestrator.</b> Brief Michael once; he staffs the floor, routes the work, and reports back.' },
-      'features':     { title: 'munder-difflin — features & configs',     cap: '<b>Other features &amp; configs.</b> Command Center, schedules, guardrails, engines, and everything in Settings.' }
-    };
-    var current = 0;
-
-    // start a panel's video: attach src on first play (lazy), then play with sound
-    function startVideo(idx) {
-      var video = panels[idx].querySelector('video');
-      var btn = panels[idx].querySelector('.demo-play');
-      if (!video || !btn) return;
-      if (!video.src) { video.src = video.getAttribute('data-src'); }
-      video.controls = true;
-      btn.classList.add('hidden');
-      var attempt = video.play();
-      if (attempt && attempt.catch) {
-        attempt.catch(function () {
-          // blocked (e.g. chained autoplay on iOS) — surface the play button again
-          video.controls = false;
-          btn.classList.remove('hidden');
-        });
-      }
-    }
-
-    panels.forEach(function (p, i) {
-      var video = p.querySelector('video');
-      var btn = p.querySelector('.demo-play');
-      if (!video || !btn) return;
-      btn.addEventListener('click', function () { startVideo(i); });
-      // while this one plays, buffer the next section so the hand-off is gapless
-      video.addEventListener('play', function () {
-        var nxt = panels[i + 1] && panels[i + 1].querySelector('video');
-        if (nxt && !nxt.src) { nxt.preload = 'auto'; nxt.src = nxt.getAttribute('data-src'); }
-      });
-      // when a video finishes: auto-advance to the next section and keep playing;
-      // after the last one, offer the big play button again for a clean replay
-      video.addEventListener('ended', function () {
-        video.controls = false;
-        btn.classList.remove('hidden');
-        if (i < panels.length - 1) {
-          activate(i + 1);
-          startVideo(i + 1);
-        }
-      });
-    });
-
-    function activate(idx) {
-      if (idx < 0 || idx >= panels.length || idx === current && track.style.transform) return;
-      // pause whatever was playing in the outgoing panel
-      var out = panels[current].querySelector('video');
-      if (out && !out.paused) out.pause();
-      current = idx;
-      track.style.transform = 'translateX(-' + (idx * 100) + '%)';
-      tabs.forEach(function (x, i) { x.setAttribute('aria-selected', i === idx ? 'true' : 'false'); });
-      // keep the active tab visible in the (mobile) scrollable tab strip
-      var bar = tabs[idx].parentElement;
-      if (bar && bar.scrollWidth > bar.clientWidth) {
-        bar.scrollTo({ left: tabs[idx].offsetLeft - (bar.clientWidth - tabs[idx].offsetWidth) / 2, behavior: 'smooth' });
-      }
-      var key = panels[idx].getAttribute('data-panel');
-      if (META[key]) { title.textContent = META[key].title; cap.innerHTML = META[key].cap; }
-      // warm up the incoming video's metadata so the play click starts instantly
-      var vid = panels[idx].querySelector('video');
-      if (vid && !vid.src) { vid.preload = 'metadata'; vid.src = vid.getAttribute('data-src'); }
-    }
-
-    tabs.forEach(function (t, i) {
-      t.addEventListener('click', function () { activate(i); });
-      t.addEventListener('keydown', function (e) {
-        if (e.key === 'ArrowRight') { e.preventDefault(); activate(Math.min(current + 1, tabs.length - 1)); tabs[current].focus(); }
-        if (e.key === 'ArrowLeft')  { e.preventDefault(); activate(Math.max(current - 1, 0)); tabs[current].focus(); }
-      });
-    });
-
-    // swipe between panels on touch devices
-    var x0 = null;
-    track.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
-    track.addEventListener('touchend', function (e) {
-      if (x0 == null) return;
-      var dx = e.changedTouches[0].clientX - x0; x0 = null;
-      if (Math.abs(dx) < 48) return;
-      activate(dx < 0 ? Math.min(current + 1, panels.length - 1) : Math.max(current - 1, 0));
-    }, { passive: true });
-
-    activate(0);
   })();
 
   // mobile nav: hamburger ⇄ cross + dropdown

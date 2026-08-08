@@ -1,71 +1,122 @@
 import { app, ipcMain, shell } from 'electron';
 import type { WebContents } from 'electron';
 import { request as httpsRequest } from 'node:https';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { readConfig } from './config';
+import { reduceStatus, clampPercent, isNewer, type UpdateStatus } from '../shared/updateState';
 
 /**
- * Auto-update from GitHub releases (v0.3.4).
+ * Auto-update from GitHub releases.
  *
  * Primary path: electron-updater against the `publish` block in
  * electron-builder.yml — the release workflow uploads latest*.yml + zip +
- * blockmaps, macOS builds are Developer ID signed + notarized, so Squirrel.Mac
- * (zip), NSIS, and AppImage all update natively. Downloads happen in the
- * background; installation is ALWAYS user-initiated ("Restart to update" toast
+ * blockmaps, macOS builds are Developer ID signed + notarized + stapled, so
+ * Squirrel.Mac (zip), NSIS, and AppImage all update natively. Downloads happen
+ * in the background; installation is ALWAYS user-initiated ("restart to update"
  * → `update:restartAndInstall`). The app never restarts on its own.
  *
- * Fallback path (win-portable exe, unsigned/dev-ish builds, or any updater
- * error): a plain `releases/latest` poll — semver-compare against the running
- * version and show a notify-only toast linking the release page. Same pattern
- * as the landing page's REL upgrade fetch, with the same modest cache so we
- * stay far from the unauthenticated 60/hr rate limit.
+ * Fallback path (win-portable exe, or a genuine updater error): a plain
+ * `releases/latest` poll — semver-compare against the running version and show a
+ * notify-only state linking the release page.
  *
  * Everything is gated on the `autoUpdate` HarnessConfig flag (default ON,
  * Settings → General) and on `app.isPackaged` — dev runs never poll.
+ *
+ * ─── v0.3.7: why native updating never actually ran ──────────────────────────
+ * electron-updater is CommonJS and exposes `autoUpdater` through a lazy
+ * `Object.defineProperty` getter. Node's cjs-module-lexer cannot see through
+ * that, so the ESM namespace produced by `await import('electron-updater')` has
+ * NO `autoUpdater` named export — only `.default.autoUpdater`. The old code did
+ * `const { autoUpdater } = await import('electron-updater')`, got `undefined`,
+ * and threw `TypeError: Cannot set properties of undefined (setting
+ * 'autoDownload')` on the very first line of setup. That threw into a catch that
+ * silently latched notify-only mode, so from v0.3.4 through v0.3.6 EVERY
+ * packaged build only ever offered "open the releases page". It never showed up
+ * in dev because the whole block is behind `app.isPackaged`.
+ *
+ * Two rules came out of that and both are load-bearing here:
+ *   1. resolve the module through `loadAutoUpdater()` below, which handles the
+ *      namespace/default interop and throws a NAMED error if the export is gone;
+ *   2. never swallow an updater error — every failure is surfaced to the
+ *      renderer AND appended to `updater.log` in userData, and the notify-only
+ *      downgrade is per-check, not a permanent latch.
  */
 
 const REPO = 'chaitanyagiri/munder-difflin';
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6h
 const FALLBACK_CACHE_MS = 60 * 60 * 1000;     // 1h between releases/latest polls
 
-export type UpdateStatus =
-  | { state: 'downloaded'; version: string; notes?: string }
-  | { state: 'available-manual'; version: string; url: string };
+export type { UpdateStatus };
 
 let sendTo: (() => WebContents | null) | null = null;
 let started = false;
-let fallbackActive = false;
 let lastFallbackCheck = 0;
-/** Remembered so a toast dismissed by a reload can be re-served on checkNow. */
+/** Remembered so a status survives a renderer reload and can be re-served. */
 let lastStatus: UpdateStatus | null = null;
 
+/** Append-only breadcrumb trail in userData. The whole point of this file's
+ *  existence is that the last failure left no trace anywhere. */
+function logLine(msg: string): void {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  console.log('[updater]', msg);
+  try {
+    const dir = app.getPath('userData');
+    mkdirSync(dir, { recursive: true });
+    appendFileSync(join(dir, 'updater.log'), line);
+  } catch { /* logging must never take the app down */ }
+}
+
 function emit(status: UpdateStatus): void {
-  lastStatus = status;
-  try { sendTo?.()?.send('update:status', status); } catch { /* window tore down */ }
+  lastStatus = reduceStatus(lastStatus, status);
+  try { sendTo?.()?.send('update:status', lastStatus); } catch { /* window tore down */ }
 }
 
 function autoUpdateEnabled(): boolean {
-  const cfg = readConfig();
-  return cfg.autoUpdate !== false; // default ON
-}
-
-/** `1.2.3` -> [1,2,3]; returns null for anything that doesn't look like semver. */
-function parseVersion(v: string): number[] | null {
-  const m = v.trim().replace(/^v/, '').match(/^(\d+)\.(\d+)\.(\d+)/);
-  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
-}
-
-function isNewer(candidate: string, current: string): boolean {
-  const a = parseVersion(candidate);
-  const b = parseVersion(current);
-  if (!a || !b) return false;
-  for (let i = 0; i < 3; i++) {
-    if (a[i] !== b[i]) return a[i] > b[i];
+  try {
+    return readConfig().autoUpdate !== false; // default ON
+  } catch {
+    return true;
   }
-  return false;
+}
+
+type AutoUpdater = import('electron-updater').AppUpdater;
+
+let autoUpdaterPromise: Promise<AutoUpdater> | null = null;
+
+/**
+ * Resolve electron-updater's `autoUpdater` across the CJS/ESM interop seam.
+ *
+ * See the header note: the named export is invisible to the ESM lexer, so the
+ * namespace object only carries it on `.default`. Both shapes are checked so
+ * this keeps working if a future electron-updater ships real named exports, and
+ * a missing export throws something we can actually read in a log.
+ */
+async function loadAutoUpdater(): Promise<AutoUpdater> {
+  autoUpdaterPromise ??= (async () => {
+    const ns = (await import('electron-updater')) as unknown as {
+      autoUpdater?: AutoUpdater;
+      default?: { autoUpdater?: AutoUpdater };
+    };
+    const found = ns.autoUpdater ?? ns.default?.autoUpdater;
+    if (!found) throw new Error('electron-updater loaded but exposes no `autoUpdater` export');
+    return found;
+  })();
+  try {
+    return await autoUpdaterPromise;
+  } catch (e) {
+    autoUpdaterPromise = null; // let a later attempt retry rather than latch
+    throw e;
+  }
+}
+
+function errText(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e);
+  return m.length > 300 ? `${m.slice(0, 300)}…` : m;
 }
 
 /** Notify-only check against releases/latest (no download). Never throws. */
-function fallbackCheck(force = false): void {
+function fallbackCheck(reason: string | undefined, force = false): void {
   const now = Date.now();
   if (!force && now - lastFallbackCheck < FALLBACK_CACHE_MS) return;
   lastFallbackCheck = now;
@@ -90,7 +141,8 @@ function fallbackCheck(force = false): void {
               emit({
                 state: 'available-manual',
                 version: tag.replace(/^v/, ''),
-                url: rel.html_url ?? `https://github.com/${REPO}/releases/latest`
+                url: rel.html_url ?? `https://github.com/${REPO}/releases/latest`,
+                reason
               });
             }
           } catch { /* malformed body — try again next interval */ }
@@ -103,20 +155,49 @@ function fallbackCheck(force = false): void {
   } catch { /* never let the fallback take the app down */ }
 }
 
-async function nativeCheck(): Promise<void> {
-  if (fallbackActive) { fallbackCheck(); return; }
+/**
+ * One check. Native first; on failure, report the real error AND degrade to the
+ * notify-only poll for THIS check only — the next tick tries native again, so a
+ * single blip no longer costs the session its ability to self-update.
+ */
+async function runCheck(): Promise<{ ok: boolean; error?: string }> {
+  emit({ state: 'checking' });
   try {
-    const { autoUpdater } = await import('electron-updater');
-    await autoUpdater.checkForUpdates();
-  } catch {
-    fallbackActive = true;
-    fallbackCheck();
+    const autoUpdater = await loadAutoUpdater();
+    const result = await autoUpdater.checkForUpdates();
+    if (!result || !isNewer(result.updateInfo.version, app.getVersion())) {
+      emit({ state: 'not-available' });
+    }
+    // `update-available` / `download-progress` / `update-downloaded` handlers
+    // (wired in initAutoUpdater) carry it from here.
+    return { ok: true };
+  } catch (e) {
+    const message = errText(e);
+    logLine(`native check failed: ${message}`);
+    emit({ state: 'error', message });
+    fallbackCheck(message);
+    return { ok: false, error: message };
+  }
+}
+
+/** Explicitly start (or restart) the download. Safe to call twice. */
+async function runDownload(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const autoUpdater = await loadAutoUpdater();
+    await autoUpdater.downloadUpdate();
+    return { ok: true };
+  } catch (e) {
+    const message = errText(e);
+    logLine(`download failed: ${message}`);
+    emit({ state: 'error', message });
+    fallbackCheck(message);
+    return { ok: false, error: message };
   }
 }
 
 /**
  * Start the updater. Call once from app.whenReady with an accessor for the
- * primary window's webContents. Safe to call in dev (no-ops).
+ * primary window's webContents. Safe to call in dev (registers IPC, no polling).
  */
 export function initAutoUpdater(getWebContents: () => WebContents | null): void {
   sendTo = getWebContents;
@@ -124,19 +205,27 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
   // IPC surface is registered unconditionally so the renderer can always call it.
   ipcMain.handle('update:restartAndInstall', async () => {
     try {
-      const { autoUpdater } = await import('electron-updater');
+      const autoUpdater = await loadAutoUpdater();
+      logLine('quitAndInstall requested by the user');
       autoUpdater.quitAndInstall();
       return { ok: true };
     } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      const error = errText(e);
+      logLine(`quitAndInstall failed: ${error}`);
+      emit({ state: 'error', message: error });
+      return { ok: false, error };
     }
   });
   ipcMain.handle('update:checkNow', async () => {
-    if (!app.isPackaged) return { ok: false, error: 'dev build' };
-    if (lastStatus) emit(lastStatus); // re-serve a pending status to a fresh window
-    await nativeCheck();
-    return { ok: true };
+    if (!app.isPackaged) return { ok: false, error: 'dev build — updates are only checked in packaged apps' };
+    return runCheck();
   });
+  ipcMain.handle('update:download', async () => {
+    if (!app.isPackaged) return { ok: false, error: 'dev build — updates are only downloaded in packaged apps' };
+    return runDownload();
+  });
+  /** Re-serve the last known status to a freshly loaded window. */
+  ipcMain.handle('update:current', () => lastStatus ?? { state: 'idle' });
   ipcMain.handle('update:openRelease', (_evt, url: unknown) => {
     const href = typeof url === 'string' ? url : `https://github.com/${REPO}/releases/latest`;
     // Only ever open the project's releases page — this is not a generic opener.
@@ -151,24 +240,38 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
 
   void (async () => {
     try {
-      const { autoUpdater } = await import('electron-updater');
+      const autoUpdater = await loadAutoUpdater();
       autoUpdater.autoDownload = true;
       autoUpdater.autoInstallOnAppQuit = false; // install ONLY on explicit restart
+      autoUpdater.on('update-available', (info) => {
+        logLine(`update available: ${info.version}`);
+        emit({ state: 'available', version: info.version, notes: typeof info.releaseNotes === 'string' ? info.releaseNotes : undefined });
+      });
+      autoUpdater.on('download-progress', (p) => {
+        const version = lastStatus && 'version' in lastStatus ? lastStatus.version : app.getVersion();
+        emit({ state: 'downloading', version, percent: clampPercent(p.percent) });
+      });
       autoUpdater.on('update-downloaded', (info) => {
+        logLine(`update downloaded: ${info.version} — waiting for the user to restart`);
         emit({ state: 'downloaded', version: info.version, notes: typeof info.releaseNotes === 'string' ? info.releaseNotes : undefined });
       });
       autoUpdater.on('error', (err) => {
-        // Portable exe / missing metadata / offline: degrade to notify-only.
-        console.warn('[updater] native update failed; falling back to notify-only:', err?.message ?? err);
-        fallbackActive = true;
-        fallbackCheck();
+        const message = errText(err);
+        logLine(`native updater error: ${message}`);
+        emit({ state: 'error', message });
+        // Notify-only for THIS failure; the next tick still tries native.
+        fallbackCheck(message);
       });
+      logLine(`native updater ready (current v${app.getVersion()})`);
     } catch (e) {
-      console.warn('[updater] electron-updater unavailable; notify-only mode:', e);
-      fallbackActive = true;
+      // Reaching here means the module itself is unusable — the exact class of
+      // bug that hid from v0.3.4 to v0.3.6. Say so loudly, in the log and the UI.
+      const message = errText(e);
+      logLine(`electron-updater unavailable; notify-only mode: ${message}`);
+      emit({ state: 'error', message });
     }
 
-    const tick = (): void => { if (autoUpdateEnabled()) void nativeCheck(); };
+    const tick = (): void => { if (autoUpdateEnabled()) void runCheck(); };
     // First check shortly after boot (don't compete with spawn/startup I/O),
     // then every CHECK_INTERVAL_MS.
     setTimeout(tick, 30_000);
