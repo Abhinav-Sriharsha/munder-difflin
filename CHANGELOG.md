@@ -4,6 +4,46 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.6] — 2026-08-08
+
+**A machine with nothing installed on it can now run agents.**
+Every fix in this release is about the same failure: the app assumed the user's machine
+already had things on it — a shell to expand `~`, a `node` on PATH, an npm to install
+with — and when it didn't, agents died with a bare exit code and no explanation. Plus a
+long-standing office bug where the floor went blank and never came back.
+
+### Fixed
+- **`~/dev/foo` no longer fails with "cwd does not exist".** Only a shell expands `~`;
+  Node treats it as a literal directory, so a typed `~/…` path failed every existence
+  check and the agent never spawned. `~` is now expanded once at ingestion, so the
+  registry only ever stores an absolute cwd — which also repairs existing `~` entries
+  that had been reading as "not absolute" forever.
+- **Hooks stopped silently dying with exit 127.** Agent CLIs run hooks through `sh -c`
+  with a bare `PATH=/usr/bin:/bin:/usr/sbin:/sbin` — nvm's node isn't there, so every
+  hook payload was lost: no live status, no Stop→inbox drain, no session ids. Every hook
+  shim now runs under the Node the app already bundles.
+- **`node` is on every agent's PATH.** An MCP server declared as `node ./server.js`, a
+  provider CLI that shells out, a `.cjs` an agent wrote itself — all died with 127 on a
+  machine with no system node. The bundled runtime is now *appended* to the agent's PATH,
+  never prepended, so anyone with their own node keeps their own version.
+- **The office floor comes back after losing its GPU context.** Chromium caps live WebGL
+  contexts and silently evicts the oldest — always the office, since it starts first,
+  once enough agent terminals are open. Pixi reported nothing, so the floor simply went
+  blank until you restarted the app. It now detects the loss and rebuilds the scene.
+- **God no longer messages agents that no longer exist.** A live roster of the floor is
+  pushed into the orchestrator's context on session start and on every prompt, instead of
+  relying on it to re-read `fleet.json` — which is why it went stale across restarts.
+
+### Added
+- **Node and npm install themselves when they're missing.** Selecting an engine on a
+  machine with no Node used to print `npm install -g …` and run it anyway, so the user
+  watched `npm: command not found` scroll past. The app now fetches the latest Node LTS
+  straight from nodejs.org, verifies it against the official `SHASUMS256.txt` before
+  anything executes, installs it visibly in that agent's terminal, and then installs the
+  CLI. If you already have Node 20 or newer, it is left completely alone.
+- **An honest dead end instead of a doomed command.** When no installer can succeed, the
+  banner names the missing piece and runs nothing at all.
+
 ## [0.3.5] — 2026-08-06
 
 **The queue always has an escape hatch, and the app updates itself for the first time.**

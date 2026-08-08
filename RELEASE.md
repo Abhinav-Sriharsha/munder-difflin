@@ -1,4 +1,4 @@
-# Munder Difflin v0.3.5
+# Munder Difflin v0.3.6
 
 **A local hive of Claude Code, Antigravity, Codex, Grok & Copilot agents that run themselves** — messaging,
 routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-first and open source.
@@ -7,7 +7,45 @@ routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-f
 
 ---
 
-## What's new in 0.3.5 — *The queue always has an escape hatch*
+## What's new in 0.3.6 — *A machine with nothing on it can run agents*
+
+Every fix here is the same failure wearing different clothes: the app assumed your machine
+already had things on it — a shell to expand `~`, a `node` on PATH, an npm to install with
+— and when it didn't, agents died with a bare exit code and no explanation. Plus one
+long-standing office bug where the floor went blank and never came back.
+
+- **Node and npm install themselves.** Pick an engine on a machine with no Node and the app
+  now fetches the latest Node LTS straight from nodejs.org, **verifies it against the
+  official `SHASUMS256.txt` before anything runs**, installs it visibly in that agent's own
+  terminal, and then installs the CLI. Already have Node 20 or newer? It's left completely
+  alone. And when no installer can possibly succeed, the banner names the missing piece and
+  runs *nothing* — instead of the old behaviour of running `npm install -g …` on a machine
+  with no npm and letting you watch `command not found` scroll past.
+- **Hooks stopped silently dying with exit 127.** Agent CLIs run hooks through `sh -c` with
+  a bare `PATH=/usr/bin:/bin:/usr/sbin:/sbin` — nvm's node isn't on it — so every hook
+  payload was being lost: no live status, no Stop→inbox drain, no session ids. Every shim
+  now runs under the Node the app already ships. This is also why the orchestrator kept
+  going stale across restarts.
+- **`node` is on every agent's PATH.** An MCP server declared as `node ./server.js`, a
+  provider CLI that shells out, a `.cjs` an agent wrote for itself — all died with 127 with
+  no system node. The bundled runtime is now *appended*, never prepended, so if you have
+  your own node you keep your own version.
+- **`~/dev/foo` no longer fails with "cwd does not exist."** Only a shell expands `~`; Node
+  treats it as a literal folder name. Paths are expanded once on the way in, so the registry
+  only ever holds absolute paths — which also repairs existing `~` entries that had been
+  reading as invalid forever.
+- **Michael stops messaging agents that don't exist.** A live roster of the floor is pushed
+  into the orchestrator's context on session start and on every prompt, rather than trusting
+  it to go re-read `fleet.json` on its own.
+- **The office floor survives losing its GPU context.** 0.3.4 leased WebGL contexts for
+  *terminals* when Chromium started evicting the oldest past ~16 — the office floor was the
+  remaining victim, and always the first to go since it's created at startup. Pixi reported
+  nothing at all, so the floor just went blank until you restarted. It now notices and
+  rebuilds itself.
+
+---
+
+## What was new in 0.3.5 — *The queue always has an escape hatch*
 
 A fast-follow to yesterday's big 0.3.4 wave — and the **first release the app delivers to
 itself**: if you're on 0.3.4, it downloads in the background and offers "Restart to
