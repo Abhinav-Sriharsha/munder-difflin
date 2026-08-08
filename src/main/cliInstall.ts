@@ -7,6 +7,10 @@
  */
 import type { AgentProvider, ProviderInstallInfo } from '../shared/agentProvider';
 import { installInfoForProvider } from '../shared/agentProvider';
+import type { NodeInstaller } from './nodeInstall';
+import { buildNodeInstallScript } from './nodeInstall';
+
+export type InstallRungKind = 'npm' | 'node-then-npm' | 'native' | 'manual';
 
 /** Pick which rung of the install ladder to run, given what this machine has.
  *
@@ -15,17 +19,27 @@ import { installInfoForProvider } from '../shared/agentProvider';
  *  command anyway and run it — so the user watched `npm: command not found`
  *  scroll past and concluded the app was broken. Classify first:
  *
- *    npm present                   → npm install (unchanged; the common case)
- *    npm absent, native installer  → the vendor's self-contained installer
- *    npm absent, no native         → manual only. Do NOT run a doomed command.
+ *    npm usable                        → npm install (unchanged; the common case)
+ *    npm absent, Node installer found  → install real Node + npm, THEN npm install
+ *    npm absent, native installer      → the vendor's self-contained installer
+ *    neither                           → manual only. Do NOT run a doomed command.
  *
- *  We never auto-install a system Node, touch nvm, or edit the user's shell rc —
- *  a missing runtime is the user's to resolve, and the manual rung says so. */
+ *  Founder decision (2026-08-07) put `node-then-npm` ABOVE `native`, reversing the
+ *  earlier "never auto-install a system Node" rule: a user who only ever gets the
+ *  node-free Claude installer still has no runtime for MCP servers, hooks, or any
+ *  other provider — so the default is to fix the machine, not to route around it.
+ *  `native` survives as the fallback for when no installer could be resolved
+ *  (offline, or a platform nodejs.org ships no package for).
+ *
+ *  `npmAvailable` means npm is present AND its Node is new enough (see
+ *  nodeInstall.NODE_FLOOR_MAJOR) — an ancient Node routes into the upgrade rung. */
 export function chooseInstallRung(
   info: ProviderInstallInfo,
-  npmAvailable: boolean
-): { command?: string; kind: 'npm' | 'native' | 'manual'; nodeMissing: boolean } {
+  npmAvailable: boolean,
+  nodeInstaller?: NodeInstaller | null
+): { command?: string; kind: InstallRungKind; nodeMissing: boolean } {
   if (info.command && npmAvailable) return { command: info.command, kind: 'npm', nodeMissing: false };
+  if (info.command && nodeInstaller) return { command: info.command, kind: 'node-then-npm', nodeMissing: true };
   if (info.nativeCommand) return { command: info.nativeCommand, kind: 'native', nodeMissing: !npmAvailable };
   return { kind: 'manual', nodeMissing: !npmAvailable };
 }
@@ -42,11 +56,16 @@ export function buildMissingCliScript(
   bin: string,
   provider: AgentProvider,
   npmAvailable: boolean,
-  platform: string = process.platform
+  platform: string = process.platform,
+  nodeInstaller?: NodeInstaller | null
 ): string {
   const info: ProviderInstallInfo = installInfoForProvider(provider, platform);
   const safeBin = (bin || provider).replace(/[^A-Za-z0-9._-]/g, '') || provider;
-  const rung = chooseInstallRung(info, npmAvailable);
+  const rung = chooseInstallRung(info, npmAvailable, nodeInstaller);
+  // Only the rung that actually needs it gets the Node install spliced in.
+  const nodeSteps = rung.kind === 'node-then-npm' && nodeInstaller
+    ? buildNodeInstallScript(nodeInstaller, platform)
+    : null;
   const cmd = rung.command; // trusted constant, or undefined → manual hint only
   const label = info.label;
   const docs = info.docsUrl;
@@ -58,7 +77,16 @@ export function buildMissingCliScript(
     // We avoid `if errorlevel` branching (untestable here) — a combined success/
     // failure hint after the install is robust and satisfies the manual-fallback DoD.
     const parts: string[] = ['echo.', `echo ${rule}`, `echo   Engine CLI not found:  ${safeBin}`, 'echo.'];
-    if (rung.nodeMissing) {
+    if (nodeSteps && nodeInstaller) {
+      parts.push(
+        'echo   Node.js is not installed on this machine, so the usual npm',
+        `echo   installer cannot run yet. Installing Node ${nodeInstaller.version} ^(+ npm^) first,`,
+        'echo   straight from nodejs.org, checksum-verified.',
+        'echo.',
+        ...nodeSteps,
+        'echo.'
+      );
+    } else if (rung.nodeMissing) {
       parts.push('echo   Node.js is not installed on this machine, so the usual', 'echo   npm installer cannot run here.', 'echo.');
     }
     if (cmd) {
@@ -102,7 +130,19 @@ export function buildMissingCliScript(
     `echo '  Engine CLI not found:  ${safeBin}'`,
     `echo ''`
   ];
-  if (rung.nodeMissing) {
+  if (nodeSteps && nodeInstaller) {
+    // The default path on a bare machine: fix the runtime, then use it. Every
+    // step aborts the whole script on failure, so the npm install below only
+    // ever runs against a Node that actually landed.
+    lines.push(
+      `echo '  Node.js is not installed on this machine, so the usual npm'`,
+      `echo '  installer cannot run yet. Installing Node ${nodeInstaller.version} (+ npm) first,'`,
+      `echo '  straight from nodejs.org, checksum-verified.'`,
+      `echo ''`,
+      ...nodeSteps,
+      `echo ''`
+    );
+  } else if (rung.nodeMissing) {
     lines.push(
       `echo '  Node.js is not installed on this machine, so the usual npm'`,
       `echo '  installer cannot run here.'`,

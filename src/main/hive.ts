@@ -388,12 +388,15 @@ export class HiveManager {
    * This dir is APPENDED to the agent's PATH (see pty.spawn), never prepended: a
    * user who has their own node keeps their own version — we are strictly the
    * fallback. Prepending would silently swap every agent's node for Electron's
-   * (the v22 line at time of writing) underneath the user's own projects.
+   * (20.18.1 as of Electron 32.3.3) underneath the user's own projects.
    *
    * NOTE: `node` only — deliberately no `npm`/`npx`. Electron bundles the Node
    * RUNTIME, not the npm CLI (which is ~12MB of JS we do not ship), so an `npm`
    * wrapper here could only be a stub that fails confusingly. A missing `npm` is
-   * the honest signal; see the missing-CLI ladder in index.ts, which detects it.
+   * the honest signal; the install ladder (main/cliInstall.ts) detects it and
+   * installs a REAL system Node — which brings npm with it. This shim is only the
+   * last resort for when that install could not run (offline, or a platform with
+   * no official installer).
    */
   runtimeBinDir(): string | null {
     const root = this.root();

@@ -57,6 +57,7 @@ import {
   type AgentProvider
 } from '../shared/agentProvider';
 import { buildMissingCliScript, chooseInstallRung } from './cliInstall';
+import { detectNodeVersion, nodeIsUsable, resolveNodeInstaller } from './nodeInstall';
 import {
   CODEX_REMOTE_SOCKET_RELATIVE,
   codexRemoteAliasPath,
@@ -1969,8 +1970,17 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       // The installer commands are `npm install -g …`. Probe for npm the same way
       // we probe for the engine CLI, so a no-Node machine gets the node-free rung
       // (or an honest manual hint) instead of watching `npm: not found` scroll by.
-      const npmAvailable = ptyManager.isCommandAvailable('npm');
-      const rung = chooseInstallRung(installInfoForProvider(provider), npmAvailable);
+      // An npm whose Node is BELOW the floor counts as unavailable: founder rule
+      // (2026-08-07) is "their Node newer than ours → leave it alone; absent or
+      // older → install the latest stable for them".
+      const npmAvailable =
+        ptyManager.isCommandAvailable('npm') &&
+        nodeIsUsable(detectNodeVersion(ptyManager.commandPath('node')));
+      // Only reach the network when we actually need to (npm missing/too old);
+      // resolveNodeInstaller is timeout-bounded and returns null offline, which
+      // simply drops the ladder to the native/manual rung.
+      const nodeInstaller = npmAvailable ? null : await resolveNodeInstaller();
+      const rung = chooseInstallRung(installInfoForProvider(provider), npmAvailable, nodeInstaller);
       const res = ptyManager.spawn(
         {
           id: opts.id,
@@ -1978,7 +1988,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           command: bin,
           cols: opts.cols,
           rows: opts.rows,
-          shellScript: buildMissingCliScript(bin, provider, npmAvailable)
+          shellScript: buildMissingCliScript(bin, provider, npmAvailable, process.platform, nodeInstaller)
         },
         owner
       );

@@ -167,6 +167,15 @@ export class PtyManager {
     return this.resolveCommand(command).found;
   }
 
+  /** The absolute path a bare command resolves to for THIS user, or null when it
+   *  isn't installed. Same resolution + cache as spawn(), so a caller that probes
+   *  a binary (e.g. `node --version`, to decide whether it is too old to keep)
+   *  inspects exactly the executable an agent would have run. */
+  commandPath(command: string): string | null {
+    const r = this.resolveCommand(command);
+    return r.found ? r.path : null;
+  }
+
   /** Session cache of SUCCESSFUL command resolutions. Each miss costs a full
    *  interactive-shell launch (`$SHELL -ilc which …` sources the user's whole
    *  zshrc — nvm/asdf init is routinely ~1s) run synchronously on the main
