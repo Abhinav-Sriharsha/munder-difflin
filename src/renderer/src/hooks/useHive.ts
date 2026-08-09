@@ -9,10 +9,12 @@ import {
   type HarnessConfig
 } from '@/store/config';
 import {
+  clearCommandForProvider,
   compactionCommandForProvider,
   remoteControlCommandForProvider,
   terminalReadyToReceive
 } from '../../../shared/providerAutomation';
+import { DEFAULT_CONTEXT_TRIGGER, type ContextRule } from '../../../shared/triggers';
 import type { AgentProvider } from '../../../shared/agentProvider';
 import { acquireTerminal, resetTerminal, isTerminalAutomationSafe } from '@/components/terminalPool';
 import { deliverWithAcknowledgement } from './queueDelivery';
@@ -197,6 +199,50 @@ function stationForTool(tool: string): { station: StationKind; carry?: ToolKind 
   if (/write|edit|create|patch|replace|apply/.test(t)) return { station: 'desk', carry: 'Write' };
   if (/read|list|view|dir|glob|grep|search|find|file|cat|\bls\b/.test(t)) return { station: 'shelf', carry: 'Read' };
   return { station: 'desk' };
+}
+
+/** At/above this window size an agent counts as "large context" and is judged
+ *  against `minContextPctLargeWindow` instead. Sits between the two real-world
+ *  window sizes the app ever sees (200k and 1M) so neither lands ambiguously. */
+const LARGE_CONTEXT_WINDOW = 500_000;
+
+/**
+ * How full this agent's context window is, 0-100, or null when we have no
+ * reading at all.
+ *
+ * Two sources feed the store and only one is exact: the status-line shim pushes
+ * real `contextTokens` + `contextLimit` (effect 2d), while the transcript poll
+ * (2c) backfills tokens ONLY. So an agent can legitimately know its token count
+ * without knowing its window — infer the window the same way 2c does rather
+ * than throwing the token reading away.
+ */
+function contextFillPct(a: Agent): number | null {
+  if (a.contextTokens === undefined || !Number.isFinite(a.contextTokens)) return null;
+  const limit = a.contextLimit && a.contextLimit > 0
+    ? a.contextLimit
+    : (/1m/i.test(a.model ?? '') ? 1_000_000 : 200_000);
+  return (a.contextTokens / limit) * 100;
+}
+
+/**
+ * The context-pressure gate: is this agent full enough to be worth interrupting?
+ *
+ * `minContextPct` of 0 disables the gate (the rule's cadence alone fires it).
+ *
+ * FAIL-OPEN when we have no reading. That is the deliberate choice: context
+ * telemetry arrives over the Claude status-line/hook path, so most non-Claude
+ * providers report nothing at all. Failing closed there would silently reinstate
+ * the very bug this replaces — a fleet that never compacts — only harder to
+ * notice. An unmetered agent therefore falls back to time-only firing, which is
+ * exactly the old behaviour and no worse.
+ */
+function passesContextPressure(a: Agent, rule: ContextRule): boolean {
+  const large = (a.contextLimit ?? 0) >= LARGE_CONTEXT_WINDOW;
+  const bar = large ? rule.minContextPctLargeWindow : rule.minContextPct;
+  if (!(bar > 0)) return true;
+  const pct = contextFillPct(a);
+  if (pct === null) return true;
+  return pct >= bar;
 }
 
 /**
@@ -876,24 +922,65 @@ export function useHive(config: HarnessConfig | null): void {
     });
   }, [config?.onboardingComplete]);
 
-  // 6) Auto-compact (scheduled standup). Main fires this per tick; we queue a
-  //    /compact for each live agent so the drain (#4) delivers it only when the
-  //    agent is idle — never jamming a working terminal. Deduped: if a /compact
-  //    is already queued for an agent, skip it (no second one piles up).
+  // 6) CONTEXT TRIGGERS (compact / clear). Main decides WHEN — cadence, and which
+  //    half of the rule fired — and pushes `{action, rule}`; this decides WHO, then
+  //    queues the provider's own command so the drain (#4) delivers it only at an
+  //    idle prompt, never jamming a working terminal.
+  //
+  //    THE PRESSURE GATE. main/config.ts has long DOCUMENTED that auto-compact
+  //    "only compacts agents whose context has filled past a threshold (30% for
+  //    ~250k windows, 20% for ~1M windows)". No such check was ever implemented:
+  //    every live agent with a resolvable command got compacted on every tick,
+  //    hourly, however empty its window was. This makes the documented behaviour
+  //    real — `rule.minContextPct`, or `minContextPctLargeWindow` once the window
+  //    is >= LARGE_CONTEXT_WINDOW, must be met before an agent is interrupted.
+  //    (The shipped bars are now 60/40, twice the stale doc's numbers; see
+  //    DEFAULT_CONTEXT_TRIGGER. The doc comment in config.ts is still stale.)
+  //
+  //    Dedupe generalises to both actions: keyed on the command's own verb, so a
+  //    queued `/compact` blocks a second compact without blocking a `/clear`.
   useEffect(() => {
     if (!config?.onboardingComplete) return;
-    return window.cth.onAutoCompact(() => {
+
+    const fire = (action: 'compact' | 'clear', rule: ContextRule): void => {
       const { agents, messageQueues, enqueueMessage } = useStore.getState();
       for (const a of agents) {
         if (!a.ptyId) continue;
         const provider = inferAgentProvider(a.command, a.provider);
-        const compactCommand = compactionCommandForProvider(provider);
-        if (!compactCommand) continue;
+        const command = action === 'clear'
+          ? clearCommandForProvider(provider, rule.message)
+          : compactionCommandForProvider(provider, rule.message);
+        // No trustworthy command for this CLI (Crush's palette-only TUI, Copilot's
+        // print mode, an unknown custom binary) — leave its terminal alone.
+        if (!command) continue;
+        if (!passesContextPressure(a, rule)) continue;
+        const verb = command.trimStart().split(/\s+/)[0];
         const queued = messageQueues[a.id] ?? [];
-        if (queued.some((m) => m.text.trimStart().startsWith('/compact'))) continue;
-        enqueueMessage(a.id, compactCommand);
+        if (queued.some((m) => m.text.trimStart().startsWith(verb))) continue;
+        enqueueMessage(a.id, command);
       }
+    };
+
+    // The typed `onContextTrigger` arrives with the main-process/preload change
+    // that emits it; access it defensively so this lands independently of that.
+    const off = (window.cth as unknown as {
+      onContextTrigger?: (
+        cb: (p: { action: 'compact' | 'clear'; rule: ContextRule }) => void
+      ) => () => void;
+    }).onContextTrigger?.((p) => {
+      if (!p?.rule) return;
+      fire(p.action === 'clear' ? 'clear' : 'compact', p.rule);
     });
+
+    // LEGACY fallback: main still emits the old parameterless auto-compact until
+    // it switches over. Treat it as the default compact rule so behaviour is
+    // continuous across that landing. Harmless if both fire — the dedupe above
+    // drops the duplicate.
+    const offLegacy = window.cth.onAutoCompact(
+      () => fire('compact', DEFAULT_CONTEXT_TRIGGER.compact)
+    );
+
+    return () => { off?.(); offLegacy?.(); };
   }, [config?.onboardingComplete]);
 
   // 7) Auto-revive wedged PTYs after the Mac sleeps/locks. Kevin's main-process

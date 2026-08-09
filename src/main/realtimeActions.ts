@@ -37,6 +37,8 @@
 import { ipcMain } from 'electron';
 import type { HiveMessage, HiveTask, Registry } from './hive';
 import type { ScheduledMission } from './config';
+import { inferAgentProvider } from '../shared/agentProvider';
+import { clearCommandForProvider } from '../shared/providerAutomation';
 
 export const VOICE_ACTOR = 'michael-voice';
 
@@ -543,9 +545,19 @@ function buildSpawn(deps: RealtimeActionDeps, spec: RealtimeSpawnSpec, label: st
 
 function buildClearContext(deps: RealtimeActionDeps, r: ResolvedAgent): () => Promise<string> {
   return async () => {
-    // Queue '/clear' through the renderer message queue: delivery inherits every
-    // existing safety gate (idle-only, boot grace, draft/picker protection).
-    deps.enqueueToAgent(r.id, '/clear');
+    // '/clear' is NOT universal — it was hardcoded here for every provider, which
+    // meant Grok/OpenCode/pi (whose verb is '/new') got a literal "/clear" typed
+    // as chat text, and Crush/Copilot got one with no prompt able to receive it.
+    // Resolve the provider's own verb; null = nothing safe to type, so say so
+    // rather than sending a command that does nothing.
+    const provider = inferAgentProvider(undefined, deps.hiveRegistry().agents?.[r.id]?.provider);
+    const command = clearCommandForProvider(provider);
+    if (!command) {
+      return `${r.name} runs on ${provider}, which has no context-clear command I can type. Clear it from their terminal.`;
+    }
+    // Queue through the renderer message queue: delivery inherits every existing
+    // safety gate (idle-only, boot grace, draft/picker protection).
+    deps.enqueueToAgent(r.id, command);
     attribute(deps, 'clear_context', r.id);
     return `Queued a context clear for ${r.name} — it lands the moment they're idle.`;
   };

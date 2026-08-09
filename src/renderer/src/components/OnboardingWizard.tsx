@@ -50,8 +50,8 @@ const FEATURES: Feature[] = [
   {
     icon: 'terminal',
     label: 'COMMAND CENTER',
-    desc: 'Terminal · Floor · Memory · Activity · Tasks · Schedules in one control surface.',
-    descPlain: "One dashboard to watch the work, the agents' memory, tasks, and schedules.",
+    desc: 'Terminal · Floor · Memory · Activity · Tasks · Triggers in one control surface.',
+    descPlain: "One dashboard to watch the work, the agents' memory, tasks, and triggers.",
     tint: 'var(--cth-lemon-light)', edge: 'var(--cth-lemon)'
   },
   {
@@ -216,7 +216,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                       Munder Difflin lets you run an office of long-running, highly capable AI
                       agents that can take on almost any task. It uses the CLI agents you already
                       have and manages everything around them — their context, memory, tasks,
-                      schedules, webhooks, environment, files, and integrations.
+                      triggers, environment, files, and integrations.
                       <span style={{ color: 'var(--cth-ink-500)' }}> (We call this harnessing your agents.)</span>
                     </div>
                   </div>

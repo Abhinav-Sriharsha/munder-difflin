@@ -207,10 +207,10 @@ with six tabs:
   directly from your Claude Code transcript files).
 - **Tasks** — a dependency-aware kanban board. Add tasks with assignees, priorities, and `dependsOn`
   links; Michael and his team track status here.
-- **Schedules** — recurring missions. Set a label, interval (1h / 6h / 24h / weekly), and a directive
+- **Triggers** — every way the office wakes itself, starting with recurring missions. Set a label, interval (1h / 6h / 24h / weekly), and a directive
   body; the harness dispatches it to the target agent automatically, no human needed.
 
-For long-running floors, the Schedules tab is the most powerful: set a '30-minute floor check' mission
+For long-running floors, the Triggers tab is the most powerful: set a '30-minute floor check' mission
 pointing at Michael with a directive like 'Are all agents making progress? Re-engage anyone idle.' —
 and the harness keeps the team moving even when you're away.
 
