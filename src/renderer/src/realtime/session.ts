@@ -13,7 +13,7 @@
  * model truncates when the user talks over it).
  *
  * Phase 1 is a read-only connect→listen→respond round-trip. The agent runs Kevin's
- * rt-4 READ-ONLY tools (get_fleet_status / get_tasks / get_cost / get_schedules /
+ * rt-4 READ-ONLY tools (get_fleet_status / get_tasks / get_cost / get_triggers /
  * get_config / get_memory / get_activity) and god's rt-6 "Michael" persona, so the
  * agent_tool_start/agent_tool_end lifecycle fires and the mic goes idle during a tool
  * call and resumes — a Phase-1 acceptance criterion. NO hive action-tools yet (rt-5, held).
@@ -89,7 +89,7 @@ WHAT YOU CAN LOOK UP. You have live awareness of the WHOLE hive: a floor snapsho
 - get_memory — read the team's memory. You can ALWAYS answer with this: search across everyone, read ONE agent's notes (active OR archived), or search within a single agent. It never dead-ends.
 - get_tasks — the kanban board: counts plus the in-progress and blocked cards with their owners.
 - get_board — the orchestrator's plan narrative, in prose.
-- get_schedules — the recurring scheduled missions.
+- get_triggers — what fires the hive without a human: today the recurring scheduled missions. Webhooks and inbound organization messages are the other trigger types, but they are configured elsewhere and this tool does not list them.
 - get_config — non-sensitive settings (autonomy, default model, caps, breaker, which features are on). Never secrets.
 - get_cost — token usage across the hive.
 - get_activity — the recent hive activity log: WHAT happened (spawns, archives, messages), as events.

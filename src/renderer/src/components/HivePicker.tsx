@@ -78,7 +78,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
           <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <p style={{ margin: 0, fontSize: 12, lineHeight: '19px', color: 'var(--cth-ink-700)' }}>
               A <strong>harness config</strong> is the folder where the app keeps everything for one
-              workspace — its settings, your agents and their memory, tasks, schedules, and history.
+              workspace — its settings, your agents and their memory, tasks, triggers, and history.
               Each config is separate and self-contained, so you can run different setups side by side.
               Open the one you were working in, switch to another, or start a new one.
             </p>

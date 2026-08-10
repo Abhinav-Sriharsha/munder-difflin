@@ -248,10 +248,10 @@ export function OfficeFloor() {
       camera.setViewSize(app.screen.width, app.screen.height);
       camera.fitToScreen();
 
-      // ─── The boss's wall calendar → SCHEDULES ──────────────────────────────
+      // ─── The boss's wall calendar → TRIGGERS ───────────────────────────────
       // A little tear-off month page hangs on the CEO office wall. Clicking it
-      // selects Michael (the god) and opens the Command Center's SCHEDULES tab —
-      // recurring missions are what's written on the boss's calendar.
+      // selects Michael (the god) and opens the Command Center's TRIGGERS tab —
+      // everything that wakes the hive without you, schedules first among them.
       const calTs = mapRenderer.tileSize;
       const calG = new Graphics();
       calG.eventMode = 'static';
@@ -263,7 +263,7 @@ export function OfficeFloor() {
         const st = useStore.getState();
         const god = st.agents.find((a) => a.isGod);
         if (god) st.select(god.id);
-        st.requestCommandCenterTab('schedules');
+        st.requestCommandCenterTab('triggers');
       });
       // nail + ring binding above a white page with a red month header
       calG.rect(7, -2, 2, 2).fill(0x4a3b52);                  // nail

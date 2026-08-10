@@ -13,7 +13,7 @@ author:
   initials: CG
 faq:
   - q: "What is the Command Center in Munder Difflin?"
-    a: "It's Michael's control surface — the management view of the whole hive. It has tabs for the orchestrator Terminal, the Floor (roster, dispatch, per-agent model selector, live fleet monitoring), Memory (semantic search plus a memory graph), Activity (event log, board, real token telemetry, observability, and a CI watcher), Tasks (a dependency-aware kanban board), and Schedules (recurring missions with last/next-fired times)."
+    a: "It's Michael's control surface — the management view of the whole hive. It has tabs for the orchestrator Terminal, the Floor (roster, dispatch, per-agent model selector, live fleet monitoring), Memory (semantic search plus a memory graph), Activity (event log, board, real token telemetry, observability, and a CI watcher), Tasks (a dependency-aware kanban board), and Triggers (everything that starts work without you — schedules with last/next-fired times, context, webhooks, and organization)."
   - q: "How does the task kanban work?"
     a: "The Tasks tab is a dependency-aware kanban board. You assign tasks to agents and track them across todo, doing, blocked, and done. Because tasks can declare dependencies, downstream work waits until its prerequisites finish, so a chain of related tasks starts in the right order without you babysitting the handoffs."
   - q: "How do per-agent budgets and cost tracking work?"
@@ -26,7 +26,7 @@ faq:
     a: "Yes. You can ingest open issues from any registered repo via the gh CLI and assign them to agents with one click, and a CI status watcher shows live pass/fail/in-progress state for GitHub Actions runs in the Activity tab. Work flows in from GitHub, gets tracked on the kanban, and its CI result lands back in the same view."
 ---
 
-<div class="callout tldr"><span class="ic">TL;DR</span><p>The office floor is fun to watch, but you don't manage a team by staring at desks. Munder Difflin's <strong>Command Center</strong> is the management view: a <strong>dependency-aware task kanban</strong>, <strong>live fleet monitoring with per-agent token budgets</strong>, <strong>real cost telemetry</strong> backed by a durable ledger, <strong>OpenTelemetry observability</strong> with a per-agent tool-span waterfall, plus GitHub issue ingestion, a CI watcher, and a Schedules tab. Rule of thumb: <strong>watch the floor for one agent right now, watch the board for the whole fleet over time</strong>.</p></div>
+<div class="callout tldr"><span class="ic">TL;DR</span><p>The office floor is fun to watch, but you don't manage a team by staring at desks. Munder Difflin's <strong>Command Center</strong> is the management view: a <strong>dependency-aware task kanban</strong>, <strong>live fleet monitoring with per-agent token budgets</strong>, <strong>real cost telemetry</strong> backed by a durable ledger, <strong>OpenTelemetry observability</strong> with a per-agent tool-span waterfall, plus GitHub issue ingestion, a CI watcher, and a Triggers tab. Rule of thumb: <strong>watch the floor for one agent right now, watch the board for the whole fleet over time</strong>.</p></div>
 
 <video controls preload="none" playsinline poster="/media/demo/features-poster.jpg" style="width:100%; border-radius:12px; margin:12px 0 24px;">
   <source src="/media/demo/features.mp4" type="video/mp4" />
@@ -45,7 +45,7 @@ Six tabs, one control surface:
 - **Memory** — semantic search over the shared memory palace, plain text search, and a memory graph.
 - **Activity** — the append-only event log, the blackboard, real token telemetry, the observability view, and a CI watcher.
 - **Tasks** — the kanban board.
-- **Schedules** — recurring missions and the adaptive heartbeat, with last/next-fired times.
+- **Triggers** — everything that starts work without you, grouped by kind: schedules (recurring missions and the adaptive heartbeat, with last/next-fired times), context, webhooks, and organization.
 
 You could run the hive from the floor alone. But once you have more than two or three agents, the Command Center is where the actual decisions happen.
 
@@ -73,9 +73,9 @@ This is the part that makes a 24/7 fleet safe to leave running.
 
 **Observability.** Also in Activity: a live **OpenTelemetry collector** with per-model cost attribution, a fleet grid, and a **per-agent tool-span waterfall** — the "what exactly is this agent doing, step by step, and what does each step cost" view. It's the same discipline we covered in [observability for agent fleets](/blog/observability-for-agent-fleets/), built into the harness instead of bolted on.
 
-## Schedules: the board's fourth dimension
+## Triggers: the board's fourth dimension
 
-The kanban answers "what's in flight." The **Schedules tab** answers "what happens next without me." Recurring missions carry a label, an interval, a target agent, and a body, and the tab shows last-fired and next-fired times, so drift is visible. A scheduler **heartbeat** re-engages the floor when it goes quiet. Together with the board, it turns the hive from something you drive into something you supervise — the full pattern is in [scheduling autonomous agent missions](/blog/scheduling-autonomous-agent-missions/).
+The kanban answers "what's in flight." The **Triggers tab** answers "what happens next without me" — every way the hive wakes up when you aren't typing. **Schedules** are the first and oldest of them: recurring missions carry a label, an interval, a target agent, and a body, and the tab shows last-fired and next-fired times, so drift is visible. A scheduler **heartbeat** re-engages the floor when it goes quiet. Together with the board, it turns the hive from something you drive into something you supervise — the full pattern is in [scheduling autonomous agent missions](/blog/scheduling-autonomous-agent-missions/).
 
 ## Floor or board? A simple rule
 

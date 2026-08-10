@@ -453,7 +453,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
         }}>
           {agent.isGod ? (
             // Michael runs the floor from the command center — its tabs (tasks,
-            // ask me, schedules, memory, graph…) are the whole point of selecting
+            // ask me, triggers, memory, graph…) are the whole point of selecting
             // him, and fullscreen used to drop them for a bare terminal.
             // Column so the panel's `height: 100%` resolves against a definite
             // height and `align-items: stretch` gives it the full width.

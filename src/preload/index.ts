@@ -6,6 +6,12 @@ import type { IntegrationRecord, IntegrationTemplate } from '../shared/integrati
 export type { IntegrationRecord, IntegrationTemplate } from '../shared/integrations';
 import type { UpdateStatus } from '../shared/updateState';
 export type { UpdateStatus } from '../shared/updateState';
+import type {
+  ContextRule, ContextTriggerConfig, OrgTriggerConfig, TriggerHistoryEntry, WebhookTrigger
+} from '../shared/triggers';
+export type {
+  ContextRule, ContextTriggerConfig, OrgTriggerConfig, TriggerHistoryEntry, WebhookTrigger
+} from '../shared/triggers';
 
 /** Renderer-visible integration record: the secretRef handle is redacted to a
  *  presence boolean. Matches main `integrations.listRecordsRedacted()` — the
@@ -1066,6 +1072,70 @@ const api = {
     secret?: string; port?: number; enabled?: boolean;
   }): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('webhook:setConfig', patch),
+
+  // ─── Triggers: context (auto-compact / auto-clear) ──────────────────────────
+  /** The two context rules (cadence + pressure gate + message), deep-filled. */
+  getContextTrigger: (): Promise<ContextTriggerConfig> =>
+    ipcRenderer.invoke('triggers:getContext'),
+  /** Persist both rules and RE-ARM main's timers; resolves to what was stored
+   *  (main clamps the cadence/percentages, so the echo is authoritative). */
+  setContextTrigger: (cfg: ContextTriggerConfig): Promise<ContextTriggerConfig> =>
+    ipcRenderer.invoke('triggers:setContext', cfg),
+  /** Fires when a context rule comes due. `rule` rides along because main owns
+   *  only the CADENCE — the renderer applies the per-agent pressure gate and
+   *  queues the command for each agent that qualifies. */
+  onContextTrigger: (cb: (evt: { action: 'compact' | 'clear'; rule: ContextRule }) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: { action: 'compact' | 'clear'; rule: ContextRule }) => cb(payload);
+    ipcRenderer.on('trigger:context', listener);
+    return () => ipcRenderer.removeListener('trigger:context', listener);
+  },
+
+  // ─── Triggers: webhook endpoints (many endpoints, one server + tunnel) ──────
+  /** Every configured endpoint, enabled or not. */
+  listWebhooks: (): Promise<WebhookTrigger[]> => ipcRenderer.invoke('webhooks:list'),
+  /** Replace the whole list; main normalises each row (a blank secret keeps the
+   *  stored one, an unknown mode keeps the stored one) and hot-swaps the running
+   *  server's endpoints WITHOUT a restart, so no other caller's URL changes. */
+  saveWebhooks: (list: WebhookTrigger[]): Promise<WebhookTrigger[]> =>
+    ipcRenderer.invoke('webhooks:save', list),
+  /** Revoke one endpoint; resolves to the remaining list. */
+  deleteWebhook: (id: string): Promise<WebhookTrigger[]> =>
+    ipcRenderer.invoke('webhooks:delete', id),
+  /** Mint a 256-bit secret for the operator to paste into their caller. Not
+   *  persisted until the endpoint carrying it is saved. */
+  generateWebhookSecret: (): Promise<string> => ipcRenderer.invoke('webhooks:generateSecret'),
+  /** Server state, the tunnel root, and each endpoint's full public URL (`url` is
+   *  '' until a tunnel has come up). */
+  webhooksStatus: (): Promise<{ running: boolean; url?: string; endpoints: { id: string; url: string }[] }> =>
+    ipcRenderer.invoke('webhooks:status'),
+
+  // ─── Triggers: organisation (clone-node peer messaging) ─────────────────────
+  /** PERSISTENCE ONLY — the peer transport does not exist yet, so setting this
+   *  stores the key and mode and starts nothing. */
+  getOrgTrigger: (): Promise<OrgTriggerConfig> => ipcRenderer.invoke('org:getTrigger'),
+  setOrgTrigger: (cfg: OrgTriggerConfig): Promise<OrgTriggerConfig> =>
+    ipcRenderer.invoke('org:setTrigger', cfg),
+
+  // ─── Triggers: history ledger + approval gate ───────────────────────────────
+  /** The whole ledger, newest first (both directions, both sources). */
+  listTriggerHistory: (): Promise<TriggerHistoryEntry[]> =>
+    ipcRenderer.invoke('triggerHistory:list'),
+  /** Answer a held message. 'approved' RELEASES it to the hive (card + god
+   *  request, the same path an auto-allowed message takes); 'rejected' only flips
+   *  the verdict. Deciding an already-decided entry is a no-op, never a second
+   *  dispatch. Resolves to the updated row, or null when the id is gone. */
+  decideTriggerHistory: (arg: { id: string; decision: 'approved' | 'rejected' }): Promise<TriggerHistoryEntry | null> =>
+    ipcRenderer.invoke('triggerHistory:decide', arg),
+  /** Wipe the ledger, or just one source's half of it. */
+  clearTriggerHistory: (source?: 'webhook' | 'org'): Promise<void> =>
+    ipcRenderer.invoke('triggerHistory:clear', source),
+  /** Fires whenever the ledger changes (an inbound arrived, a verdict landed, a
+   *  reply was paired), so the history tab live-refreshes. */
+  onTriggerHistoryUpdated: (cb: () => void): (() => void) => {
+    const listener = (): void => cb();
+    ipcRenderer.on('triggerHistory:updated', listener);
+    return () => ipcRenderer.removeListener('triggerHistory:updated', listener);
+  },
 
   // ─── Free Flow (voice dictation → message queue) ─────────────────────────────
   /** Persist Free Flow settings (flag / Groq key / model). The Groq key is stored

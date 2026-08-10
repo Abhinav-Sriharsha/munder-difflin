@@ -6,7 +6,7 @@ import { CSSProperties } from 'react';
 export type IconName =
   | 'gear' | 'plus' | 'x' | 'check' | 'arrow-right' | 'pause' | 'play'
   | 'bell' | 'folder' | 'terminal' | 'code' | 'web' | 'mcp' | 'sparkle'
-  | 'expand' | 'minimize' | 'clock' | 'mic';
+  | 'expand' | 'minimize' | 'clock' | 'mic' | 'ledger';
 
 interface IconDef {
   ink: string;     // primary color path d
@@ -87,6 +87,12 @@ const paths: Record<IconName, IconDef> = {
   clock: {
     accentColor: 'var(--cth-lemon)',
     ink:   'M5 1h6v1h2v2h1v2h1v4h-1v2h-1v2h-2v1H5v-1H3v-2H2V8H1V6h1V4h1V2h2V1zm0 2H4v1H3v2H2v4h1v2h1v1h1v1h6v-1h1v-1h1v-2h1V6h-1V4h-1V3h-1V2H5v1zm2 1h2v4h2v1h1v1h-1v1h-1v-1H9v1H7V4z'
+  },
+  // Ruled page — the trigger-history ledger. Frame as an evenodd cutout, three
+  // written lines inside it (the last one short, like a part-filled entry).
+  ledger: {
+    accentColor: 'var(--cth-lemon)',
+    ink:   'M2 1h12v14H2V1zM3 2v12h10V2H3zM5 4h6v1H5zM5 7h6v1H5zM5 10h4v1H5z'
   },
   // Microphone: a solid capsule head, an open cradle, a stem, and a base.
   mic: {
