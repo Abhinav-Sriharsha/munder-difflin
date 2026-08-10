@@ -1538,6 +1538,21 @@ export class HiveManager {
       // each spawn (idempotent). A single-quoted TOML literal avoids path escaping
       // (hive roots are space/quote-free). NOTE: hooks fire in INTERACTIVE codex
       // sessions (how hive workers run), not in headless `codex exec`.
+      //
+      // `timeout` IS SECONDS HERE — do NOT copy Claude's `timeout: 0` sentinel into
+      // this file. Codex parses the key as `timeout_sec` and normalizes it with
+      // `timeout_sec.unwrap_or(600).max(1)`, so 0 does not mean "no timeout": it is
+      // floored to ONE SECOND, the shortest budget there is. That shipped through
+      // v0.3.7 and made every codex worker log `SessionStart hook (failed) — hook
+      // timed out after 1s` (same for UserPromptSubmit), because each hook cold-starts
+      // the Electron binary via hive-node and then waits on hooks.sock — measured
+      // 0.08-0.16s idle but 0.6-0.7s under 8 concurrent spawns, which is exactly what
+      // session start and prompt dispatch look like. 30s clears that by two orders of
+      // magnitude while still capping a wedged shim well before its own 5s internal
+      // cap stops mattering; bare omission (600s) would leave a hang looking like a
+      // freeze. Verify any change with codex's own resolver, no model spend:
+      // `codex app-server` → initialize → `hooks/list` reports the normalized
+      // timeoutSec per event.
       const shim = this.shimPath();
       let config = existsSync(join(userHome, 'config.toml'))
         ? readFileSync(join(userHome, 'config.toml'), 'utf8') : '';
@@ -1546,7 +1561,7 @@ export class HiveManager {
           'SessionStart', 'UserPromptSubmit', 'PreCompact', 'PostCompact'];
         config += '\n# --- munder-hive lifecycle hooks (auto-generated; do not edit) ---\n';
         for (const ev of events) {
-          config += `\n[[hooks.${ev}]]\n[[hooks.${ev}.hooks]]\ntype = "command"\ncommand = '${this.nodeRunUnquoted(shim)}'\ntimeout = 0\n`;
+          config += `\n[[hooks.${ev}]]\n[[hooks.${ev}.hooks]]\ntype = "command"\ncommand = '${this.nodeRunUnquoted(shim)}'\ntimeout = 30\n`;
         }
       }
       writeFileSync(join(home, 'config.toml'), config, 'utf8');
