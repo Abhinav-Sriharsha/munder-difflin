@@ -5,6 +5,7 @@ export type { HireManifest } from '../shared/hire';
 import type { IntegrationRecord, IntegrationTemplate } from '../shared/integrations';
 export type { IntegrationRecord, IntegrationTemplate } from '../shared/integrations';
 import type { UpdateStatus } from '../shared/updateState';
+import type { LimitHold, LimitSignal } from '../shared/rateLimit';
 export type { UpdateStatus } from '../shared/updateState';
 import type {
   ContextRule, ContextTriggerConfig, OrgTriggerConfig, TriggerHistoryEntry, WebhookTrigger
@@ -317,6 +318,16 @@ export interface HarnessConfig {
   providerBaseUrls?: Partial<Record<AgentProvider, string>>;
   /** Per-CLI-provider default model slug, used to pre-fill the model picker. */
   providerDefaultModels?: Partial<Record<AgentProvider, string>>;
+  /** How the floor reacts when a CLI reports it has hit its usage limit. */
+  limitGuard?: LimitGuardConfig;
+}
+
+/** Mirrors `LimitGuardConfig` in main/config.ts. */
+export interface LimitGuardConfig {
+  enabled: boolean;
+  autoResume: boolean;
+  holdOnThrottle: boolean;
+  notify: boolean;
 }
 
 export interface MemoryStatus {
@@ -951,6 +962,29 @@ const api = {
   /** Read an agent's current control snapshot. */
   controlSnapshot: (agentId: string): Promise<AgentControlSnapshot | null> =>
     ipcRenderer.invoke('control:snapshot', agentId),
+  // ─── Usage-limit guard (pause → queue → auto-resume) ───────────────────────
+  /** Report a limit notice seen in an agent's terminal. Returns the hold now in
+   *  force, or null when main judged it a repaint of one already served. */
+  limitReport: (payload: {
+    agentId: string;
+    provider: AgentProvider;
+    signal: LimitSignal;
+  }): Promise<LimitHold | null> => ipcRenderer.invoke('limit:report', payload),
+  /** Every hold currently in force, soonest first. */
+  limitList: (): Promise<LimitHold[]> => ipcRenderer.invoke('limit:list'),
+  /** Lift a hold early ("resume now"). */
+  limitRelease: (scope: string): Promise<boolean> => ipcRenderer.invoke('limit:release', scope),
+  /** Tell main a queued message actually reached this agent, so a limit seen
+   *  afterwards is treated as a fresh rejection rather than a stale banner. */
+  limitNoteDelivery: (agentId: string, provider: AgentProvider): Promise<boolean> =>
+    ipcRenderer.invoke('limit:noteDelivery', agentId, provider),
+  /** Subscribe to hold changes (armed, released, expired); returns unsubscribe fn. */
+  onLimitChanged: (cb: (holds: LimitHold[]) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, holds: LimitHold[]) => cb(holds);
+    ipcRenderer.on('limit:changed', listener);
+    return () => ipcRenderer.removeListener('limit:changed', listener);
+  },
+
   /** Subscribe to gate/deny events (a tool was blocked); returns unsubscribe fn. */
   onApprovalRequest: (cb: (e: { agentId: string; tool?: string; reason?: string }) => void): (() => void) => {
     const listener = (_e: IpcRendererEvent, payload: { agentId: string; tool?: string; reason?: string }) => cb(payload);

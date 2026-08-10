@@ -151,6 +151,38 @@ function clearLocalState(): void {
 type Section = 'General' | 'Agents & Models' | 'Autonomy & Budgets' | 'Connections' | 'Voice' | 'Memory & Knowledge';
 const NAV_SECTIONS: Section[] = ['General', 'Agents & Models', 'Autonomy & Budgets', 'Connections', 'Voice', 'Memory & Knowledge'];
 
+/** One labelled on/off row. The surrounding settings pane repeats this
+ *  title + blurb + toggle shape inline everywhere; the usage-limit section has
+ *  four of them, which is the point at which repeating it stops being cheaper
+ *  than naming it. */
+function SettingRow({ title, blurb, on, onClick, disabled }: {
+  title: string;
+  blurb: string;
+  on: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      opacity: disabled ? 0.5 : 1
+    }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>{title}</span>
+        <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>{blurb}</span>
+      </div>
+      <PixelButton
+        variant={on ? 'primary' : 'secondary'}
+        size="sm"
+        onClick={onClick}
+        disabled={disabled}
+      >
+        {on ? 'on' : 'off'}
+      </PixelButton>
+    </div>
+  );
+}
+
 export function SettingsModal({ config, onClose }: SettingsModalProps) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -174,6 +206,21 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
     setNotifications(next); // optimistic
     try { await window.cth.setNotifications(next); }
     catch { setNotifications(!next); /* revert on failure */ }
+  };
+
+  // ─── Usage-limit guard ────────────────────────────────────────────────────
+  // Persisted as one object rather than four scalars so a rapid double-toggle
+  // can't write a half-applied guard: `config:update` shallow-merges, and two
+  // in-flight patches of the same key resolve to the last write, not a blend.
+  const LIMIT_GUARD_FALLBACK = { enabled: true, autoResume: true, holdOnThrottle: false, notify: true };
+  const [limitGuard, setLimitGuard] = useState(
+    () => ({ ...LIMIT_GUARD_FALLBACK, ...(config.limitGuard ?? {}) })
+  );
+  const patchLimitGuard = async (patch: Partial<typeof LIMIT_GUARD_FALLBACK>) => {
+    const next = { ...limitGuard, ...patch };
+    setLimitGuard(next); // optimistic
+    try { await window.cth.updateConfig({ limitGuard: next } as Partial<HarnessConfig>); }
+    catch { setLimitGuard(limitGuard); /* revert on failure */ }
   };
 
   // ─── v0.3.4 redesign: settings that were onboarding-trapped or UI-less ────
@@ -402,6 +449,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
       if (!alive) return;
       const cc = c as BreakerCfgView;
       setNotifications(cc.notifications === true);
+      setLimitGuard({ ...LIMIT_GUARD_FALLBACK, ...((c as HarnessConfig).limitGuard ?? {}) });
       setAgentBudget(cc.costCapTokens != null ? String(cc.costCapTokens) : '');
       setVelocityCeiling(cc.circuitBreaker?.tokenVelocityPerMin != null ? String(cc.circuitBreaker.tokenVelocityPerMin) : '');
       setSlackEnabled(cc.slackEnabled ?? false);
@@ -911,6 +959,53 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                           >
                             {notifications ? 'on' : 'off'}
                           </PixelButton>
+                        </div>
+                      </div>
+
+                      <div style={{ height: 1, background: 'var(--cth-ink-300)' }} />
+
+                      {/* Usage-limit guard — pause, queue, auto-resume */}
+                      <div>
+                        <div style={{
+                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
+                        }}>
+                          Usage limits
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <SettingRow
+                            title="Hold the queue when a limit is hit"
+                            blurb={'When a CLI reports it has hit its usage limit, stop typing at every agent '
+                              + 'on that provider and keep their messages queued. Off types into a capped-out '
+                              + 'terminal, where the message is silently discarded.'}
+                            on={limitGuard.enabled}
+                            onClick={() => { void patchLimitGuard({ enabled: !limitGuard.enabled }); }}
+                          />
+                          <SettingRow
+                            title="Resume automatically"
+                            blurb={'Start sending again by itself when the limit resets, one message at a '
+                              + 'time. Off keeps the queue held until you press resume.'}
+                            on={limitGuard.autoResume}
+                            disabled={!limitGuard.enabled}
+                            onClick={() => { void patchLimitGuard({ autoResume: !limitGuard.autoResume }); }}
+                          />
+                          <SettingRow
+                            title="Also hold on transient throttling"
+                            blurb={'Stand down for burst 429s and "overloaded" errors too. Off by default: '
+                              + 'the CLIs retry those themselves within seconds, so holding mostly adds '
+                              + 'latency to a hiccup that had already cleared.'}
+                            on={limitGuard.holdOnThrottle}
+                            disabled={!limitGuard.enabled}
+                            onClick={() => { void patchLimitGuard({ holdOnThrottle: !limitGuard.holdOnThrottle }); }}
+                          />
+                          <SettingRow
+                            title="Notify when held and resumed"
+                            blurb={'Native toast on both edges, so a limit hit while the window is in the '
+                              + 'background is not discovered an hour later. Needs desktop notifications on.'}
+                            on={limitGuard.notify}
+                            disabled={!limitGuard.enabled}
+                            onClick={() => { void patchLimitGuard({ notify: !limitGuard.notify }); }}
+                          />
                         </div>
                       </div>
 
