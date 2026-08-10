@@ -12,6 +12,7 @@ import {
 import { defaultMcpDefaults } from '../shared/mcpCatalog';
 import { expandTilde } from './fs';
 import type { IntegrationRecord } from '../shared/integrations';
+import type { LimitHold } from '../shared/rateLimit';
 
 /** A recurring auto-dispatched mission fired on an interval by the scheduler. */
 export interface ScheduledMission {
@@ -340,7 +341,46 @@ export interface HarnessConfig {
   /** Never condense a file smaller than this; also the section-trigger byte floor.
    *  DECIDED: 16 KB. */
   reflectMinBytes?: number;
+
+  // ─── Usage-limit guard (pause, queue, auto-resume) ─────────────────────────
+  /** How the floor reacts when a CLI reports it has hit its usage limit. */
+  limitGuard?: LimitGuardConfig;
+  /** Holds in force, persisted so a restart does not walk straight back into a
+   *  wall. RUNTIME STATE, not a setting — written by the gate, never by the
+   *  Settings UI, in the same spirit as `autoDeliveryPausedAgents`. */
+  limitHolds?: LimitHold[];
 }
+
+/**
+ * Usage-limit guard settings.
+ *
+ * `enabled` off restores the pre-feature behaviour exactly: nothing watches for
+ * limits, nothing is held, and messages are typed at a capped-out CLI the way
+ * they were before (where the TUI silently eats them).
+ */
+export interface LimitGuardConfig {
+  /** Master switch for detection + holding. */
+  enabled: boolean;
+  /** Lift a hold by itself when its reset time arrives. Off leaves the hold in
+   *  place until the operator presses resume — the queue is still preserved,
+   *  it just does not restart on its own. */
+  autoResume: boolean;
+  /** Also stand down for transient throttles (burst 429s, "overloaded").
+   *  Default OFF: the CLIs retry those themselves within seconds, so holding
+   *  for them mostly adds latency to a hiccup that had already resolved. */
+  holdOnThrottle: boolean;
+  /** Raise a desktop notification when a hold starts and when it lifts, so a
+   *  limit hit while the window is in the background is not discovered an hour
+   *  later. Honoured only when `notifications` is also on. */
+  notify: boolean;
+}
+
+export const DEFAULT_LIMIT_GUARD: LimitGuardConfig = {
+  enabled: true,
+  autoResume: true,
+  holdOnThrottle: false,
+  notify: true
+};
 
 const DEFAULTS: HarnessConfig = {
   onboardingComplete: false,
@@ -394,6 +434,12 @@ const DEFAULTS: HarnessConfig = {
   reflectSectionTrigger: 50,
   reflectRecentKeep: 12,
   reflectMinBytes: 16_384,
+  // Usage-limit guard — ON by default. The behaviour it replaces is a silent
+  // data-loss bug (a message typed at a capped-out CLI is swallowed by its TUI
+  // and never runs), so shipping it dark would leave the bug in place for
+  // everyone who never finds the setting.
+  limitGuard: DEFAULT_LIMIT_GUARD,
+  limitHolds: [],
   // Enterprise Knowledge Graph — opt-in; dark until the user enables it.
   // v0.3.4 fix: default OFF, matching the field's own documentation ("Default
   // OFF / dark until enabled") — the true default contradicted it. Existing

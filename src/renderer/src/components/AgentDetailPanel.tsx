@@ -12,6 +12,7 @@ import { SidebarTabs } from './SidebarTabs';
 import { ThreadsPanel } from './ThreadsPanel';
 import { ToolWaterfall } from './ToolWaterfall';
 import { AgentControlStrip } from './AgentControlStrip';
+import { LimitBanner } from './LimitBanner';
 import { GitTab } from './GitTab';
 import { Icon } from './Icon';
 import { useStore, type Agent } from '@/store/store';
@@ -145,6 +146,11 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
         }}>{openTerminalError}</div>
       )}
+
+      {/* Usage-limit hold: why this agent stopped and when it starts again.
+          Above the control strip because it explains the silence the operator
+          is looking at; renders nothing when nothing is held. */}
+      {isReal && <LimitBanner agentId={agent.id} />}
 
       {/* #7C — operator control (pause / halt / steer) for live agents */}
       {isReal && <AgentControlStrip agentId={agent.id} />}

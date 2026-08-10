@@ -116,6 +116,14 @@ export interface HarnessConfig {
   providerBaseUrls?: Partial<Record<AgentProvider, string>>;
   /** Per-CLI-provider default model slug, used to pre-fill the model picker. */
   providerDefaultModels?: Partial<Record<AgentProvider, string>>;
+  /** How the floor reacts when a CLI reports it has hit its usage limit.
+   *  Mirrors `LimitGuardConfig` in main/config.ts. */
+  limitGuard?: {
+    enabled: boolean;
+    autoResume: boolean;
+    holdOnThrottle: boolean;
+    notify: boolean;
+  };
 }
 
 /** The Sonnet model with the 1M-token context window — used for Michael's prep

@@ -5,6 +5,7 @@ import type { ThemeId } from '@/scene/office/themeRegistry';
 import type { StatusKind } from '@/components/PixelBadge';
 import type { AgentProvider } from '@shared/agentProvider';
 import type { HireManifest } from '@shared/hire';
+import type { LimitHold } from '@shared/rateLimit';
 
 export type ToolKind =
   | 'Read' | 'Edit' | 'Write' | 'Bash' | 'WebFetch' | 'WebSearch'
@@ -167,6 +168,11 @@ interface State {
   /** Per-agent tool-call count this session — a lightweight activity/usage proxy
    *  shown in the command center (interactive sessions don't expose billed $). */
   toolCounts: Record<string, number>;
+  /** Usage-limit holds in force, soonest first. MAIN owns these — this is a
+   *  read-only mirror kept fresh by `limit:changed`, so a renderer reload can
+   *  never lose a hold or invent one. */
+  limitHolds: LimitHold[];
+  setLimitHolds: (holds: LimitHold[]) => void;
   bumpToolCount: (id: string) => void;
   setGodStatus: (status: GodStatus) => void;
   select: (id: string) => void;
@@ -562,6 +568,10 @@ export const useStore = create<State>((set) => ({
   godStatus: 'booting',
   messageQueues: initialQueues,
   toolCounts: {},
+  // Seeded from main by `App.tsx` and refreshed by `limit:changed`; never
+  // written speculatively from the renderer, so the two can't disagree.
+  limitHolds: [],
+  setLimitHolds: (holds) => set({ limitHolds: holds }),
   bumpToolCount: (id) =>
     set((s) => ({ toolCounts: { ...s.toolCounts, [id]: (s.toolCounts[id] ?? 0) + 1 } })),
   setGodStatus: (status) => set({ godStatus: status }),
