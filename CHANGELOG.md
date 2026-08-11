@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.9] — 2026-08-11
+
+**Ask the app whether it's up to date.**
+Settings → General now names the running version, says whether it is the latest, and offers one
+button that states what it does. Shipped now because 0.3.8 needs to reach people who already
+installed it.
+
+### Added
+- **Check for updates, in Settings.** A block at the top of **Settings → General** that always
+  answers "am I on the latest?": the version you're on, whether a newer one exists, and a single
+  button — **Check for updates** → **Download v0.4.0** → **Restart to update** — plus the verbatim
+  error when a check fails. It shares the status stream, the reducer and the state machine with the
+  toolbar chip, so the two can never disagree about what is installed; only the wording differs,
+  because a chip that must stay quiet when everything is fine is no use to someone who opened
+  Settings to ask.
+
+### Changed
+- **Fullscreen roster avatars are larger.** They were rendered at 1× — an 18-pixel figure — and the
+  tile width was free to grow past that, so a wider roster just padded the same small sprite.
+  Portrait size now moves in half-sprite steps and the art is drawn at the tile's width.
+
+### Removed
+- **The usage-limit hold, entirely.** Shipped in the first v0.3.8 tag; it did not release. Agents
+  held behind a limit stayed held — the stated reset never arrived, and the manual **resume now**
+  button returned them to the held state instead of draining their queue. Delivery behaves as it
+  did in 0.3.7. `rateLimit.ts`, `limitGate.ts`, `useLimitWatch.ts`, the banner, the Settings
+  section, the config keys and their IPC are all gone, along with the compaction gate that had been
+  layered on top of them.
+
 ## [0.3.8] — 2026-08-11
 
 **Memory condensation works for the first time.**

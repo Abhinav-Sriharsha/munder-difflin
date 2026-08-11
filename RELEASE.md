@@ -1,4 +1,4 @@
-# Munder Difflin v0.3.8
+# Munder Difflin v0.3.9
 
 **A local hive of Claude Code, Antigravity, Codex, Grok & Copilot agents that run themselves** — messaging,
 routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-first and open source.
@@ -7,22 +7,36 @@ routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-f
 
 ---
 
-## What's new in 0.3.8 — *Memory condensation works for the first time*
+## What's new in 0.3.9 — *Ask the app whether it's up to date*
 
-**The floor has been forgetting everything, quietly, for months.** Claude Code changed how it
-names per-project transcript directories, and the harness kept reading the old spelling. Nothing
-errored — an absent directory reads as "no transcripts yet" — so the summarizer was blamed for a
-silence it had nothing to do with, and every condense attempt still wrote a full backup before
-giving up.
+**Settings → General now answers the question directly.** It names the version you're running,
+tells you whether that's the latest, and gives you one button that says what pressing it does:
+**Check for updates** → **Download v0.4.0** → **Restart to update**. The toolbar chip beside the
+logo has always carried this, but it goes blank when everything is fine — which is not somewhere
+you go to *ask*.
+
+- **The avatars in the fullscreen roster are bigger.** They were drawn at 1× — an 18-pixel figure,
+  too small to tell two hires apart at a glance, which is the tile's whole job.
+
+> [!IMPORTANT]
+> **If you are on 0.3.8, update.** That build shipped a usage-limit guard that never let go: agents
+> held behind a limit stayed held, the reset never landed, and **resume now** dropped them straight
+> back into the hold. The guard is removed entirely — 0.3.9 delivers messages the way 0.3.7 did.
+
+---
+
+## Still new in 0.3.8
+
+**Memory condensation works for the first time.** Claude Code changed how it names per-project
+transcript directories, and the harness kept reading the old spelling. Nothing errored — an absent
+directory reads as "no transcripts yet" — so the summarizer was blamed for a silence it had nothing
+to do with, and every condense attempt still wrote a full backup before giving up.
 
 - **Transcripts are found again**, so condensation, the offline usage reconciler, and cross-cwd
   session resume all read the path Claude Code actually writes to. Found and diagnosed by
   [@gts-47](https://github.com/gts-47).
 - **Triggers, in one place.** Schedules, inbound webhooks, context rules and peer messaging now
   share a home in Settings, with a history of what fired and what it did.
-
-### Also in this release
-
 - **Compaction stopped running twice.** The hourly standup and the 2-hour context trigger were
   both asking for it, and turning the trigger off left the standup compacting anyway. One control
   now, and its off-switch means off. Duplicate `/compact` messages can no longer stack up in a
@@ -38,13 +52,16 @@ giving up.
   not "no timeout".
 
 > [!NOTE]
-> **Auto-update carries you here from v0.3.7.** If you are still on v0.3.5 or v0.3.6, those builds
-> shipped the broken updater and need one manual install — grab the download below, once.
+> **Auto-update carries you here from v0.3.7 or v0.3.8.** If you are still on v0.3.5 or v0.3.6,
+> those builds shipped the broken updater and need one manual install — grab the download below,
+> once.
 
 ---
 
 ## Previously
 
+- **0.3.8** — memory condensation works for the first time; a Triggers hub; one compaction
+  schedule instead of two; a readable commit history.
 - **0.3.7** — auto-update actually runs: a CommonJS/ESM import bug meant the native updater never
   fired in any packaged build since v0.3.4, and the failure was swallowed by a `catch`.
 - **0.3.6** — *a machine with nothing on it can run agents*: Node and npm install themselves
@@ -72,22 +89,22 @@ Apple Silicon and Intel.
 ### 🍎 macOS
 | Build | File |
 |---|---|
-| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.3.8-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.8-mac-universal.dmg) |
+| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.3.9-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.9-mac-universal.dmg) |
 
 ### 🪟 Windows
 | Build | File |
 |---|---|
-| Installer (x64) — *recommended* | [`Munder-Difflin-0.3.8-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.8-win-x64-setup.exe) |
-| Portable (x64, no install) | [`Munder-Difflin-0.3.8-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.8-win-x64-portable.exe) |
+| Installer (x64) — *recommended* | [`Munder-Difflin-0.3.9-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.9-win-x64-setup.exe) |
+| Portable (x64, no install) | [`Munder-Difflin-0.3.9-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.9-win-x64-portable.exe) |
 
 ### 🐧 Linux
 | Build | File |
 |---|---|
-| AppImage (x86_64) | [`Munder-Difflin-0.3.8-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.8-linux-x86_64.AppImage) |
+| AppImage (x86_64) | [`Munder-Difflin-0.3.9-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.9-linux-x86_64.AppImage) |
 
 ### 📦 Source
-[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.3.8.zip) ·
-[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.3.8.tar.gz)
+[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.3.9.zip) ·
+[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.3.9.tar.gz)
 
 > **Verify your download:** [`SHA256SUMS.txt`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/SHA256SUMS.txt) — then `shasum -a 256 -c SHA256SUMS.txt` (macOS/Linux) or `Get-FileHash` (Windows).
 
