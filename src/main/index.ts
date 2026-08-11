@@ -14,8 +14,7 @@ import { initAutoUpdater } from './updater';
 import { RealtimeFloorWatcher } from './realtimeFloorWatcher';
 import {
   readConfig, writeConfig, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
-  modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, DEFAULT_LIMIT_GUARD,
-  type HarnessConfig, type ScheduledMission
+  modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
 } from './config';
 import { listDir, readFileText, writeFileText, statAbs, expandTilde } from './fs';
 import {
@@ -58,8 +57,6 @@ import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
 import { RosterStore } from './roster';
 import { ControlRegistry } from './control';
-import { LimitGate, scopeFor, type LimitHold } from './limitGate';
-import type { LimitSignal } from '../shared/rateLimit';
 import { fetchHireManifest, readHireManifestFile } from './hire';
 import { parseHireDeepLink, type HireManifest } from '../shared/hire';
 import { ClosingTimeController } from './closingTime';
@@ -232,10 +229,6 @@ const hive = new HiveManager(
 // #7C — operator control state (pause/gate/steer/halt), read by the HookServer
 // when deciding hook returns.
 const control = new ControlRegistry();
-// Usage-limit holds. Lives in main so it survives a renderer reload — a floor
-// that forgot it was rate limited every time the window refreshed would type
-// straight back into the wall it was told about.
-const limitGate = new LimitGate();
 // Stage 7A — the live observability tap. Receives Claude Code's first-party OTel
 // over loopback OTLP/JSON and exposes the locked usage-provider seam. resolveCwd
 // lets the transcript fallback find an agent's cwd from the hive registry.
@@ -633,10 +626,6 @@ function syncMissions(): void {
         // the same emit so there is exactly ONE path from main to the renderer.
         // It carries the context trigger's current rule so a mission-driven
         // compaction obeys the same pressure thresholds as a trigger-driven one.
-        //
-        // Rate-limit holds are enforced inside emitContextTrigger, which is the
-        // single choke point both this path and the context trigger's own timer
-        // pass through.
         if (m.autoCompact || m.kind === 'compact') {
           emitContextTrigger('compact', contextRule('compact'));
         }
@@ -734,18 +723,10 @@ function clearContextTimers(): void {
 
 /** Ask the renderer to run one half of the context trigger.
  *
- *  COMPACTION IS HELD WHILE ANYTHING IS RATE LIMITED. `/compact` is a model call:
- *  sending it into a capped-out CLI spends a rejected attempt and, worse, leaves a
- *  queued `/compact` sitting ahead of the operator's real backlog when the window
- *  reopens. The next tick picks it up once the hold lifts.
- *
- *  The gate lives HERE rather than at the call sites because there are two of
- *  them — the legacy per-mission `autoCompact` flag and the context trigger's own
- *  timer — and a gate on only one of them is no gate at all. `clear` is
- *  deliberately NOT held: it is handled locally by the CLI, costs no model call,
- *  and a capped agent is exactly when trimming context is still useful. */
+ *  Both callers funnel through here — the legacy per-mission `autoCompact` flag
+ *  and the context trigger's own timer — so there is exactly one path from main
+ *  to the renderer for each action. */
 function emitContextTrigger(action: 'compact' | 'clear', rule: ContextRule): void {
-  if (action === 'compact' && limitGuardSettings().enabled && limitGate.list().length > 0) return;
   try { liveWebContents()?.send('trigger:context', { action, rule }); } catch { /* window gone */ }
   // TRANSITIONAL ALIAS: the renderer still carries the pre-Triggers
   // `mission:autoCompact` listener as a fallback. Both fire for compact until
@@ -3434,122 +3415,6 @@ ipcMain.handle('control:halt', (_evt, agentId: unknown) => {
 ipcMain.handle('control:snapshot', (_evt, agentId: unknown) =>
   typeof agentId === 'string' ? control.snapshot(agentId) : null);
 
-// ─── Usage-limit guard: stand down, hold the queue, resume by itself ─────────
-// The renderer watches each PTY for "you've hit your limit" (shared/rateLimit.ts)
-// and reports here; main owns the holds, the timer and the persistence. The
-// renderer's drain loop asks `limitHolds` before every send, so a held provider
-// simply stops being written to while its queue keeps filling — nothing is
-// dropped and nothing needs the operator to remember to resend.
-//
-// Deliberately NOT gated: `hive.send`, which writes a message into an agent's
-// inbox file. That is already a queue — the message waits on disk until the
-// agent next runs — so gating it would turn "delayed" into "lost".
-
-function limitGuardSettings(): typeof DEFAULT_LIMIT_GUARD {
-  return { ...DEFAULT_LIMIT_GUARD, ...(readConfig().limitGuard ?? {}) };
-}
-
-/** Persist holds and tell every floor. Both windows drain their own agents, so
- *  a hold known to only one of them would let the other keep typing. */
-function publishLimits(): void {
-  const holds = limitGate.list();
-  try { writeConfig({ limitHolds: holds }); }
-  catch { /* unwritable config — the in-memory gate still holds this session */ }
-  for (const w of allWindows) {
-    if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
-    try { w.webContents.send('limit:changed', holds); } catch { /* window going away */ }
-  }
-}
-
-function limitToast(title: string, body: string): void {
-  const cfg = readConfig();
-  if (!cfg.notifications || !limitGuardSettings().notify) return;
-  try { if (Notification.isSupported()) new Notification({ title, body }).show(); }
-  catch { /* unsupported platform */ }
-}
-
-/** "resumes in 2h 14m" / "resumes at 3:05pm" — short enough for a toast. */
-function describeHold(hold: LimitHold): string {
-  const mins = Math.max(1, Math.round((hold.resetAt - Date.now()) / 60_000));
-  const when = mins >= 90
-    ? new Date(hold.resetAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    : `${mins}m`;
-  return mins >= 90 ? `resumes at ${when}` : `resumes in ${when}`;
-}
-
-ipcMain.handle('limit:report', (_evt, payload: unknown) => {
-  if (!limitGuardSettings().enabled) return null;
-  const p = payload as { agentId?: unknown; provider?: unknown; signal?: LimitSignal } | null;
-  if (!p || typeof p.agentId !== 'string' || typeof p.provider !== 'string') return null;
-  const signal = p.signal;
-  if (!signal || (signal.tier !== 'quota' && signal.tier !== 'throttle')) return null;
-  // A transient 429 is the CLI's problem, not ours: it retries within seconds,
-  // so standing the floor down for it adds latency to a hiccup that had already
-  // resolved. Only hold for throttles when the operator asked us to.
-  if (signal.tier === 'throttle' && !limitGuardSettings().holdOnThrottle) return null;
-
-  const hold = limitGate.arm({
-    agentId: p.agentId,
-    provider: p.provider as AgentProvider,
-    signal,
-    now: Date.now()
-  });
-  if (!hold) return null; // judged a repaint of a notice already served
-  publishLimits();
-  if (hold.armedAt >= Date.now() - 2000) {
-    limitToast(`${p.provider} limit reached`, `Queue held — ${describeHold(hold)}.`);
-  }
-  return hold;
-});
-
-ipcMain.handle('limit:list', () => limitGate.list());
-
-/** Operator pressed "resume now", or an agent was removed. */
-ipcMain.handle('limit:release', (_evt, scope: unknown) => {
-  if (typeof scope !== 'string') return false;
-  const released = limitGate.release(scope, Date.now());
-  if (released) publishLimits();
-  return released;
-});
-
-/** The renderer got a message through. This is what lets a genuine second
- *  rejection re-arm inside the guard window (see LimitGate.noteDelivery). */
-ipcMain.handle('limit:noteDelivery', (_evt, agentId: unknown, provider: unknown) => {
-  if (typeof agentId !== 'string' || typeof provider !== 'string') return false;
-  limitGate.noteDelivery(provider as AgentProvider, agentId, Date.now());
-  return true;
-});
-
-/**
- * Lift holds whose time has come.
- *
- * Ticks every 15s rather than arming one timer per hold: holds are few, a
- * coarse tick cannot drift, and — the reason that actually matters — a laptop
- * that slept through a reset wakes up and lifts on the next tick, whereas a
- * setTimeout would have been suspended and fired late by however long the lid
- * was shut.
- */
-setInterval(() => {
-  const guard = limitGuardSettings();
-  // Guard switched off: let everything go at once. Without this the holds would
-  // outlive the setting — the drain reads the hold list, not the flag, so a
-  // disabled guard would still be silently stopping the floor.
-  if (!guard.enabled) {
-    if (limitGate.releaseAll(Date.now()).length) publishLimits();
-    return;
-  }
-  // Auto-resume off means the hold waits for the operator, so nothing is swept.
-  // The UI keeps showing it (past its reset time) with a resume button — see
-  // LimitGate.holdFor on why expiry is a sweep, not a timestamp comparison.
-  if (!guard.autoResume) return;
-  const lifted = limitGate.sweep(Date.now());
-  if (!lifted.length) return;
-  publishLimits();
-  for (const h of lifted) {
-    limitToast(`${h.provider} limit reset`, 'Sending the queued messages now, one at a time.');
-  }
-}, 15_000).unref?.();
-
 // ─── IPC: scheduled missions (recurring auto-dispatch) ──────────────────────
 ipcMain.handle('missions:list', () => readConfig().missions ?? []);
 ipcMain.handle('missions:save', (_evt, missions) => {
@@ -4649,11 +4514,6 @@ app.whenReady().then(() => {
   // live session. Force it closed at startup (a real session re-opens it via
   // setMicGate(true)); macOS TCC stays a second gate regardless.
   if (readConfig().realtimeVoiceEnabled) writeConfig({ realtimeVoiceEnabled: false });
-
-  // Reinstate usage-limit holds. A limit does not lapse because the app was
-  // closed, so quitting and reopening must not be a way to walk back into the
-  // wall — `hydrate` keeps only holds with time genuinely left.
-  limitGate.hydrate({ holds: readConfig().limitHolds ?? [] }, Date.now());
 
   // A cold-start deep link (Windows/Linux) rides in on OUR argv.
   const startupHireLink = process.argv.find((a) => a.startsWith('munderdifflin://'));

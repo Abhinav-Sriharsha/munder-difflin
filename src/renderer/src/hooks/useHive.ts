@@ -18,26 +18,7 @@ import { DEFAULT_CONTEXT_TRIGGER, type ContextRule } from '../../../shared/trigg
 import type { AgentProvider } from '../../../shared/agentProvider';
 import { acquireTerminal, resetTerminal, isTerminalAutomationSafe } from '@/components/terminalPool';
 import { deliverWithAcknowledgement } from './queueDelivery';
-import { useLimitWatch } from './useLimitWatch';
-import { scopeFor } from '../../../shared/rateLimit';
 import { OFFICE_CAST, DEFAULT_CHARACTER } from '@/scene/office/cast';
-
-/**
- * Is this agent behind a usage-limit hold right now?
- *
- * Reads the store mirror rather than asking main, because the drain loop
- * evaluates this for every agent on every tick and an IPC round trip per agent
- * per tick would be absurd. Main stays the authority: it pushes `limit:changed`
- * on every arm, release and expiry, so the mirror is never more than one event
- * behind — and being one tick late only ever costs a few seconds of extra wait.
- */
-function isLimitHeld(provider: AgentProvider, agentId: string): boolean {
-  const scope = scopeFor(provider, agentId);
-  // Presence, not `resetAt > now`. Main decides when a hold ends (it sweeps, and
-  // only when auto-resume is on); re-deriving expiry from the timestamp here
-  // would quietly resume the floor even with auto-resume turned off.
-  return useStore.getState().limitHolds.some((h) => h.scope === scope);
-}
 
 const GOD_ID = 'god';
 /** Accent palette for MAIN-spawned (voice-hired) agents — picked deterministically
@@ -272,11 +253,6 @@ function passesContextPressure(a: Agent, rule: ContextRule): boolean {
  *      doesn't stall while an agent sits at its prompt.
  */
 export function useHive(config: HarnessConfig | null): void {
-  // Watch every live pty for "you've hit your limit" and mirror main's holds.
-  // Runs even when the guard is off so the mirror still empties on a settings
-  // change; only the per-pty subscriptions are conditional.
-  useLimitWatch(config?.limitGuard?.enabled !== false);
-
   // Per-agent dedup key for the inbox-wake nudge: the newest inbox message id we
   // last nudged about. Keyed by id (not count) so an oscillating count after a
   // drain doesn't re-nudge for the same message set.
@@ -676,18 +652,12 @@ export function useHive(config: HarnessConfig | null): void {
           // (killed mid-boot), don't type into its orphaned pty at all.
           const live = useStore.getState().agents.find((x) => x.id === a.id);
           if (!live) return;
-          const liveProvider = inferAgentProvider(live.command, live.provider);
-          // Same put-it-back rule for a usage-limit hold. An agent spawned into a
-          // capped-out provider would otherwise have its ENTIRE hive protocol
-          // seed typed into a TUI that discards it — the agent then sits there
-          // with no instructions at all, which reads as a hung spawn rather than
-          // a rate limit.
-          if (live.status === 'waiting' || live.status === 'blocked' || isLimitHeld(liveProvider, live.id)) {
+          if (live.status === 'waiting' || live.status === 'blocked') {
             seeded.current.delete(a.id);
             useStore.getState().updateAgent(a.id, { seedPrompt: seed });
             return;
           }
-          submitToPty(ptyId, seed, liveProvider)
+          submitToPty(ptyId, seed, inferAgentProvider(live.command, live.provider))
             .catch(() => { /* pty may have died */ });
         }, SEED_BOOT_MS);
       }
@@ -729,15 +699,6 @@ export function useHive(config: HarnessConfig | null): void {
       // the queue with no escape hatch at all. Idle/draft/picker safety below
       // still applies to manual messages; only the pause is bypassed.
       if (control?.autoDeliveryPaused && !next.manual) return { sent: false };
-      // Usage-limit hold: the CLI told us it is capped until a stated time, so
-      // typing at it now would have the TUI swallow the message silently — the
-      // exact loss this gate exists to prevent. Leave it at the head of the
-      // queue; main lifts the hold and the very next tick drains it.
-      // "Send now" bypasses this the same way it bypasses the pause: the
-      // operator may know something we don't, and an override with no escape
-      // hatch is worse than a wrong guess.
-      const targetProvider = inferAgentProvider(target.command, target.provider);
-      if (!next.manual && isLimitHeld(targetProvider, target.id)) return { sent: false };
       // Hold queued messages until the target finishes its boot sequence.
       if ((bootGraceUntil.current[target.id] ?? 0) >= now) return { sent: false };
       // The user owns the prompt: a draft they are writing, or a menu they
@@ -775,11 +736,6 @@ export function useHive(config: HarnessConfig | null): void {
         );
         if (sent) {
           delete sendFailures[next.id];
-          // Tell the gate a message really landed. Without this, a limit banner
-          // still sitting in the scrollback after a hold lifts is indistinguishable
-          // from the CLI rejecting us again — so the gate refuses to re-arm until
-          // it knows we actually tried.
-          void window.cth.limitNoteDelivery(target.id, targetProvider).catch(() => { /* older main */ });
           return { sent: true, message: next };
         }
         // Failed write (dead/crashed pty the store still thinks is idle): retry

@@ -136,12 +136,12 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 - **Auto-update** — new releases download in the background; you click restart.
 
 > [!NOTE]
-> **Status: v0.3.8 — the floor stops typing when it can't be heard.** A rate-limited CLI discards
-> keystrokes silently, so every message delivered during a limit window was simply lost. Agents on a
-> capped provider are now held, their queues keep filling, and delivery resumes by itself at the
-> reset — one message at a time, nothing to resend by hand. Also in this release: a Triggers hub,
-> a fix for memory condensation that had never once succeeded, compaction that no longer runs on
-> two schedules at once, and a commit history that is actually readable.
+> **Status: v0.3.8 — memory condensation works for the first time.** Claude Code changed how it
+> names per-project transcript directories and the harness kept reading the old spelling, so the
+> summarizer had never once had anything to read — silently, because an absent directory looks like
+> "no transcripts yet". Also in this release: a Triggers hub for schedules, webhooks and context
+> rules, compaction that no longer runs on two schedules at once, and a commit history that is
+> actually readable.
 > macOS (signed & notarized), Windows, and Linux builds are on the
 > [releases page](https://github.com/chaitanyagiri/munder-difflin/releases/latest).
 

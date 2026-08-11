@@ -6,7 +6,6 @@ import { PtyTerminalView } from './PtyTerminalView';
 import { terminalInstanceKey } from './terminalRecovery';
 import { MessageQueueComposer } from './MessageQueueComposer';
 import { AgentControlStrip } from './AgentControlStrip';
-import { LimitBanner } from './LimitBanner';
 import { CommandCenterPanel } from './CommandCenterPanel';
 import { Icon } from './Icon';
 import { SpritePortrait } from './SpritePortrait';
@@ -506,7 +505,6 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
 
               {/* #7C — pause / halt / steer. These only existed in the docked
                   sidebar, so going fullscreen took the operator controls away. */}
-              <LimitBanner key={`limit-${agent.id}`} agentId={agent.id} />
               <AgentControlStrip key={agent.id} agentId={agent.id} />
 
               <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>

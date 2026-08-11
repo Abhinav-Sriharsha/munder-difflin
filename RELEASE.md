@@ -7,34 +7,22 @@ routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-f
 
 ---
 
-## What's new in 0.3.8 — *The floor stops typing when it can't be heard*
+## What's new in 0.3.8 — *Memory condensation works for the first time*
 
-**A rate-limited CLI throws your messages away.** Not with an error — it just discards the
-keystrokes. The harness kept typing at it, so every message delivered during a limit window was
-silently gone, and the only way to find out was noticing later that an agent never did the thing
-you asked.
+**The floor has been forgetting everything, quietly, for months.** Claude Code changed how it
+names per-project transcript directories, and the harness kept reading the old spelling. Nothing
+errored — an absent directory reads as "no transcripts yet" — so the summarizer was blamed for a
+silence it had nothing to do with, and every condense attempt still wrote a full backup before
+giving up.
 
-- **Usage limits now pause the floor instead of losing work.** When a CLI reports it is capped,
-  every agent on that provider stops being typed into, queues keep filling, and delivery starts
-  again by itself at the reset — one message at a time. Nothing to resend by hand.
-- **Holds are scoped to the account, not the agent.** Six workers on one Claude subscription are
-  all behind the same wall the moment one of them hits it, so holding only the agent that printed
-  the banner would just lose the next five messages one at a time.
-- **A spent quota and a passing throttle are different things.** A quota holds until the stated
-  reset; a transient 429 is left alone by default, because the CLIs already retry those and
-  parking the floor for a hiccup that has already cleared is its own bug.
-- Every hold shows the line that caused it, a countdown, and a **resume now** button. The whole
-  guard is one switch in **Settings → Usage limits**.
+- **Transcripts are found again**, so condensation, the offline usage reconciler, and cross-cwd
+  session resume all read the path Claude Code actually writes to. Found and diagnosed by
+  [@gts-47](https://github.com/gts-47).
+- **Triggers, in one place.** Schedules, inbound webhooks, context rules and peer messaging now
+  share a home in Settings, with a history of what fired and what it did.
 
 ### Also in this release
 
-- **Triggers, in one place.** Schedules, inbound webhooks, context rules and peer messaging now
-  share a home in Settings, with a history of what fired and what it did.
-- **Memory condensation has never once worked — now it does.** Claude Code changed how it names
-  per-project transcript directories, and the harness kept reading the old spelling. Nothing
-  errored, because an absent directory reads as "no transcripts yet", so the summarizer was
-  blamed for two months of silence it had nothing to do with. Found and diagnosed by
-  [@gts-47](https://github.com/gts-47).
 - **Compaction stopped running twice.** The hourly standup and the 2-hour context trigger were
   both asking for it, and turning the trigger off left the standup compacting anyway. One control
   now, and its off-switch means off. Duplicate `/compact` messages can no longer stack up in a

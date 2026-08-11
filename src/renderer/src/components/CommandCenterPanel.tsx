@@ -18,7 +18,6 @@ import { useFleetTelemetry } from '@/hooks/useTelemetry';
 import { COMMAND_GROUPS } from '@shared/claudeCommands';
 import { useStore, triggerHistoryVisible, type Agent } from '@/store/store';
 import { usePtyParser } from '@/hooks/usePtyParser';
-import { LimitBanner, LimitSummary } from './LimitBanner';
 import {
   buildSpawnCommand,
   decodeProviderModel,
@@ -205,13 +204,6 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
           </PixelButton>
         </div>
       </div>
-
-      {/* Floor-wide limit summary + this agent's own hold. The summary is here
-          rather than only on the agent card because a limit usually lands on an
-          agent nobody has selected — the operator's first clue that the floor
-          stopped moving should not require finding the right terminal. */}
-      <div style={{ padding: '0 8px', flexShrink: 0 }}><LimitSummary /></div>
-      <LimitBanner agentId={agent.id} />
 
       {/* Tab bar — an auto-fit grid of equal-width cells. The tabs wrap onto
           extra rows when the panel is narrow (e.g. window fullscreen), but every

@@ -6,23 +6,15 @@ All notable changes to this project are documented here. The format is based on
 
 ## [0.3.8] — 2026-08-11
 
-**The floor stops typing when it can't be heard.**
-A rate-limited CLI discards keystrokes silently — no error, no bounce — so every message
-delivered during the window was simply gone. That is the headline fix. Behind it, a run of things
-that had been quietly costing tokens or hiding in plain sight: compaction firing on two schedules
-at once, a commit history that rendered no commit messages, and buttons whose labels were
-invisible in dark mode.
+**Memory condensation works for the first time.**
+The harness had been reading Claude Code transcripts from a directory that has not existed for
+months, so the summarizer never had anything to summarize — and nothing errored, because an absent
+directory reads as "no transcripts yet". That is the headline fix. Behind it, a run of things that
+had been quietly costing tokens or hiding in plain sight: compaction firing on two schedules at
+once, a commit history that rendered no commit messages, and buttons whose labels were invisible in
+dark mode.
 
 ### Added
-- **Usage-limit guard.** When a CLI reports it has hit its limit, every agent on that provider
-  stops being typed into, queues stay intact, and delivery resumes by itself at the reset — one
-  message at a time. Holds are scoped to the **provider**, because a usage limit belongs to an
-  account and siblings on one subscription are already behind the same wall. Two tiers: a spent
-  quota holds until its stated reset, while a transient throttle is off by default since the CLIs
-  already retry those themselves. Every hold shows the line that caused it, a countdown, and a
-  resume button; the whole guard is one switch in **Settings → Usage limits**. Reset times are
-  read from the CLI where it states one (including a two-pass timezone solve so a reset after a
-  DST change doesn't land an hour out) and fall back to an escalating backoff where it doesn't.
 - **Triggers hub.** Schedules, inbound webhooks, context rules and peer messaging now share one
   home in Settings, with a history of what fired and what it did.
 - **Collapsible panels.** The IDE's git rail folds away to give the file tree its height back, and
