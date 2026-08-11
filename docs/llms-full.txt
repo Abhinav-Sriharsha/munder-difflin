@@ -2,7 +2,7 @@
 
 > Munder Difflin is a free, MIT-licensed, local-first multi-agent harness for CLI coding
 > agents, presented as a virtual office (an affectionate parody of The Office; not
-> affiliated with NBC). Current version: 0.3.7 (August 2026). Desktop app (Electron) for
+> affiliated with NBC). Current version: 0.3.8 (August 2026). Desktop app (Electron) for
 > macOS, Windows, and Linux. Website: https://munderdiffl.in — Source:
 > https://github.com/chaitanyagiri/munder-difflin — Author: Chaitanya Giri.
 

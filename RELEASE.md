@@ -1,4 +1,4 @@
-# Munder Difflin v0.3.7
+# Munder Difflin v0.3.8
 
 **A local hive of Claude Code, Antigravity, Codex, Grok & Copilot agents that run themselves** — messaging,
 routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-first and open source.
@@ -7,40 +7,58 @@ routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-f
 
 ---
 
-## What's new in 0.3.7 — *Auto-update, fixed*
+## What's new in 0.3.8 — *The floor stops typing when it can't be heard*
 
-**Auto-update never actually ran.** Not once, in any packaged build, since it shipped in
-v0.3.4. `electron-updater` is a CommonJS module that exposes `autoUpdater` through a lazy
-getter, which Node's module lexer can't see — so `await import('electron-updater')` handed
-back `undefined`, and the very first line of setup threw
-`TypeError: Cannot set properties of undefined (setting 'autoDownload')`. That landed in a
-`catch` that silently switched the app to notify-only mode, which is why the only thing it
-could ever offer was a link to the releases page. It never showed up in testing because the
-whole path is skipped in development.
+**A rate-limited CLI throws your messages away.** Not with an error — it just discards the
+keystrokes. The harness kept typing at it, so every message delivered during a limit window was
+silently gone, and the only way to find out was noticing later that an agent never did the thing
+you asked.
 
-- **The native updater works.** New releases download in the background and wait for your
-  click. macOS builds are Developer ID signed, notarized, and stapled, so the update installs
-  cleanly.
-- **The version in the toolbar is now the update button.** Top-left, next to the logo: it
-  shows `checking…`, then `v0.3.8 ready to install`, then live download progress, then
-  **restart to update**. With nothing pending, clicking it checks on demand — previously the
-  app only ever checked 30 seconds after launch and then every six hours, with no way to ask.
-- **Nothing fails silently any more.** Update errors now reach the UI *and* an `updater.log`
-  in the app's data folder. The old code threw the error away, which is exactly why this
-  survived three releases.
-- **One network blip no longer disables updates for the session.** The fallback to
-  notify-only is now per-check instead of a permanent latch, and a re-check can't wipe out an
-  update you've already got staged.
+- **Usage limits now pause the floor instead of losing work.** When a CLI reports it is capped,
+  every agent on that provider stops being typed into, queues keep filling, and delivery starts
+  again by itself at the reset — one message at a time. Nothing to resend by hand.
+- **Holds are scoped to the account, not the agent.** Six workers on one Claude subscription are
+  all behind the same wall the moment one of them hits it, so holding only the agent that printed
+  the banner would just lose the next five messages one at a time.
+- **A spent quota and a passing throttle are different things.** A quota holds until the stated
+  reset; a transient 429 is left alone by default, because the CLIs already retry those and
+  parking the floor for a hiccup that has already cleared is its own bug.
+- Every hold shows the line that caused it, a countdown, and a **resume now** button. The whole
+  guard is one switch in **Settings → Usage limits**.
 
-> [!IMPORTANT]
-> **If you're on v0.3.5 or v0.3.6, this one is a manual install.** Those builds carry the
-> broken updater, so they can't fetch this fix by themselves — grab the download below once.
-> From v0.3.7 onward, updates arrive on their own.
+### Also in this release
+
+- **Triggers, in one place.** Schedules, inbound webhooks, context rules and peer messaging now
+  share a home in Settings, with a history of what fired and what it did.
+- **Memory condensation has never once worked — now it does.** Claude Code changed how it names
+  per-project transcript directories, and the harness kept reading the old spelling. Nothing
+  errored, because an absent directory reads as "no transcripts yet", so the summarizer was
+  blamed for two months of silence it had nothing to do with. Found and diagnosed by
+  [@gts-47](https://github.com/gts-47).
+- **Compaction stopped running twice.** The hourly standup and the 2-hour context trigger were
+  both asking for it, and turning the trigger off left the standup compacting anyway. One control
+  now, and its off-switch means off. Duplicate `/compact` messages can no longer stack up in a
+  queue and fire together.
+- **The commit history is readable.** It rendered through a library that overlapped its own rows,
+  reserved a fixed 500px for the graph no matter how narrow the panel was, and never showed the
+  commit message at all. It is drawn directly now and fits any width.
+- **Dark mode fixes worth the name.** Disabled buttons had labels at roughly 1.4:1 against their
+  own fill, and the arrow on **Send** was painted in the same colour as the button behind it.
+- **Panels fold.** The IDE's git rail collapses to give the file tree its height back; the
+  fullscreen roster collapses for a full-width terminal.
+- **Codex hooks stopped timing out after one second** — `timeout: 0` means *one second* to Codex,
+  not "no timeout".
+
+> [!NOTE]
+> **Auto-update carries you here from v0.3.7.** If you are still on v0.3.5 or v0.3.6, those builds
+> shipped the broken updater and need one manual install — grab the download below, once.
 
 ---
 
 ## Previously
 
+- **0.3.7** — auto-update actually runs: a CommonJS/ESM import bug meant the native updater never
+  fired in any packaged build since v0.3.4, and the failure was swallowed by a `catch`.
 - **0.3.6** — *a machine with nothing on it can run agents*: Node and npm install themselves
   (verified against the official `SHASUMS256.txt`), hooks stopped dying with exit 127, `~/dev/foo`
   paths resolve, and the office floor rebuilds itself after losing its GPU context.
@@ -66,27 +84,29 @@ Apple Silicon and Intel.
 ### 🍎 macOS
 | Build | File |
 |---|---|
-| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.3.2-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.2-mac-universal.dmg) |
+| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.3.8-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.8-mac-universal.dmg) |
 
 ### 🪟 Windows
 | Build | File |
 |---|---|
-| Installer (x64) — *recommended* | [`Munder-Difflin-0.3.2-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.2-win-x64-setup.exe) |
-| Portable (x64, no install) | [`Munder-Difflin-0.3.2-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.2-win-x64-portable.exe) |
+| Installer (x64) — *recommended* | [`Munder-Difflin-0.3.8-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.8-win-x64-setup.exe) |
+| Portable (x64, no install) | [`Munder-Difflin-0.3.8-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.8-win-x64-portable.exe) |
 
 ### 🐧 Linux
 | Build | File |
 |---|---|
-| AppImage (x86_64) | [`Munder-Difflin-0.3.2-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.2-linux-x86_64.AppImage) |
+| AppImage (x86_64) | [`Munder-Difflin-0.3.8-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.3.8-linux-x86_64.AppImage) |
 
 ### 📦 Source
-[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.3.2.zip) ·
-[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.3.2.tar.gz)
+[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.3.8.zip) ·
+[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.3.8.tar.gz)
 
 > **Verify your download:** [`SHA256SUMS.txt`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/SHA256SUMS.txt) — then `shasum -a 256 -c SHA256SUMS.txt` (macOS/Linux) or `Get-FileHash` (Windows).
 
-> The links above always point at the **latest** release (`/releases/latest/download/…`),
-> so this page stays correct across versions.
+> The filenames above carry a version number, so they only resolve while this is the
+> latest release. If a link 404s you are reading an old release page — grab the current
+> build from the [**releases page**](https://github.com/chaitanyagiri/munder-difflin/releases/latest),
+> which is always right.
 
 ---
 

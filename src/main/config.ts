@@ -12,6 +12,16 @@ import {
 import { defaultMcpDefaults } from '../shared/mcpCatalog';
 import { expandTilde } from './fs';
 import type { IntegrationRecord } from '../shared/integrations';
+import {
+  DEFAULT_CONTEXT_TRIGGER,
+  DEFAULT_ORG_TRIGGER,
+  DEFAULT_TRIGGER_MODE,
+  DEFAULT_WEBHOOK_SCHEMA,
+  type ContextTriggerConfig,
+  type OrgTriggerConfig,
+  type WebhookTrigger
+} from '../shared/triggers';
+import type { LimitHold } from '../shared/rateLimit';
 
 /** A recurring auto-dispatched mission fired on an interval by the scheduler. */
 export interface ScheduledMission {
@@ -21,10 +31,15 @@ export interface ScheduledMission {
   to: string;
   body: string;
   enabled: boolean;
-  /** When true, the scheduler asks the renderer to `/compact` live terminals when
-   *  this mission fires — but only agents whose context has filled past a
-   *  threshold (30% for ~250k windows, 20% for ~1M windows) are compacted, so
-   *  small/idle sessions are left alone instead of compacting on every tick. */
+  /** When true, the scheduler asks the renderer to compact live terminals when
+   *  this mission fires — but only agents whose context has filled past the bar
+   *  in `contextTrigger.compact` (60% by default, 40% on ~1M-token windows), so
+   *  small/idle sessions are left alone instead of compacting on every tick.
+   *
+   *  This gate used to be described here but was never actually implemented: every
+   *  live agent was compacted on every tick. It is real now, and the bars live in
+   *  `ContextTriggerConfig` where the operator can edit them, so do not restate
+   *  the numbers anywhere else — they will drift. */
   autoCompact?: boolean;
   lastFiredAt?: number;
   /** Mission flavor. Absent ⇒ 'dispatch' (the classic interval-dispatch mission,
@@ -55,8 +70,13 @@ export const OPS_STANDUP_MISSION: ScheduledMission = {
     'next step, then compact and resume from the same point — so terminal ' +
     'contexts stay bounded without losing work. The compaction is queued and ' +
     'runs when an agent is idle, so it never interrupts work mid-step.)',
-  enabled: true,
-  autoCompact: true
+  enabled: true
+  // NO autoCompact. Compaction belongs to contextTrigger.compact and nothing else.
+  // This flag used to live here as well, which meant a default install asked for
+  // compaction on TWO cadences — hourly from this standup and 2-hourly from the
+  // trigger — the exact "two controls that disagree" the maint-1 retirement below
+  // was written to end. The standup's own prose still describes compaction, and
+  // that stays true: the trigger does it, just not on this mission's clock.
 };
 
 /** The built-in heartbeat (Lane A #1). A context-aware beat that, each tick,
@@ -90,20 +110,29 @@ export const HEARTBEAT_MISSION: ScheduledMission = {
  *  Shipped DISABLED (v0.3.4 founder decision): scheduled compaction is opt-in.
  *  Turn it on in Settings → General or the Schedules tab; the Schedules warning
  *  panel explains the risk of leaving it off for long-running agents. It is the
- *  SINGLE source of truth for compaction (migration drops autoCompact off other
- *  missions), and it's persistent: deleting it makes it reappear DISABLED.
+ *  SINGLE source of truth for compaction, and it's persistent: deleting it makes
+ *  it reappear DISABLED.
  *  Existing installs keep whatever enabled state the user already has
  *  (compactMaintenanceSeeded guards re-seeding). */
 export const COMPACT_MAINTENANCE_MISSION: ScheduledMission = {
   id: 'compact-maintenance',
   label: 'Auto-compact (maintenance)',
-  intervalMs: 3_600_000,
+  // 2h, matching DEFAULT_CONTEXT_TRIGGER.compact.everyMs. The two cadences must
+  // agree: this mission is the schedule half of the same behaviour the context
+  // trigger now owns, and a 1h seed here would keep interrupting agents on the
+  // old rhythm no matter what the trigger says.
+  intervalMs: 7_200_000,
   to: '',
   body: '',
   enabled: false,
   autoCompact: true,
   kind: 'compact'
 };
+
+/** The 1h cadence `compact-maintenance` was seeded with before Triggers doubled
+ *  it. `migrateTriggersV1` bumps only missions still sitting on this EXACT value,
+ *  so an interval the user tuned by hand is left exactly where they put it. */
+const LEGACY_COMPACT_MAINTENANCE_INTERVAL_MS = 3_600_000;
 
 /** Circuit-breaker thresholds (Lane A #6.6b). The breaker runs inside the
  *  heartbeat beat, so it only ticks when the heartbeat is enabled. Trip
@@ -316,14 +345,39 @@ export interface HarnessConfig {
    *  tunes this in Settings → Realtime Michael. */
   realtimeIdleDisconnectMs?: number;
 
-  // ─── Generic inbound webhook + status API ──────────────────────────────────
-  /** Master toggle for the generic webhook HTTP API (POST → work, GET → status). */
+  // ─── Generic inbound webhook + status API (LEGACY, single-endpoint) ─────────
+  // Superseded by `webhookTriggers`, which allows many endpoints over one server
+  // and one tunnel. These three are kept because they are the MIGRATION SOURCE
+  // (`migrateTriggersV1` folds them into a `WebhookTrigger`) and because the main
+  // process still reads them until the server is rewired onto the new list.
+  // Nothing new should be written here.
+  /** @deprecated Use `webhookTriggers[].enabled`. */
   webhookEnabled?: boolean;
   /** App-generated shared secret callers echo in `x-md-webhook-secret`. Never
-   *  logged, and never forwarded into the routed message/card/response. */
+   *  logged, and never forwarded into the routed message/card/response.
+   *  @deprecated Use `webhookTriggers[].secret` (one secret per endpoint, so
+   *  revoking one caller never disturbs the others). */
   webhookSecret?: string;
-  /** Local HTTP port the generic webhook server binds to (default 3849). */
+  /** Local HTTP port the generic webhook server binds to (default 3849).
+   *  @deprecated The port is a property of the shared server, not of any one
+   *  trigger; `webhookTriggers` are multiplexed over it by id. */
   webhookPort?: number;
+
+  // ─── Triggers (src/shared/triggers.ts owns every type here) ────────────────
+  /** Auto-compaction / auto-clearing of agent terminal context. Both halves ship
+   *  in DEFAULT_CONTEXT_TRIGGER; `readConfig` deep-fills them, because the
+   *  top-level merge below is one level deep and a half-written sub-object would
+   *  otherwise reach consumers with `undefined` thresholds. */
+  contextTrigger?: ContextTriggerConfig;
+  /** Inbound HTTP endpoints, one entry per caller. Replaces the legacy single
+   *  webhook above; several coexist on one port, told apart by `id` in the path. */
+  webhookTriggers?: WebhookTrigger[];
+  /** Peer messaging between teammates' clone nodes. Persistence + UI only today —
+   *  no transport service reads `apiKey` yet. */
+  orgTrigger?: OrgTriggerConfig;
+  /** One-time guard for `migrateTriggersV1` (legacy webhook → webhookTriggers,
+   *  1h → 2h compact cadence). Set once the migration has run to completion. */
+  triggersMigratedV1?: boolean;
 
   // ─── Memory reflection (the janitor's condense half) ───────────────────────
   /** Master toggle for the in-process MemoryReflector. Default on. */
@@ -340,7 +394,46 @@ export interface HarnessConfig {
   /** Never condense a file smaller than this; also the section-trigger byte floor.
    *  DECIDED: 16 KB. */
   reflectMinBytes?: number;
+
+  // ─── Usage-limit guard (pause, queue, auto-resume) ─────────────────────────
+  /** How the floor reacts when a CLI reports it has hit its usage limit. */
+  limitGuard?: LimitGuardConfig;
+  /** Holds in force, persisted so a restart does not walk straight back into a
+   *  wall. RUNTIME STATE, not a setting — written by the gate, never by the
+   *  Settings UI, in the same spirit as `autoDeliveryPausedAgents`. */
+  limitHolds?: LimitHold[];
 }
+
+/**
+ * Usage-limit guard settings.
+ *
+ * `enabled` off restores the pre-feature behaviour exactly: nothing watches for
+ * limits, nothing is held, and messages are typed at a capped-out CLI the way
+ * they were before (where the TUI silently eats them).
+ */
+export interface LimitGuardConfig {
+  /** Master switch for detection + holding. */
+  enabled: boolean;
+  /** Lift a hold by itself when its reset time arrives. Off leaves the hold in
+   *  place until the operator presses resume — the queue is still preserved,
+   *  it just does not restart on its own. */
+  autoResume: boolean;
+  /** Also stand down for transient throttles (burst 429s, "overloaded").
+   *  Default OFF: the CLIs retry those themselves within seconds, so holding
+   *  for them mostly adds latency to a hiccup that had already resolved. */
+  holdOnThrottle: boolean;
+  /** Raise a desktop notification when a hold starts and when it lifts, so a
+   *  limit hit while the window is in the background is not discovered an hour
+   *  later. Honoured only when `notifications` is also on. */
+  notify: boolean;
+}
+
+export const DEFAULT_LIMIT_GUARD: LimitGuardConfig = {
+  enabled: true,
+  autoResume: true,
+  holdOnThrottle: false,
+  notify: true
+};
 
 const DEFAULTS: HarnessConfig = {
   onboardingComplete: false,
@@ -385,6 +478,13 @@ const DEFAULTS: HarnessConfig = {
   webhookEnabled: false,
   webhookSecret: undefined,
   webhookPort: undefined,
+  // Triggers. These three are the ONLY object/array defaults that get handed
+  // straight back out of `readConfig` for a config that never persisted them, so
+  // `withTriggerDefaults` re-copies them on every read — see the note there.
+  contextTrigger: DEFAULT_CONTEXT_TRIGGER,
+  webhookTriggers: [],
+  orgTrigger: DEFAULT_ORG_TRIGGER,
+  triggersMigratedV1: false,
   // Memory reflection — preventive; nobody is over threshold today, so it sits
   // dark until an agent's memory crosses one of these (the verify gate is the
   // safety for the LLM step). Thresholds DECIDED by god 2026-06-06.
@@ -394,6 +494,12 @@ const DEFAULTS: HarnessConfig = {
   reflectSectionTrigger: 50,
   reflectRecentKeep: 12,
   reflectMinBytes: 16_384,
+  // Usage-limit guard — ON by default. The behaviour it replaces is a silent
+  // data-loss bug (a message typed at a capped-out CLI is swallowed by its TUI
+  // and never runs), so shipping it dark would leave the bug in place for
+  // everyone who never finds the setting.
+  limitGuard: DEFAULT_LIMIT_GUARD,
+  limitHolds: [],
   // Enterprise Knowledge Graph — opt-in; dark until the user enables it.
   // v0.3.4 fix: default OFF, matching the field's own documentation ("Default
   // OFF / dark until enabled") — the true default contradicted it. Existing
@@ -405,16 +511,120 @@ function configPath(): string {
   return join(app.getPath('userData'), 'config.json');
 }
 
+/**
+ * Deep-fill the trigger sub-objects, and hand back copies of them.
+ *
+ * TWO problems, one fix. First, the merge in `readConfig` is one level deep, so a
+ * `contextTrigger` persisted by an older build (or by a `writeConfig` that
+ * patched only `compact`) arrives missing sub-keys that DEFAULTS would have
+ * supplied — the consumer then reads `undefined` where it expects a number and
+ * the rule never fires. Second, that same shallow merge hands the literal
+ * DEFAULT_CONTEXT_TRIGGER / DEFAULT_ORG_TRIGGER instances to every config that
+ * didn't persist them, so one caller mutating what it read would rewrite the
+ * defaults for the whole process — and for every config read afterwards.
+ *
+ * Every branch below therefore constructs a fresh object, including the
+ * "nothing persisted" branch.
+ */
+function withTriggerDefaults(cfg: HarnessConfig): HarnessConfig {
+  return {
+    ...cfg,
+    contextTrigger: {
+      compact: { ...DEFAULT_CONTEXT_TRIGGER.compact, ...cfg.contextTrigger?.compact },
+      clear: { ...DEFAULT_CONTEXT_TRIGGER.clear, ...cfg.contextTrigger?.clear }
+    },
+    orgTrigger: { ...DEFAULT_ORG_TRIGGER, ...cfg.orgTrigger },
+    webhookTriggers: Array.isArray(cfg.webhookTriggers)
+      ? cfg.webhookTriggers.map((t) => ({ ...t }))
+      : []
+  };
+}
+
+/** Set once `migrateTriggersV1` has run in THIS process. `writeConfig` reads
+ *  before it writes, so without an in-memory latch the migration's own persist
+ *  would re-enter `readConfig` and run the migration a second time before
+ *  `triggersMigratedV1: true` ever reached disk. */
+let triggersMigrationRan = false;
+
+/**
+ * Fold the pre-Triggers config shape forward, exactly once per install.
+ *
+ * Runs from `readConfig`, so it is complete before any consumer can observe the
+ * config — there is no boot ordering to get wrong and no window in which half
+ * the app sees the old shape. Two things move:
+ *
+ *   1. The single legacy webhook (`webhookEnabled`/`webhookSecret`) becomes one
+ *      `WebhookTrigger` with the stable id `legacy`, so the caller that already
+ *      holds that secret keeps working across the upgrade. Skipped when
+ *      `webhookTriggers` is already populated — the user has moved on, and
+ *      re-adding a synthesised entry would resurrect a revoked endpoint.
+ *   2. The seeded `compact-maintenance` mission moves from the old 1h cadence to
+ *      2h, but ONLY if it still reads exactly 1h. A user-chosen interval is a
+ *      decision, not a stale default, and is left alone.
+ *
+ * Wrapped end-to-end in a try/catch: a config that is corrupt in some unrelated
+ * way must still boot the app, and a migration is never worth a failed launch.
+ */
+function migrateTriggersV1(cfg: HarnessConfig): HarnessConfig {
+  if (cfg.triggersMigratedV1 || triggersMigrationRan) return cfg;
+  triggersMigrationRan = true;
+  try {
+    const next: HarnessConfig = { ...cfg, triggersMigratedV1: true };
+
+    const legacySecret = typeof cfg.webhookSecret === 'string' ? cfg.webhookSecret.trim() : '';
+    if (legacySecret && (cfg.webhookTriggers?.length ?? 0) === 0) {
+      next.webhookTriggers = [
+        {
+          id: 'legacy',
+          name: 'Default webhook',
+          secret: legacySecret,
+          enabled: cfg.webhookEnabled ?? false,
+          mode: DEFAULT_TRIGGER_MODE,
+          schema: DEFAULT_WEBHOOK_SCHEMA,
+          createdAt: Date.now()
+        }
+      ];
+    }
+
+    const missions = Array.isArray(cfg.missions) ? cfg.missions : [];
+    const stale = (m: ScheduledMission): boolean =>
+      m?.id === COMPACT_MAINTENANCE_MISSION.id
+      && m.intervalMs === LEGACY_COMPACT_MAINTENANCE_INTERVAL_MS;
+    if (missions.some(stale)) {
+      next.missions = missions.map((m) =>
+        stale(m) ? { ...m, intervalMs: COMPACT_MAINTENANCE_MISSION.intervalMs } : m
+      );
+    }
+
+    persistConfig(next);
+    return next;
+  } catch {
+    // Leave the config exactly as read. The latch above stays set, so a failing
+    // migration retries on the next launch rather than on every single read.
+    return cfg;
+  }
+}
+
 export function readConfig(): HarnessConfig {
   const p = configPath();
-  if (!existsSync(p)) return { ...DEFAULTS };
+  // No file yet = a first run with nothing to migrate; the defaults ARE the
+  // post-migration shape. Deliberately does not persist — a bare read must not
+  // conjure a config.json before onboarding has written one.
+  if (!existsSync(p)) return withTriggerDefaults({ ...DEFAULTS });
   try {
     const raw = readFileSync(p, 'utf8');
     const parsed = JSON.parse(raw);
-    return { ...DEFAULTS, ...parsed };
+    return migrateTriggersV1(withTriggerDefaults({ ...DEFAULTS, ...parsed }));
   } catch {
-    return { ...DEFAULTS };
+    return withTriggerDefaults({ ...DEFAULTS });
   }
+}
+
+function persistConfig(next: HarnessConfig): HarnessConfig {
+  const p = configPath();
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, JSON.stringify(next, null, 2), 'utf8');
+  return next;
 }
 
 export function writeConfig(patch: Partial<HarnessConfig>): HarnessConfig {
@@ -437,10 +647,7 @@ export function writeConfig(patch: Partial<HarnessConfig>): HarnessConfig {
     const prior = current.recentHives ?? [];
     next.recentHives = [patch.harnessHome, ...prior.filter((h) => h !== patch.harnessHome)].slice(0, 8);
   }
-  const p = configPath();
-  mkdirSync(dirname(p), { recursive: true });
-  writeFileSync(p, JSON.stringify(next, null, 2), 'utf8');
-  return next;
+  return persistConfig(next);
 }
 
 /** Wipe the persisted config back to first-run defaults so the app boots into
@@ -449,7 +656,11 @@ export function resetConfig(): HarnessConfig {
   const p = configPath();
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, JSON.stringify(DEFAULTS, null, 2), 'utf8');
-  return { ...DEFAULTS };
+  // Drop the migration latch too: the file on disk is back to `triggersMigratedV1:
+  // false`, and a latch left set would keep the flag from ever being written again
+  // in this process. The migration itself is a no-op on defaults either way.
+  triggersMigrationRan = false;
+  return withTriggerDefaults({ ...DEFAULTS });
 }
 
 /** Model ids by tier (Lane A #6.4). Kept in sync with AGENT_MODELS in

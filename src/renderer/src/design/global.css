@@ -81,19 +81,17 @@ canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
 ::-webkit-scrollbar-thumb:hover { background: var(--cth-ink-900); }
 
 /* commit-graph (open-source git visualiser) — harmonise with the pixel theme */
-.cth-commit-graph { background: var(--cth-paper-100); }
-.cth-commit-graph,
-.cth-commit-graph * {
-  font-family: var(--cth-font-ui) !important;
+/* Commit history. The `* { font-family: … !important }` blanket that used to live
+   here existed to reach inside the third-party commit-graph widget; the rows are
+   ours now, so fonts are set per element and the override would only fight the
+   monospace on hashes and timestamps. */
+.cth-commit-graph {
+  background: var(--cth-paper-100);
+  font-family: var(--cth-font-ui);
   color: var(--cth-ink-900);
 }
-/* monospace for hashes / dates so they read like the rest of the app */
-.cth-commit-graph .commit-hash,
-.cth-commit-graph .commitHash,
-.cth-commit-graph time {
-  font-family: var(--cth-font-mono) !important;
-  color: var(--cth-ink-500);
-}
+/* Row hover — the whole line is the click target for opening a commit. */
+.cth-commit-graph > div:hover { background: var(--cth-cream-200); }
 
 /* Drag region for hidden inset title bar (mac) */
 .cth-titlebar-drag { -webkit-app-region: drag; }

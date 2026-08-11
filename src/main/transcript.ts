@@ -3,17 +3,49 @@ import os from 'node:os';
 import path from 'node:path';
 import { estimateCostUsd, normalizeModel } from './pricing';
 
-/** Resolve the Claude Code transcript directory for a given working directory.
- *  Claude Code stores per-project transcripts under ~/.claude/projects, keying
- *  each project by its absolute cwd with the leading slash dropped and every
- *  remaining slash turned into a dash (e.g. /Users/me/app → Users-me-app). On
- *  Windows EVERY non-alphanumeric character is dashed (drive colon and
- *  backslashes included): C:\Users\me\app → C--Users-me-app. */
-export function projectDir(cwd: string): string {
-  const key = process.platform === 'win32'
-    ? cwd.replace(/[^a-zA-Z0-9]/g, '-')
+/** Claude Code's project key: the absolute cwd with EVERY non-alphanumeric
+ *  character turned into a dash — the leading slash and any dots included.
+ *  /Users/me/app → -Users-me-app, /Users/me/MDv0.3.0 → -Users-me-MDv0-3-0,
+ *  C:\Users\me\app → C--Users-me-app.
+ *
+ *  One rule for every platform. The Windows branch always used it; POSIX had its
+ *  own narrower spelling, and that divergence is what broke — see projectDir. */
+function projectKey(cwd: string): string {
+  return cwd.replace(/[^a-zA-Z0-9]/g, '-');
+}
+
+/** The pre-2026 POSIX key: leading slash DROPPED, only slashes dashed, so dots
+ *  survived (/Users/me/MDv0.3.0 → Users-me-MDv0.3.0). Kept solely so transcripts
+ *  written before the change stay readable. */
+function legacyProjectKey(cwd: string): string {
+  return process.platform === 'win32'
+    ? projectKey(cwd)
     : cwd.replace(/^\//, '').replaceAll('/', '-');
-  return path.join(os.homedir(), '.claude/projects', key);
+}
+
+/** Resolve the Claude Code transcript directory for a given working directory:
+ *  ~/.claude/projects keyed by cwd.
+ *
+ *  We used to emit the legacy key unconditionally on POSIX, which silently
+ *  stopped matching once Claude Code moved to dashing every non-alphanumeric.
+ *  Nothing errored — every caller reads an absent directory as "no transcripts
+ *  yet" — so the miss cost months of dead memory condensation (a long run of
+ *  `condense-abort`s with zero successes) and a usage reconciler quietly reading
+ *  nothing at all.
+ *
+ *  Prefer the CURRENT spelling; fall back to the legacy one only when it exists
+ *  and the current one does not, so pre-change installs stay readable. That order
+ *  is not cosmetic: this harness itself created legacy-named directories by
+ *  copying transcripts into them, so a fallback-first resolver would keep reading
+ *  our own stale copies forever. When neither exists we return the CURRENT
+ *  spelling, because callers that go on to create the directory must create the
+ *  one Claude Code will actually read. */
+export function projectDir(cwd: string): string {
+  const root = path.join(os.homedir(), '.claude/projects');
+  const current = path.join(root, projectKey(cwd));
+  if (existsSync(current)) return current;
+  const legacy = path.join(root, legacyProjectKey(cwd));
+  return existsSync(legacy) ? legacy : current;
 }
 
 /** Ensure session `<sessionId>.jsonl` exists in `cwd`'s Claude project dir so a

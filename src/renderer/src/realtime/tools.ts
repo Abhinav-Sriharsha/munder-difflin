@@ -232,11 +232,11 @@ export function realtimeReadTools(): ReturnType<typeof tool>[] {
         }, 'token usage')
     }),
 
-    // ── get_schedules ─────────────────────────────────────────────────────
+    // ── get_triggers ──────────────────────────────────────────────────────
     tool({
-      name: 'get_schedules',
+      name: 'get_triggers',
       description:
-        'The recurring scheduled missions the hive fires on a timer: their labels, cadence, recipient, and when each last fired. Call this when the user asks about schedules, recurring jobs, heartbeats, or automations.',
+        'The triggers that fire the hive without a human typing. Today this reports the schedules: the recurring missions the hive runs on a timer, with their labels, cadence, recipient, and when each last fired. The other trigger types — webhooks and inbound organization messages — are configured elsewhere and are not listed here. Call this when the user asks about triggers, schedules, recurring jobs, heartbeats, or automations.',
       parameters: { type: 'object', properties: {}, required: [], additionalProperties: false },
       execute: () =>
         spoken(async () => {

@@ -16,7 +16,7 @@ you talk to, and visualized as avatars at work on a shared office floor.
 
 <p>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
-  <a href="./CHANGELOG.md"><img alt="Version: 0.3.7" src="https://img.shields.io/badge/version-0.3.7-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
+  <a href="./CHANGELOG.md"><img alt="Version: 0.3.8" src="https://img.shields.io/badge/version-0.3.8-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
   <img alt="Status: prototype" src="https://img.shields.io/badge/status-working%20prototype-F4F1EA.svg?style=flat-square&labelColor=6E1423">
   <img alt="Platform: macOS | Windows | Linux" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-F4F1EA.svg?style=flat-square&labelColor=6E1423">
   <a href="./CONTRIBUTING.md"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
@@ -136,11 +136,12 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 - **Auto-update** — new releases download in the background; you click restart.
 
 > [!NOTE]
-> **Status: v0.3.7 — auto-update, fixed.** A CommonJS/ESM import bug meant the native updater
-> silently never ran in any packaged build from v0.3.4 on, so the app could only ever offer a link
-> to the releases page. It now works, the toolbar version doubles as the update button, and update
-> errors reach the UI and a log file instead of being swallowed. **Existing v0.3.5 / v0.3.6 installs
-> carry the broken updater and must install v0.3.7 manually, once** — after that, updates are automatic.
+> **Status: v0.3.8 — the floor stops typing when it can't be heard.** A rate-limited CLI discards
+> keystrokes silently, so every message delivered during a limit window was simply lost. Agents on a
+> capped provider are now held, their queues keep filling, and delivery resumes by itself at the
+> reset — one message at a time, nothing to resend by hand. Also in this release: a Triggers hub,
+> a fix for memory condensation that had never once succeeded, compaction that no longer runs on
+> two schedules at once, and a commit history that is actually readable.
 > macOS (signed & notarized), Windows, and Linux builds are on the
 > [releases page](https://github.com/chaitanyagiri/munder-difflin/releases/latest).
 
@@ -247,7 +248,7 @@ src/
     App.tsx                  top-level layout + wiring
     design/                  tokens.css / tokens.ts / global.css (design source of truth)
     components/              PixelPanel, AgentDetailPanel, CommandBar, ApprovalsPanel, MemoryPanel, …
-    CommandCenterPanel,      Michael's control surface (Terminal/Floor/Memory/Activity/Tasks/Schedules/Handbook tabs)
+    CommandCenterPanel,      Michael's control surface (Terminal/Floor/Memory/Activity/Tasks/Triggers/Handbook tabs)
     ToolWaterfall,           per-agent tool-span waterfall for the observability view
     TasksKanban,             dependency-aware kanban board (Tasks tab)
     ThreadsPanel,            hive message conversation viewer (Messages tab)
@@ -273,7 +274,7 @@ chrome. The 15 avatars are the cast of *The Office*, differentiated by hair/skin
 
 ## Roadmap
 
-Shipped through **v0.3.7** — nine agent engines with BYOK keys and local LLMs, voice orchestration,
+Shipped through **v0.3.8** — nine agent engines with BYOK keys and local LLMs, voice orchestration,
 the hive (memory · mailboxes · blackboard · event log), Command Center with kanban and schedules,
 a built-in Monaco IDE with git rails, integrations registry + secret broker, Slack-spawned workers,
 shareable hires and the Agent Gallery, observability and the circuit breaker, durable persistence,

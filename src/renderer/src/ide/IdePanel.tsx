@@ -19,6 +19,9 @@ function defaultMdView(): MdView {
   return 'split';
 }
 
+/** Remembers the git rail collapse across IDE opens and app restarts. */
+const GIT_RAIL_COLLAPSED_KEY = 'cth.ide.gitRailCollapsed';
+
 // ─── Local mirrors of the main-side git shapes (kept renderer-local like GitTab) ──
 interface GitStatusEntry { path: string; index: string; worktree: string }
 interface GitStatusT { staged: GitStatusEntry[]; unstaged: GitStatusEntry[]; untracked: string[] }
@@ -80,6 +83,21 @@ export function IdePanel() {
   // v0.3.4 git visualization: which rail pane is showing, and the repo's MAIN
   // root (a worktree's history/compare must run against the shared repo).
   const [railTab, setRailTab] = useState<'changes' | 'history' | 'compare'>('changes');
+  // Git rail collapse. The history graph is tall by nature, and someone working
+  // in the file tree wants that space back — persisted because it is a working
+  // preference, not a mode, and re-collapsing it on every IDE open would be a
+  // chore. Only the pane collapses; the CHANGES/HISTORY/COMPARE strip stays put
+  // so the control that expands it again is always visible.
+  const [gitCollapsed, setGitCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(GIT_RAIL_COLLAPSED_KEY) === '1'; } catch { return false; }
+  });
+  const toggleGitRail = (): void => {
+    setGitCollapsed((v) => {
+      const next = !v;
+      try { localStorage.setItem(GIT_RAIL_COLLAPSED_KEY, next ? '1' : '0'); } catch { /* private mode */ }
+      return next;
+    });
+  };
   const [gitRoot, setGitRoot] = useState<string | null>(null);
   useEffect(() => {
     if (!root) return;
@@ -357,29 +375,49 @@ export function IdePanel() {
               flexShrink: 0, display: 'flex', gap: 2, padding: '6px 10px 4px',
               background: 'var(--cth-cream-50)', borderBottom: '1px solid var(--cth-ink-100)'
             }}>
+              <button
+                onClick={toggleGitRail}
+                title={gitCollapsed ? 'Expand the git panel' : 'Collapse the git panel — more room for the file tree'}
+                aria-label={gitCollapsed ? 'Expand the git panel' : 'Collapse the git panel'}
+                aria-expanded={!gitCollapsed}
+                style={{
+                  ...iconBtn,
+                  // A caret is the one glyph that reads as "this section folds"
+                  // without a legend; it points at where the content will go.
+                  fontFamily: 'var(--cth-font-mono)', fontSize: 10, lineHeight: '14px',
+                  color: 'var(--cth-ink-700)'
+                }}
+              >{gitCollapsed ? '▸' : '▾'}</button>
               {(['changes', 'history', 'compare'] as const).map((k) => (
                 <button
                   key={k}
-                  onClick={() => setRailTab(k)}
+                  // Picking a tab while collapsed means "show me this" — expanding
+                  // is the only reading of that click that isn't a dead end.
+                  onClick={() => { setRailTab(k); if (gitCollapsed) toggleGitRail(); }}
                   style={{
                     padding: '1px 8px', border: 'none', cursor: 'pointer',
                     fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '14px',
                     textTransform: 'uppercase', color: 'var(--cth-ink-700)',
-                    background: railTab === k ? 'var(--cth-sky-light)' : 'transparent',
-                    boxShadow: railTab === k ? 'inset 0 0 0 1px var(--cth-ink-300)' : 'none'
+                    background: railTab === k && !gitCollapsed ? 'var(--cth-sky-light)' : 'transparent',
+                    boxShadow: railTab === k && !gitCollapsed ? 'inset 0 0 0 1px var(--cth-ink-300)' : 'none'
                   }}
                 >{k}</button>
               ))}
               <span style={{ flex: 1 }} />
-              {railTab === 'changes' && (
+              {railTab === 'changes' && !gitCollapsed && (
                 <button onClick={() => refreshStatus()} title="Refresh" style={iconBtn}>
                   <Icon name="web" />
                 </button>
               )}
             </div>
-            {railTab === 'changes' && (
+            {railTab === 'changes' && !gitCollapsed && (
             <div style={{ flexShrink: 0, maxHeight: '45%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <div style={{ overflow: 'auto', minHeight: 0 }}>
+              {/* `flex: 1` is what makes this scroll. Without it the scroller's
+                  height is its CONTENT height (flex-basis auto), so it grew past
+                  the parent's maxHeight and simply overflowed instead of ever
+                  reaching its own scroll threshold — a long changed-file list ran
+                  off the bottom with no way to reach the end. */}
+              <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                 {isRepo === false && (
                   <div style={{ padding: '6px 12px', fontSize: 12, color: 'var(--cth-ink-500)' }}>not a git repo</div>
                 )}
@@ -413,10 +451,10 @@ export function IdePanel() {
               </div>
             </div>
             )}
-            {railTab === 'history' && gitRoot && (
+            {railTab === 'history' && gitRoot && !gitCollapsed && (
               <HistoryPane key={gitRoot} gitRoot={gitRoot} onOpenRevDiff={openRevDiff} />
             )}
-            {railTab === 'compare' && gitRoot && (
+            {railTab === 'compare' && gitRoot && !gitCollapsed && (
               <ComparePane key={gitRoot} gitRoot={gitRoot} onOpenRevDiff={openRevDiff} />
             )}
             {/* FILES */}

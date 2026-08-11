@@ -23,7 +23,7 @@ faq:
   - q: "How do I review what an agent actually changed?"
     a: "Open the built-in Monaco IDE from the title-bar IDE button. Its git CHANGES rail lists every modified file, and clicking one opens a read-only side-by-side diff against HEAD — the VS Code editor engine, fully self-hosted, with all filesystem and git access brokered through the main process. There's also a per-agent git tab with status, log, and commit graph."
   - q: "Can Munder Difflin keep working after I walk away?"
-    a: "Yes — that's the point. The Schedules tab in the Command Center holds recurring missions with a label, interval, target agent, and body, plus a heartbeat that re-engages the floor when it goes quiet. It's local-first, so the office runs 24/7 on hardware you already own."
+    a: "Yes — that's the point. The Triggers tab in the Command Center holds recurring missions with a label, interval, target agent, and body, plus a heartbeat that re-engages the floor when it goes quiet. It's local-first, so the office runs 24/7 on hardware you already own."
 ---
 
 <div class="callout tldr"><span class="ic">TL;DR</span><p><strong>You can go from zero to a running AI office in one hour.</strong> Minute 0: install. Minute 5: the <strong>onboarding wizard</strong> (harness home, repos, auto-mode, orchestrator engine). Minute 10: your <strong>first brief to Michael</strong>, the GOD orchestrator. Minute 20: watch avatars work the floor and open a real desk terminal. Minute 40: your <strong>first approval</strong> and a side-by-side diff in the built-in <strong>Monaco IDE</strong>. Minute 60: set a <strong>schedule</strong> and walk away — the office keeps working.</p></div>
@@ -73,7 +73,7 @@ Before you click approve, look at the work. Hit the title-bar **IDE** button and
 
 ## Minute 60 — Leave it running
 
-The last move of the hour is the one that changes your relationship with the tool: schedule something. The Command Center's **Schedules** tab takes a label, an interval, a target agent, and a mission body — "every morning, triage new GitHub issues," say — and a heartbeat re-engages the floor if it goes quiet. Last-fired and next-fired times are right there in the tab.
+The last move of the hour is the one that changes your relationship with the tool: schedule something. The Command Center's **Triggers** tab takes a label, an interval, a target agent, and a mission body — "every morning, triage new GitHub issues," say — and a heartbeat re-engages the floor if it goes quiet. Last-fired and next-fired times are right there in the tab.
 
 Close the laptop. It's local-first, so tomorrow the office is exactly where you left it — probably with mail in your queue. For patterns on what's worth automating, see [scheduling autonomous agent missions](/blog/scheduling-autonomous-agent-missions/).
 

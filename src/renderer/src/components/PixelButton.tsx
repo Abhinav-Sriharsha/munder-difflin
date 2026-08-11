@@ -30,33 +30,48 @@ export function PixelButton({
   const [pressed, setPressed] = useState(false);
   const [hover, setHover] = useState(false);
 
+  // DISABLED TEXT IS ITS OWN COLOR, not the variant's.
+  //
+  // Every variant swaps its FILL to `--cth-cream-300` when disabled, but the
+  // variants used to keep their enabled text token — and `primary`'s is
+  // `--cth-cream-50`, the INVERSE foreground picked to sit on an ink-900 button.
+  // On the cream-300 disabled fill that pairing collapses: in dark mode it is
+  // #1A191E text on #37363E (~1.4:1, effectively invisible), and in light mode a
+  // near-white #FFFDF5 on tan, which is barely better. That is why a disabled
+  // Send or Dispatch reads as an empty box.
+  //
+  // `--cth-ink-500` is the one foreground that works against cream-300 in BOTH
+  // themes, because both tokens flip together — and a muted label is what a
+  // disabled control should look like anyway.
+  const disabledText = 'var(--cth-ink-500)';
+
   const palette = (() => {
     switch (variant) {
       case 'primary':
         return {
           fill:    disabled ? 'var(--cth-cream-300)' : (hover ? 'var(--cth-ink-700)' : 'var(--cth-ink-900)'),
-          text:    'var(--cth-cream-50)',
+          text:    disabled ? disabledText : 'var(--cth-cream-50)',
           border:  'var(--cth-ink-900)',
           shadow:  'var(--cth-ink-900)'
         };
       case 'secondary':
         return {
           fill:    disabled ? 'var(--cth-cream-300)' : (hover ? 'var(--cth-cream-200)' : 'var(--cth-cream-100)'),
-          text:    'var(--cth-ink-900)',
+          text:    disabled ? disabledText : 'var(--cth-ink-900)',
           border:  'var(--cth-ink-300)',
           shadow:  'var(--cth-ink-100)'
         };
       case 'ghost':
         return {
           fill:    hover ? 'var(--cth-cream-200)' : 'transparent',
-          text:    'var(--cth-ink-700)',
+          text:    disabled ? disabledText : 'var(--cth-ink-700)',
           border:  'var(--cth-ink-300)',
           shadow:  'var(--cth-ink-100)'
         };
       case 'destructive':
         return {
           fill:    disabled ? 'var(--cth-cream-300)' : (hover ? 'var(--cth-coral-light)' : 'var(--cth-coral)'),
-          text:    'var(--cth-ink-900)',
+          text:    disabled ? disabledText : 'var(--cth-ink-900)',
           border:  'var(--cth-ink-500)',
           shadow:  'var(--cth-ink-300)'
         };

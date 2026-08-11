@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStore, selectedAgent } from '@/store/store';
 import { startMockLoop, stopMockLoop } from '@/store/mockEvents';
 import type { HarnessConfig } from '@/store/config';
+import { DEFAULT_ORG_TRIGGER } from '@shared/triggers';
 import { OfficeFloor } from '@/scene/office/OfficeFloor';
 import { useHive } from '@/hooks/useHive';
 import { MemoryPanel } from '@/components/MemoryPanel';
@@ -16,7 +17,7 @@ import { CompletionToast } from '@/realtime/CompletionToast';
 import { UpdateToast } from '@/components/UpdateToast';
 import { UpdateBadge } from '@/components/UpdateBadge';
 import { useAppTheme, toggleAppTheme } from '@/design/theme';
-import { SettingsModal } from '@/components/SettingsModal';
+import { SettingsModal, type Section as SettingsSection } from '@/components/SettingsModal';
 import { PixelPanel } from '@/components/PixelPanel';
 import { PixelButton } from '@/components/PixelButton';
 import { Icon } from '@/components/Icon';
@@ -62,9 +63,27 @@ export function App() {
     return false;
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Which tab Settings opens on. Set by a `cth:open-settings` deep link, reset
+   *  to undefined (→ General) whenever the modal is opened the normal way. */
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>(undefined);
   const [quitWarn, setQuitWarn] = useState<{ ptyCount: number } | null>(null);
   const [closing, setClosing] = useState<ClosingTimeState | null>(null);
   const [vpWidth, setVpWidth] = useState<number>(window.innerWidth);
+
+  // Deep link into Settings from anywhere in the tree. Settings' open state is
+  // local to App, so a nested control (e.g. "set it now" beside a disabled Talk
+  // button) has no path to it without threading a prop through every layer
+  // between; a window event keeps that plumbing out of the components in
+  // between, matching the existing `cth:` CustomEvent convention.
+  useEffect(() => {
+    const onOpenSettings = (e: Event): void => {
+      const section = (e as CustomEvent<{ section?: SettingsSection }>).detail?.section;
+      setSettingsSection(section);
+      setSettingsOpen(true);
+    };
+    window.addEventListener('cth:open-settings', onOpenSettings);
+    return () => window.removeEventListener('cth:open-settings', onOpenSettings);
+  }, []);
 
   // Initial config load
   useEffect(() => {
@@ -82,6 +101,16 @@ export function App() {
       // Mirror the active office theme so OfficeFloor renders it (gated on the
       // tvShowOffices flag; off = always the office). Settings keeps this synced.
       useStore.getState().setOfficeTheme(c.tvShowOffices ? (c.officeTheme ?? 'office') : 'office');
+      // Mirror the triggers so Settings → Connections and the Command Center's
+      // Triggers tab read one list, not two copies that drift — whichever surface
+      // saves calls these same setters and the other repaints. No extra IPC: main
+      // deep-fills both fields on every config read (withTriggerDefaults), so
+      // getConfig() already serves what listWebhooks()/getOrgTrigger() would.
+      // `c` is typed as the PRELOAD's HarnessConfig, which hasn't picked the two
+      // fields up yet (another lane's file); the renderer mirror type declares them.
+      const withTriggers = c as HarnessConfig;
+      useStore.getState().setWebhookTriggers(withTriggers.webhookTriggers ?? []);
+      useStore.getState().setOrgTrigger(withTriggers.orgTrigger ?? DEFAULT_ORG_TRIGGER);
     });
     // Mirror BYOK OpenAI key presence (boolean only; the key never leaves main) so the
     // Realtime Michael voice toggle can gate on it. Lives in the secret broker, not
@@ -303,7 +332,7 @@ export function App() {
             (sidebar detail, god Command Center, fullscreen) carries it. */}
         <button
           className="cth-titlebar-nodrag cth-settings-btn"
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => { setSettingsSection(undefined); setSettingsOpen(true); }}
           title="Settings"
           aria-label="Settings"
           style={{
@@ -415,7 +444,11 @@ export function App() {
       )}
 
       {settingsOpen && (
-        <SettingsModal config={config} onClose={() => setSettingsOpen(false)} />
+        <SettingsModal
+          config={config}
+          initialSection={settingsSection}
+          onClose={() => { setSettingsOpen(false); setSettingsSection(undefined); }}
+        />
       )}
 
       {quitWarn && (

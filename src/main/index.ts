@@ -14,7 +14,8 @@ import { initAutoUpdater } from './updater';
 import { RealtimeFloorWatcher } from './realtimeFloorWatcher';
 import {
   readConfig, writeConfig, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
-  modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
+  modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, DEFAULT_LIMIT_GUARD,
+  type HarnessConfig, type ScheduledMission
 } from './config';
 import { listDir, readFileText, writeFileText, statAbs, expandTilde } from './fs';
 import {
@@ -33,7 +34,19 @@ import { PersistStore } from './db';
 import { readAgentUsage, readContextTokens, seedSessionTranscript, resolveSessionCwd } from './transcript';
 import { listIssues, listCIRuns } from './github';
 import { SlackWebhookServer, SlackReplyServer, postSlackReply, type SlackEventFile } from './slack';
-import { WebhookServer, type WebhookInbound, type WebhookTaskStatus } from './webhook';
+import {
+  WebhookServer,
+  type WebhookDispatch, type WebhookEndpointRef, type WebhookInbound, type WebhookTaskStatus
+} from './webhook';
+import {
+  classifyInboundKind, isAutoAllowed,
+  DEFAULT_CONTEXT_TRIGGER, DEFAULT_ORG_TRIGGER, DEFAULT_TRIGGER_MODE, DEFAULT_WEBHOOK_SCHEMA,
+  type ContextRule, type ContextTriggerConfig, type InboundKind, type OrgTriggerConfig,
+  type TriggerHistoryEntry, type TriggerMode, type WebhookTrigger
+} from '../shared/triggers';
+import {
+  appendTriggerHistory, clearTriggerHistory, listTriggerHistory, updateTriggerHistory
+} from './triggerHistory';
 import { transcribeWithGroq, DEFAULT_GROQ_MODEL } from './freeflow';
 import { registerRealtimeIpc } from './realtime';
 import { registerRealtimeActionIpc } from './realtimeActions';
@@ -45,6 +58,8 @@ import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
 import { RosterStore } from './roster';
 import { ControlRegistry } from './control';
+import { LimitGate, scopeFor, type LimitHold } from './limitGate';
+import type { LimitSignal } from '../shared/rateLimit';
 import { fetchHireManifest, readHireManifestFile } from './hire';
 import { parseHireDeepLink, type HireManifest } from '../shared/hire';
 import { ClosingTimeController } from './closingTime';
@@ -217,6 +232,10 @@ const hive = new HiveManager(
 // #7C — operator control state (pause/gate/steer/halt), read by the HookServer
 // when deciding hook returns.
 const control = new ControlRegistry();
+// Usage-limit holds. Lives in main so it survives a renderer reload — a floor
+// that forgot it was rate limited every time the window refreshed would type
+// straight back into the wall it was told about.
+const limitGate = new LimitGate();
 // Stage 7A — the live observability tap. Receives Claude Code's first-party OTel
 // over loopback OTLP/JSON and exposes the locked usage-provider seam. resolveCwd
 // lets the transcript fallback find an agent's cwd from the hive registry.
@@ -608,8 +627,18 @@ function syncMissions(): void {
         // renderer, which queues a /compact per agent (deduped — never two at
         // once) and delivers it only when that agent goes idle (its drain loop),
         // so a working agent compacts between steps, never mid-step.
+        //
+        // The CADENCE now belongs to the context trigger, not to a mission — but
+        // the legacy per-mission `autoCompact` flag keeps working, routed through
+        // the same emit so there is exactly ONE path from main to the renderer.
+        // It carries the context trigger's current rule so a mission-driven
+        // compaction obeys the same pressure thresholds as a trigger-driven one.
+        //
+        // Rate-limit holds are enforced inside emitContextTrigger, which is the
+        // single choke point both this path and the context trigger's own timer
+        // pass through.
         if (m.autoCompact || m.kind === 'compact') {
-          try { liveWebContents()?.send('mission:autoCompact'); } catch { /* window gone */ }
+          emitContextTrigger('compact', contextRule('compact'));
         }
         const current = readConfig().missions ?? [];
         const next = current.map((x) =>
@@ -632,6 +661,126 @@ function syncMissions(): void {
       entry.interval = setInterval(fire, m.intervalMs);
     }, remaining);
     missionTimers.set(m.id, entry);
+  }
+}
+
+// ─── Context trigger (auto-compact / auto-clear own their own timers) ────────
+// Compaction used to ride on a mission (`compact-maintenance`), which meant the
+// operator had TWO competing controls for one behaviour — a schedule with an
+// interval and a trigger with a cadence. The mission is retired (see the
+// retirement migration in ensureDefaultMissions); these timers are the single
+// remaining source of scheduled context maintenance.
+//
+// Main owns only the CADENCE. The pressure gate (`minContextPct`) needs each
+// agent's live context usage, which only the renderer has, so the whole rule
+// rides along in the event and the renderer decides which agents actually get
+// the command. That split is why the payload carries the rule rather than a bare
+// "go" signal.
+
+/** Timers for the two halves, keyed by action. Same two-phase shape as
+ *  `missionTimers` (a setTimeout for the remaining time, then a steady interval)
+ *  so a partially-elapsed cadence survives a re-arm. */
+const contextTimers = new Map<'compact' | 'clear', MissionTimer>();
+
+/** `ContextRule` has no `lastFiredAt` (unlike `ScheduledMission`), so the last-run
+ *  instants live in the durable kv store instead. Without them every re-arm —
+ *  boot, a settings edit, a wake from sleep — would restart a 2h cadence from
+ *  zero, and an operator who edits the rule twice a day would never see it fire. */
+const CONTEXT_LAST_RUN_KV_KEY = 'triggers.context.lastRun';
+let contextLastRun: Record<string, number> | null = null;
+
+function contextRunMap(): Record<string, number> {
+  if (!contextLastRun) {
+    try { contextLastRun = persist.getKv<Record<string, number>>(CONTEXT_LAST_RUN_KV_KEY) ?? {}; }
+    catch { contextLastRun = {}; }
+  }
+  return contextLastRun;
+}
+
+/** When the rule last ran. An UNRECORDED half is stamped NOW rather than read as
+ *  the epoch: `remaining` would otherwise clamp to 0 and compact every terminal
+ *  the instant the app boots. It is the same trap `ensureDefaultMissions` avoids
+ *  by stamping `lastFiredAt` when it seeds a mission — a first launch should wait
+ *  a full cadence, not open with an interruption. */
+function contextLastRunAt(action: 'compact' | 'clear'): number {
+  const map = contextRunMap();
+  const v = map[action];
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  return stampContextRun(action);
+}
+
+function stampContextRun(action: 'compact' | 'clear'): number {
+  const map = contextRunMap();
+  const at = Date.now();
+  map[action] = at;
+  try { persist.setKv(CONTEXT_LAST_RUN_KV_KEY, map); } catch { /* DB best-effort */ }
+  return at;
+}
+
+/** The live rule for one half, deep-filled. `readConfig` already fills both
+ *  halves, so the default is only a belt-and-braces fallback. */
+function contextRule(action: 'compact' | 'clear'): ContextRule {
+  return readConfig().contextTrigger?.[action] ?? DEFAULT_CONTEXT_TRIGGER[action];
+}
+
+/** Clear and forget both context timers (setTimeout + setInterval handles). */
+function clearContextTimers(): void {
+  for (const t of contextTimers.values()) {
+    if (t.timeout) clearTimeout(t.timeout);
+    if (t.interval) clearInterval(t.interval);
+  }
+  contextTimers.clear();
+}
+
+/** Ask the renderer to run one half of the context trigger.
+ *
+ *  COMPACTION IS HELD WHILE ANYTHING IS RATE LIMITED. `/compact` is a model call:
+ *  sending it into a capped-out CLI spends a rejected attempt and, worse, leaves a
+ *  queued `/compact` sitting ahead of the operator's real backlog when the window
+ *  reopens. The next tick picks it up once the hold lifts.
+ *
+ *  The gate lives HERE rather than at the call sites because there are two of
+ *  them — the legacy per-mission `autoCompact` flag and the context trigger's own
+ *  timer — and a gate on only one of them is no gate at all. `clear` is
+ *  deliberately NOT held: it is handled locally by the CLI, costs no model call,
+ *  and a capped agent is exactly when trimming context is still useful. */
+function emitContextTrigger(action: 'compact' | 'clear', rule: ContextRule): void {
+  if (action === 'compact' && limitGuardSettings().enabled && limitGate.list().length > 0) return;
+  try { liveWebContents()?.send('trigger:context', { action, rule }); } catch { /* window gone */ }
+  // TRANSITIONAL ALIAS: the renderer still carries the pre-Triggers
+  // `mission:autoCompact` listener as a fallback. Both fire for compact until
+  // every consumer has moved to `trigger:context`; then this line goes.
+  if (action === 'compact') {
+    try { liveWebContents()?.send('mission:autoCompact'); } catch { /* window gone */ }
+  }
+}
+
+/** (Re)arm both context timers from persisted config. Clear-then-arm, so calling
+ *  it after a settings change, on boot, or on wake from sleep can never stack
+ *  duplicates. Honors elapsed-time-since-last-run exactly like mission arming:
+ *  an overdue rule fires ONCE and then settles into its steady cadence. */
+function syncContextTriggers(): void {
+  clearContextTimers();
+  for (const action of ['compact', 'clear'] as const) {
+    const rule = contextRule(action);
+    if (!rule.enabled || !(rule.everyMs > 0)) continue;
+    const fire = (): void => {
+      try {
+        stampContextRun(action);
+        // Re-read: the operator may have edited the message/thresholds since the
+        // timer was armed, and the renderer should act on what's current.
+        emitContextTrigger(action, contextRule(action));
+      } catch (e) {
+        console.error('[triggers] context', action, e);
+      }
+    };
+    const remaining = Math.max(0, rule.everyMs - (Date.now() - contextLastRunAt(action)));
+    const entry: MissionTimer = {};
+    entry.timeout = setTimeout(() => {
+      fire();
+      entry.interval = setInterval(fire, rule.everyMs);
+    }, remaining);
+    contextTimers.set(action, entry);
   }
 }
 
@@ -691,32 +840,72 @@ function ensureDefaultMissions(): void {
     });
   }
 
-  // maint-1: the dedicated auto-compact maintenance mission. Auto-compact USED to
-  // ride solely on the ops standup's autoCompact flag, so replacing the standup
-  // silently disabled compaction for all long-running agents. This makes it a
-  // first-class, persistent schedule:
-  //   • FIRST seed (flag unset): add it ENABLED + MIGRATE — drop autoCompact from
-  //     every OTHER mission so this is the single source of truth (no double
-  //     /compact whether compaction rode the standup or a stopgapped custom mission).
-  //   • PERSISTENT (flag set): if the user later deletes it, it reappears DISABLED
-  //     next boot — never silently lost (only user-disabled, with a UI warning).
+  // maint-1 RETIREMENT: `compact-maintenance` is no longer a mission. Scheduled
+  // compaction is now the CONTEXT TRIGGER's job, so the operator has exactly one
+  // control (a cadence + a pressure gate + an editable message) instead of two
+  // that could disagree — a mission saying "hourly" while the trigger said "2h"
+  // was a real, unresolvable conflict.
+  //
+  // The carry-over preserves the operator's decisions: whether compaction was ON
+  // and how often. It runs at most once per install, and its guard is the
+  // mission's own ABSENCE — nothing seeds `compact-maintenance` any more, so once
+  // this has removed it there is nothing left to carry and a later hand-edit of
+  // the trigger can never be clobbered. That keeps the `*Seeded` convention's
+  // promise (exactly once, ever) without a config flag that would only ever be
+  // read here; `compactMaintenanceSeeded` is left set so nothing re-seeds it.
   const cfg3 = readConfig();
   const missions3 = cfg3.missions ?? [];
-  const hasCompact = missions3.some((m) => m.id === COMPACT_MAINTENANCE_MISSION.id);
-  if (!cfg3.compactMaintenanceSeeded) {
-    const migrated = missions3.map((m) =>
-      m.id === COMPACT_MAINTENANCE_MISSION.id ? m : { ...m, autoCompact: false }
-    );
+  const retiring = missions3.find((m) => m.id === COMPACT_MAINTENANCE_MISSION.id);
+  if (retiring) {
+    const current = cfg3.contextTrigger ?? DEFAULT_CONTEXT_TRIGGER;
     writeConfig({
-      missions: hasCompact
-        ? migrated
-        : [...migrated, { ...COMPACT_MAINTENANCE_MISSION, lastFiredAt: Date.now() }],
+      missions: missions3.filter((m) => m.id !== COMPACT_MAINTENANCE_MISSION.id),
+      contextTrigger: {
+        ...current,
+        compact: {
+          ...current.compact,
+          enabled: retiring.enabled,
+          // A hand-tuned interval is a decision; only a missing/absurd one falls
+          // back to whatever the trigger already carries.
+          everyMs: retiring.intervalMs > 0 ? retiring.intervalMs : current.compact.everyMs
+        }
+      },
       compactMaintenanceSeeded: true
     });
-  } else if (!hasCompact) {
+    // …and its elapsed time, so retiring the mission mid-cycle doesn't restart a
+    // 2h cadence from zero (the timers honour last-run exactly as arming did).
+    if (typeof retiring.lastFiredAt === 'number' && retiring.lastFiredAt > 0) {
+      const map = contextRunMap();
+      map.compact = retiring.lastFiredAt;
+      try { persist.setKv(CONTEXT_LAST_RUN_KV_KEY, map); } catch { /* DB best-effort */ }
+    }
+    console.log('[triggers] retired the compact-maintenance mission into contextTrigger.compact',
+      `(enabled: ${retiring.enabled}, everyMs: ${retiring.intervalMs})`);
+  }
+
+  // autoCompact RETIREMENT: the flag above was only ever half-removed. Retiring
+  // `compact-maintenance` left `autoCompact: true` sitting on the ops standup, so
+  // a default install still asked for compaction on TWO cadences — hourly from the
+  // standup, 2-hourly from the trigger — which is precisely the disagreement that
+  // retirement claims to have ended. (config.ts even documented a migration that
+  // strips this; it did not exist.)
+  //
+  // Strip it wherever it survives. This is a pure de-duplication, not a behaviour
+  // change: contextTrigger.compact still runs, still on the user's own cadence and
+  // pressure gate, and it is what actually performed every one of these
+  // compactions already — both paths have called emitContextTrigger since Triggers
+  // landed. Idempotent, so it costs one no-op scan per boot once clean.
+  const cfg4 = readConfig();
+  const missions4 = cfg4.missions ?? [];
+  if (missions4.some((m) => m.autoCompact)) {
     writeConfig({
-      missions: [...missions3, { ...COMPACT_MAINTENANCE_MISSION, enabled: false, lastFiredAt: Date.now() }]
+      missions: missions4.map(({ autoCompact, ...rest }) => {
+        void autoCompact;
+        return rest;
+      })
     });
+    console.log('[triggers] dropped the legacy per-mission autoCompact flag —',
+      'contextTrigger.compact is now the only schedule that compacts');
   }
 }
 
@@ -1392,13 +1581,27 @@ function stopSlackServer(): void {
   try { if (existsSync(slackReplyConfigPath())) unlinkSync(slackReplyConfigPath()); } catch { /* noop */ }
 }
 
-// ─── Generic inbound webhook + status API ────────────────────────────────────
+// ─── Generic inbound webhook + status API (multi-endpoint) ───────────────────
 /** The running generic-webhook server, or null when disabled/stopped. A PUBLIC
- *  (tunnel-forwarded) surface — secret-gated, unlike the loopback /reply. */
+ *  (tunnel-forwarded) surface — secret-gated, unlike the loopback /reply. ONE
+ *  server and ONE tunnel serve EVERY configured endpoint; the id in the request
+ *  path picks which. Adding a webhook therefore costs no port and no tunnel, and
+ *  never disturbs a caller already pointed at another endpoint's URL. */
 let webhookServer: WebhookServer | null = null;
-/** Last public tunnel URL handed out — persisted so Settings can re-show the
- *  endpoint after a reopen (loca.lt rotates it per restart). */
+/** Last public tunnel URL handed out — retained so Settings can re-show the
+ *  endpoint after a reopen (the tunnel rotates it per restart). */
 let lastWebhookUrl: string | undefined;
+
+/** Local port the shared server binds to. The port is a property of the SERVER,
+ *  not of any one trigger — `webhookPort` stays the (legacy) override. */
+const WEBHOOK_DEFAULT_PORT = 3849;
+
+/** The endpoints the operator has switched on. A disabled webhook is not merely
+ *  rejected at the door — it is never handed to the server, so its id does not
+ *  exist on the wire and its secret is not in memory on the request path. */
+function enabledWebhookEndpoints(): WebhookTrigger[] {
+  return (readConfig().webhookTriggers ?? []).filter((t) => t.enabled && !!t.secret);
+}
 
 /** SHA-256 hex of a capability token. The raw token is returned to the caller
  *  exactly once (the POST response) and never persisted; only this digest lands
@@ -1407,63 +1610,196 @@ function hashWebhookToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-/** Turn a verified webhook POST into hive work: create ONE stamped kanban card
- *  (origin + token hash) and route the message to god/Michael's inbox as a
- *  request. Returns the raw capability token + card id to hand back to the caller
- *  (the ONLY echo of the token). The secret never reaches here. Returns null only
- *  if the card — the thing the caller will poll — could not be created. */
-function handleWebhookMessage(msg: WebhookInbound): { token: string; taskId: string } | null {
-  // 192-bit unguessable token, returned once; only its hash is stored.
-  const token = randomBytes(24).toString('hex');
-  const taskId = `webhook-${randomBytes(8).toString('hex')}`;
-  const full = msg.title ?? msg.message;
-  const title = full.length > 80 ? `${full.slice(0, 79)}…` : full;
+/** tokenHash → id of the `pending` history entry it belongs to.
+ *
+ *  A message the mode gate held has NO kanban card (the card is what approval
+ *  creates), so this map is the only way its caller's GET can be answered — and
+ *  answered HONESTLY, as "awaiting-approval" rather than a lie about queued work.
+ *  It stores the token's DIGEST, never the token, exactly like the card stamp,
+ *  and it is mirrored into the durable kv store so a restart doesn't 404 every
+ *  caller that is still politely waiting on the operator. */
+let heldWebhookTokens: Map<string, string> | null = null;
+const HELD_TOKENS_KV_KEY = 'triggers.webhook.heldTokens';
 
-  // 1) Create the stamped card. This is the critical step — the caller's token is
-  //    only useful if a card exists to poll, so a failure here fails the POST.
+function heldTokens(): Map<string, string> {
+  if (heldWebhookTokens) return heldWebhookTokens;
+  let stored: Record<string, string> | undefined;
+  try { stored = persist.getKv<Record<string, string>>(HELD_TOKENS_KV_KEY); }
+  catch { stored = undefined; }
+  const entries = stored && typeof stored === 'object' ? Object.entries(stored) : [];
+  heldWebhookTokens = new Map(entries.filter((e): e is [string, string] => typeof e[1] === 'string'));
+  return heldWebhookTokens;
+}
+
+function persistHeldTokens(): void {
+  try { persist.setKv(HELD_TOKENS_KV_KEY, Object.fromEntries(heldTokens())); }
+  catch (e) { console.error('[webhook] could not persist held-token map:', e); }
+}
+
+/** Drop mappings whose history entry has aged out of the (capped) ledger — the
+ *  operator can no longer decide them, so their tokens are dead weight. */
+function pruneHeldTokens(): void {
+  const map = heldTokens();
+  if (map.size === 0) return;
+  const live = new Set(listTriggerHistory().map((e) => e.id));
+  let changed = false;
+  for (const [hash, entryId] of [...map]) {
+    if (!live.has(entryId)) { map.delete(hash); changed = true; }
+  }
+  if (changed) persistHeldTokens();
+}
+
+/** The token digest a held history entry was accepted under, if we still have it. */
+function heldTokenHashFor(entryId: string): string | undefined {
+  for (const [hash, id] of heldTokens()) if (id === entryId) return hash;
+  return undefined;
+}
+
+/** Tell the Triggers tab its ledger moved, so history live-refreshes instead of
+ *  waiting for the operator to re-open the tab. */
+function notifyTriggerHistoryUpdated(): void {
+  try { liveWebContents()?.send('triggerHistory:updated'); } catch { /* window gone */ }
+}
+
+/**
+ * Create the stamped kanban card for an inbound message and route it to god.
+ *
+ * Split out of `handleWebhookMessage` because the APPROVAL path takes exactly
+ * this route later — an operator saying yes must produce the same card and the
+ * same god request an auto-allowed message would have, or the two paths drift
+ * and "approved" quietly means something weaker than "allowed".
+ *
+ * Returns false only when the card — the thing the caller polls — could not be
+ * written. The god routing is best-effort: the card already exists and is
+ * pollable even if the send hiccups.
+ */
+function dispatchWebhookWork(arg: {
+  taskId: string;
+  title: string;
+  message: string;
+  /** Stamped onto the card so a GET can match the caller's token. */
+  tokenHash?: string;
+  /** 'webhook' | 'org' — only for the subject line and the god-facing note. */
+  origin: 'webhook' | 'org';
+}): boolean {
   try {
     const ledger = hive.tasks() as { tasks?: HiveTask[] };
     const existing = Array.isArray(ledger?.tasks) ? ledger.tasks : [];
     const card: HiveTask = {
-      id: taskId,
-      title,
-      description: msg.message,
+      id: arg.taskId,
+      title: arg.title,
+      description: arg.message,
       status: 'todo',
       dependsOn: [],
       priority: 1,
       createdAt: new Date().toISOString(),
-      webhook: { tokenHash: hashWebhookToken(token) }
+      ...(arg.tokenHash ? { webhook: { tokenHash: arg.tokenHash } } : {})
     };
     hive.writeTasks([...existing, card]);
   } catch (e) {
     console.error('[webhook] could not create task card:', e instanceof Error ? e.message : e);
-    return null;
+    return false;
   }
-
-  // 2) Route the work to god/Michael (god inbox request). Body carries ONLY the
-  //    user message + the card id (so whoever finishes it updates that card's
-  //    status/result for the caller's GET) — never the secret or the raw token.
-  //    Best-effort: the card already exists and is pollable even if this hiccups.
+  // Body carries ONLY the sender's message + the card id (so whoever finishes it
+  // updates that card's status/result for the caller's GET) — never the secret,
+  // never the raw token.
   try {
     hive.send({
       to: 'god',
       act: 'request',
-      subject: `[webhook] ${title}`,
-      body: `${msg.message}\n\n(Inbound via the generic webhook API, tracked as kanban card ${taskId}. When this work is finished, set that card's status to 'done' and fill its 'result' so the caller's status check reflects the outcome.)`,
+      subject: `[${arg.origin}] ${arg.title}`,
+      body: `${arg.message}\n\n(Inbound via the generic ${arg.origin} API, tracked as kanban card ${arg.taskId}. When this work is finished, set that card's status to 'done' and fill its 'result' so the caller's status check reflects the outcome.)`,
       requires_reply: false
     }, 'webhook');
   } catch (e) {
     console.error('[webhook] could not route to god:', e instanceof Error ? e.message : e);
   }
-  return { token, taskId };
+  return true;
+}
+
+/**
+ * A verified POST, run through the endpoint's TriggerMode.
+ *
+ * `isAutoAllowed(mode, kind)` is the whole gate. When it says yes this behaves
+ * exactly as the single-endpoint server always did — card, god request, capability
+ * token. When it says no NOTHING reaches the hive: the message is written to the
+ * ledger as `pending` and sits there until the operator decides, and the caller
+ * is handed its token plus a 202 so it can watch the hold rather than believe
+ * work started.
+ *
+ * Either way an `inbound` history row is recorded. The secret never reaches here
+ * (the server hands over `{id,name}` only) and no credential is ever written to
+ * the ledger.
+ */
+function handleWebhookMessage(msg: WebhookInbound, endpoint: WebhookEndpointRef): WebhookDispatch | null {
+  // 192-bit unguessable token, returned once; only its hash is stored.
+  const token = randomBytes(24).toString('hex');
+  const tokenHash = hashWebhookToken(token);
+  const full = msg.title ?? msg.message;
+  const title = full.length > 80 ? `${full.slice(0, 79)}…` : full;
+
+  const trigger = (readConfig().webhookTriggers ?? []).find((t) => t.id === endpoint.id);
+  // An endpoint that vanished between the request and this lookup falls back to
+  // the STRICTEST mode, never the most permissive one.
+  const mode: TriggerMode = trigger?.mode ?? DEFAULT_TRIGGER_MODE;
+  // The caller's own declaration wins; `classifyInboundKind` is the conservative
+  // guess for callers that don't declare (it leans 'directive' on purpose).
+  const kind: InboundKind = msg.kind ?? classifyInboundKind(msg.message);
+  const peer = msg.from?.trim() || endpoint.name || endpoint.id;
+  // Minted here, not derived from the task id, because a HELD message has no task
+  // id yet and must still be pairable with the reply it eventually earns.
+  const correlationId = randomBytes(8).toString('hex');
+
+  const base = {
+    source: 'webhook' as const,
+    sourceId: endpoint.id,
+    sourceName: endpoint.name,
+    direction: 'inbound' as const,
+    peer,
+    title,
+    body: msg.message,
+    kind,
+    correlationId
+  };
+
+  if (!isAutoAllowed(mode, kind)) {
+    const entry = appendTriggerHistory({ ...base, decision: 'pending' });
+    heldTokens().set(tokenHash, entry.id);
+    persistHeldTokens();
+    notifyTriggerHistoryUpdated();
+    return { token, pending: true };
+  }
+
+  const taskId = `webhook-${randomBytes(8).toString('hex')}`;
+  if (!dispatchWebhookWork({ taskId, title, message: msg.message, tokenHash, origin: 'webhook' })) return null;
+  appendTriggerHistory({ ...base, decision: 'auto-allowed', taskId });
+  notifyTriggerHistoryUpdated();
+  return { token, taskId, pending: false };
 }
 
 /** Resolve a capability token to its task's public status — scoped to the ONE
- *  card whose stored hash matches; never lists or leaks any other task. Returns
- *  null for any non-match (the server answers 404 either way, so a probe can't
- *  tell "unknown" from "malformed"). */
+ *  card (or the ONE held message) whose stored hash matches; never lists or leaks
+ *  any other task. Returns null for any non-match (the server answers 404 either
+ *  way, so a probe can't tell "unknown" from "malformed"). */
 function lookupWebhookStatus(token: string): WebhookTaskStatus | null {
-  const wanted = Buffer.from(hashWebhookToken(token));
+  const hash = hashWebhookToken(token);
+
+  // Held messages first — they have no card, and the O(1) hit keeps the common
+  // "still waiting" poll off the task scan entirely.
+  const heldEntryId = heldTokens().get(hash);
+  if (heldEntryId) {
+    const entry = listTriggerHistory().find((e) => e.id === heldEntryId);
+    if (!entry) { heldTokens().delete(hash); persistHeldTokens(); return null; }
+    if (entry.decision === 'pending') {
+      return { status: 'awaiting-approval', title: entry.title ?? '' };
+    }
+    if (entry.decision === 'rejected') {
+      return { status: 'rejected', title: entry.title ?? '' };
+    }
+    // Approved: the release stamped this hash onto a real card, so fall through.
+  }
+
+  const wanted = Buffer.from(hash);
   let tasks: HiveTask[];
   try {
     const ledger = hive.tasks() as { tasks?: HiveTask[] };
@@ -1481,26 +1817,134 @@ function lookupWebhookStatus(token: string): WebhookTaskStatus | null {
   return null;
 }
 
-/** Build a WebhookServer from the current config and start it, replacing any
- *  running instance. No-op + error when disabled or the secret is unset. The
- *  public tunnel is opened only here — never on a default; it stays opt-in
- *  (user enables + presses Start in Settings). */
-async function startWebhookServer(): Promise<{ ok: boolean; url?: string; error?: string }> {
-  const cfg = readConfig();
-  if (!cfg.webhookEnabled || !cfg.webhookSecret) {
-    return { ok: false, error: 'webhook disabled or missing secret' };
+// ─── Webhook done-observer (the OUTBOUND half of the trigger ledger) ─────────
+// Mirrors `pollSlackDoneTasks`: watch the kanban for webhook-origin cards that
+// reach 'done' and write the reply side of the conversation, tagged with the
+// inbound row's correlationId so the UI can pair request ↔ response.
+//
+// Unlike the Slack poller there is no "baseline" of already-done ids: the LEDGER
+// is the record of what we've already paired, so a card that finished while the
+// app was closed still gets its outbound row on the next boot, and re-seeding
+// from the ledger makes a duplicate impossible.
+let webhookDoneTimer: ReturnType<typeof setInterval> | null = null;
+let webhookOutboundRecorded: Set<string> | null = null;
+
+function seedWebhookOutbound(): Set<string> {
+  const seen = new Set<string>();
+  try {
+    for (const e of listTriggerHistory()) {
+      if (e.direction === 'outbound' && e.taskId) seen.add(e.taskId);
+    }
+  } catch { /* unreadable ledger → treat as empty; appends are still deduped by taskId */ }
+  return seen;
+}
+
+function pollWebhookDoneTasks(): void {
+  let tasks: HiveTask[];
+  try {
+    const ledger = hive.tasks() as { tasks?: HiveTask[] };
+    tasks = Array.isArray(ledger?.tasks) ? ledger.tasks : [];
+  } catch { return; } // unreadable/missing tasks.json → skip this tick
+  const done = tasks.filter((t) =>
+    t.status === 'done' && (t.webhook != null || t.id.startsWith('webhook-')));
+  if (done.length === 0) return;
+  const recorded = webhookOutboundRecorded ?? (webhookOutboundRecorded = seedWebhookOutbound());
+  const fresh = done.filter((t) => !recorded.has(t.id));
+  if (fresh.length === 0) return;
+
+  const history = listTriggerHistory();
+  let wrote = false;
+  for (const t of fresh) {
+    const inbound = history.find((e) => e.direction === 'inbound' && e.taskId === t.id);
+    // No inbound row = a card from before the ledger existed. Nothing to pair it
+    // with, so mark it handled rather than writing a half of a conversation.
+    if (!inbound) { recorded.add(t.id); continue; }
+    appendTriggerHistory({
+      source: inbound.source,
+      sourceId: inbound.sourceId,
+      sourceName: inbound.sourceName,
+      direction: 'outbound',
+      peer: inbound.peer,
+      title: t.title,
+      body: (t.result ?? '').trim() || '(finished with no result recorded)',
+      kind: inbound.kind,
+      correlationId: inbound.correlationId,
+      taskId: t.id
+    });
+    recorded.add(t.id);
+    wrote = true;
   }
-  webhookServer?.stop();
-  webhookServer = new WebhookServer({
-    port: cfg.webhookPort && cfg.webhookPort > 0 ? cfg.webhookPort : 3849,
-    secret: cfg.webhookSecret,
+  if (wrote) notifyTriggerHistoryUpdated();
+}
+
+/** Begin watching the kanban for webhook-origin done-transitions (idempotent). */
+function startWebhookDoneObserver(): void {
+  if (webhookDoneTimer) return;
+  webhookOutboundRecorded = seedWebhookOutbound();
+  webhookDoneTimer = setInterval(() => {
+    try { pollWebhookDoneTasks(); } catch (e) { console.error('[webhook] done-observer:', e); }
+  }, 5000);
+}
+
+/** Stop watching the kanban. Safe to call when not running. */
+function stopWebhookDoneObserver(): void {
+  if (webhookDoneTimer) { clearInterval(webhookDoneTimer); webhookDoneTimer = null; }
+  webhookOutboundRecorded = null;
+}
+
+/** Build the shared WebhookServer from the enabled endpoints and start it. A
+ *  server that is already up is RE-POINTED rather than restarted (see
+ *  `reconcileWebhookServer`): restarting would mint a fresh tunnel URL and break
+ *  every other endpoint's caller. The public tunnel is opened only here — never
+ *  on a default; a webhook reaches the wire only once the operator enables it. */
+async function startWebhookServer(): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const endpoints = enabledWebhookEndpoints();
+  if (endpoints.length === 0) return { ok: false, error: 'no enabled webhook endpoints' };
+  if (webhookServer) {
+    webhookServer.setEndpoints(endpoints);
+    return { ok: true, url: webhookServer.publicUrl() ?? lastWebhookUrl };
+  }
+  pruneHeldTokens();
+  const cfg = readConfig();
+  const server = new WebhookServer({
+    port: cfg.webhookPort && cfg.webhookPort > 0 ? cfg.webhookPort : WEBHOOK_DEFAULT_PORT,
+    endpoints,
     onMessage: handleWebhookMessage,
     lookupStatus: lookupWebhookStatus
   });
-  const res = await webhookServer.start();
-  if (!res.ok) { webhookServer = null; return res; }
+  webhookServer = server;
+  const res = await server.start();
+  // ok:false covers BOTH "never bound the port" (fatal → drop the instance) and
+  // "bound fine, tunnel unavailable" (the security boundary is live and must stay
+  // reachable/stoppable — dropping it there would leak an unstoppable listener).
+  if (!res.ok && !server.listening()) { webhookServer = null; return res; }
   if (res.url) lastWebhookUrl = res.url;
+  startWebhookDoneObserver();
   return res;
+}
+
+/** Bring the running server in line with config after any webhook mutation.
+ *  Live endpoint swap when it's up, start when the enabled set becomes non-empty,
+ *  stop when it empties. Never restarts a healthy server. */
+function reconcileWebhookServer(): void {
+  const endpoints = enabledWebhookEndpoints();
+  if (endpoints.length === 0) { stopWebhookServer(); return; }
+  if (webhookServer) { webhookServer.setEndpoints(endpoints); return; }
+  void startWebhookServer().then((r) => {
+    if (!r.ok) console.error('[webhook] start failed:', r.error);
+    else console.log('[webhook] listening', r.url ? `(tunnel: ${r.url})` : '(no tunnel)');
+  });
+}
+
+/** Per-endpoint public URLs for the settings surface's copy button. Empty string
+ *  when no tunnel has ever come up — the UI shows the endpoint, just not a URL
+ *  it could hand out yet. */
+function webhookEndpointUrls(): { id: string; url: string }[] {
+  const base = (webhookServer?.publicUrl() ?? lastWebhookUrl ?? '').replace(/\/+$/, '');
+  return (readConfig().webhookTriggers ?? []).map((t) => ({
+    id: t.id,
+    url: base ? `${base}/${encodeURIComponent(t.id)}` : ''
+  }));
 }
 
 /** Stop and forget the webhook server. Best-effort; safe when not running. The
@@ -1508,6 +1952,8 @@ async function startWebhookServer(): Promise<{ ok: boolean; url?: string; error?
 function stopWebhookServer(): void {
   try { webhookServer?.stop(); } catch (e) { console.error('[webhook] stop failed:', e); }
   webhookServer = null;
+  // The done-observer deliberately OUTLIVES the server (it is a ledger concern,
+  // not a transport one) — it is torn down with the process/hive, not here.
 }
 
 /** The persisted main-window geometry (kv key `window.bounds`). */
@@ -2459,6 +2905,8 @@ ipcMain.handle('config:changeHome', async (_evt, payload: unknown) => {
   // mid-copy — a live git commit into hive/.git would otherwise be copied as a
   // half-written object and corrupt the moved repo.
   try { clearMissionTimers(); } catch (e) { console.error('[changeHome] clearMissionTimers:', e); }
+  try { clearContextTimers(); } catch (e) { console.error('[changeHome] clearContextTimers:', e); }
+  try { stopWebhookDoneObserver(); } catch (e) { console.error('[changeHome] stopWebhookDoneObserver:', e); }
   try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[changeHome] stopWorkerWatcher:', e); }
   try { integrationBroker.stop(); } catch (e) { console.error('[changeHome] broker.stop:', e); }
   try { hive.stopRouter(); } catch (e) { console.error('[changeHome] stopRouter:', e); }
@@ -2488,7 +2936,7 @@ ipcMain.handle('config:changeHome', async (_evt, payload: unknown) => {
       bootstrapHiveServices();
       const cfg = readConfig();
       if (cfg.slackEnabled && cfg.slackSigningSecret) void startSlackServer();
-      if (cfg.webhookEnabled && cfg.webhookSecret) void startWebhookServer();
+      reconcileWebhookServer();
       return { ok: false, error: `Could not copy data: ${e instanceof Error ? e.message : String(e)}` };
     }
   }
@@ -2773,12 +3221,15 @@ function teardownAndQuit(): void {
   // Each teardown step is best-effort: a throw here (e.g. a dying child or a
   // half-torn-down socket) must never abort the quit or pop a crash dialog.
   try { clearMissionTimers(); } catch (e) { console.error('[quit] clearMissionTimers:', e); }
+  try { clearContextTimers(); } catch (e) { console.error('[quit] clearContextTimers:', e); }
+  try { stopWebhookDoneObserver(); } catch (e) { console.error('[quit] stopWebhookDoneObserver:', e); }
   try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[quit] stopWorkerWatcher:', e); }
   try { integrationBroker.stop(); } catch (e) { console.error('[quit] broker.stop:', e); }
   try { hive.stopRouter(); } catch (e) { console.error('[quit] stopRouter:', e); }
   try { hookServer.stop(); } catch (e) { console.error('[quit] hookServer.stop:', e); }
   try { telemetry.stop(); } catch (e) { console.error('[quit] telemetry.stop:', e); }
   try { stopSlackServer(); } catch (e) { console.error('[quit] slack.stop:', e); }
+  try { stopWebhookServer(); } catch (e) { console.error('[quit] webhook.stop:', e); }
   try { memory.stop(); } catch (e) { console.error('[quit] memory.stop:', e); }
   try { reflector.stop(); } catch (e) { console.error('[quit] reflector.stop:', e); }
   try { persist.close(); } catch (e) { console.error('[quit] persist.close:', e); }
@@ -2827,6 +3278,8 @@ ipcMain.handle('app:resetAll', () => {
   allowQuit = true;
   // Tear everything down first so nothing writes back into the dirs we wipe.
   try { clearMissionTimers(); } catch (e) { console.error('[reset] clearMissionTimers:', e); }
+  try { clearContextTimers(); } catch (e) { console.error('[reset] clearContextTimers:', e); }
+  try { stopWebhookDoneObserver(); } catch (e) { console.error('[reset] stopWebhookDoneObserver:', e); }
   try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[reset] stopWorkerWatcher:', e); }
   try { integrationBroker.stop(); } catch (e) { console.error('[reset] broker.stop:', e); }
   try { hive.stopRouter(); } catch (e) { console.error('[reset] stopRouter:', e); }
@@ -2981,6 +3434,122 @@ ipcMain.handle('control:halt', (_evt, agentId: unknown) => {
 ipcMain.handle('control:snapshot', (_evt, agentId: unknown) =>
   typeof agentId === 'string' ? control.snapshot(agentId) : null);
 
+// ─── Usage-limit guard: stand down, hold the queue, resume by itself ─────────
+// The renderer watches each PTY for "you've hit your limit" (shared/rateLimit.ts)
+// and reports here; main owns the holds, the timer and the persistence. The
+// renderer's drain loop asks `limitHolds` before every send, so a held provider
+// simply stops being written to while its queue keeps filling — nothing is
+// dropped and nothing needs the operator to remember to resend.
+//
+// Deliberately NOT gated: `hive.send`, which writes a message into an agent's
+// inbox file. That is already a queue — the message waits on disk until the
+// agent next runs — so gating it would turn "delayed" into "lost".
+
+function limitGuardSettings(): typeof DEFAULT_LIMIT_GUARD {
+  return { ...DEFAULT_LIMIT_GUARD, ...(readConfig().limitGuard ?? {}) };
+}
+
+/** Persist holds and tell every floor. Both windows drain their own agents, so
+ *  a hold known to only one of them would let the other keep typing. */
+function publishLimits(): void {
+  const holds = limitGate.list();
+  try { writeConfig({ limitHolds: holds }); }
+  catch { /* unwritable config — the in-memory gate still holds this session */ }
+  for (const w of allWindows) {
+    if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
+    try { w.webContents.send('limit:changed', holds); } catch { /* window going away */ }
+  }
+}
+
+function limitToast(title: string, body: string): void {
+  const cfg = readConfig();
+  if (!cfg.notifications || !limitGuardSettings().notify) return;
+  try { if (Notification.isSupported()) new Notification({ title, body }).show(); }
+  catch { /* unsupported platform */ }
+}
+
+/** "resumes in 2h 14m" / "resumes at 3:05pm" — short enough for a toast. */
+function describeHold(hold: LimitHold): string {
+  const mins = Math.max(1, Math.round((hold.resetAt - Date.now()) / 60_000));
+  const when = mins >= 90
+    ? new Date(hold.resetAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : `${mins}m`;
+  return mins >= 90 ? `resumes at ${when}` : `resumes in ${when}`;
+}
+
+ipcMain.handle('limit:report', (_evt, payload: unknown) => {
+  if (!limitGuardSettings().enabled) return null;
+  const p = payload as { agentId?: unknown; provider?: unknown; signal?: LimitSignal } | null;
+  if (!p || typeof p.agentId !== 'string' || typeof p.provider !== 'string') return null;
+  const signal = p.signal;
+  if (!signal || (signal.tier !== 'quota' && signal.tier !== 'throttle')) return null;
+  // A transient 429 is the CLI's problem, not ours: it retries within seconds,
+  // so standing the floor down for it adds latency to a hiccup that had already
+  // resolved. Only hold for throttles when the operator asked us to.
+  if (signal.tier === 'throttle' && !limitGuardSettings().holdOnThrottle) return null;
+
+  const hold = limitGate.arm({
+    agentId: p.agentId,
+    provider: p.provider as AgentProvider,
+    signal,
+    now: Date.now()
+  });
+  if (!hold) return null; // judged a repaint of a notice already served
+  publishLimits();
+  if (hold.armedAt >= Date.now() - 2000) {
+    limitToast(`${p.provider} limit reached`, `Queue held — ${describeHold(hold)}.`);
+  }
+  return hold;
+});
+
+ipcMain.handle('limit:list', () => limitGate.list());
+
+/** Operator pressed "resume now", or an agent was removed. */
+ipcMain.handle('limit:release', (_evt, scope: unknown) => {
+  if (typeof scope !== 'string') return false;
+  const released = limitGate.release(scope, Date.now());
+  if (released) publishLimits();
+  return released;
+});
+
+/** The renderer got a message through. This is what lets a genuine second
+ *  rejection re-arm inside the guard window (see LimitGate.noteDelivery). */
+ipcMain.handle('limit:noteDelivery', (_evt, agentId: unknown, provider: unknown) => {
+  if (typeof agentId !== 'string' || typeof provider !== 'string') return false;
+  limitGate.noteDelivery(provider as AgentProvider, agentId, Date.now());
+  return true;
+});
+
+/**
+ * Lift holds whose time has come.
+ *
+ * Ticks every 15s rather than arming one timer per hold: holds are few, a
+ * coarse tick cannot drift, and — the reason that actually matters — a laptop
+ * that slept through a reset wakes up and lifts on the next tick, whereas a
+ * setTimeout would have been suspended and fired late by however long the lid
+ * was shut.
+ */
+setInterval(() => {
+  const guard = limitGuardSettings();
+  // Guard switched off: let everything go at once. Without this the holds would
+  // outlive the setting — the drain reads the hold list, not the flag, so a
+  // disabled guard would still be silently stopping the floor.
+  if (!guard.enabled) {
+    if (limitGate.releaseAll(Date.now()).length) publishLimits();
+    return;
+  }
+  // Auto-resume off means the hold waits for the operator, so nothing is swept.
+  // The UI keeps showing it (past its reset time) with a resume button — see
+  // LimitGate.holdFor on why expiry is a sweep, not a timestamp comparison.
+  if (!guard.autoResume) return;
+  const lifted = limitGate.sweep(Date.now());
+  if (!lifted.length) return;
+  publishLimits();
+  for (const h of lifted) {
+    limitToast(`${h.provider} limit reset`, 'Sending the queued messages now, one at a time.');
+  }
+}, 15_000).unref?.();
+
 // ─── IPC: scheduled missions (recurring auto-dispatch) ──────────────────────
 ipcMain.handle('missions:list', () => readConfig().missions ?? []);
 ipcMain.handle('missions:save', (_evt, missions) => {
@@ -3122,7 +3691,180 @@ ipcMain.handle('slack:setConfig', (_evt, patch: unknown) => {
   return { ok: true };
 });
 
-// ─── IPC: Generic webhook + status API ──────────────────────────────────────
+// ─── IPC: Triggers — context (auto-compact / auto-clear) ────────────────────
+ipcMain.handle('triggers:getContext', () => readConfig().contextTrigger ?? DEFAULT_CONTEXT_TRIGGER);
+ipcMain.handle('triggers:setContext', (_evt, arg: unknown) => {
+  const current = readConfig().contextTrigger ?? DEFAULT_CONTEXT_TRIGGER;
+  const p = (arg ?? {}) as Partial<ContextTriggerConfig>;
+  const next: ContextTriggerConfig = {
+    compact: sanitizeContextRule(p.compact, current.compact),
+    clear: sanitizeContextRule(p.clear, current.clear)
+  };
+  writeConfig({ contextTrigger: next });
+  // The timers ARE the setting — a cadence saved but not re-armed would keep
+  // firing on the old rhythm until the next boot.
+  syncContextTriggers();
+  return next;
+});
+
+/** Clamp one half of the context trigger. The renderer is not trusted with the
+ *  arming maths: a zero/negative/NaN `everyMs` would arm a runaway timer, and an
+ *  out-of-range percentage would silently disable (or permanently trip) the
+ *  pressure gate. */
+function sanitizeContextRule(patch: Partial<ContextRule> | undefined, current: ContextRule): ContextRule {
+  const p = (patch ?? {}) as Partial<ContextRule>;
+  const num = (v: unknown, fallback: number, min: number, max: number): number =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
+  return {
+    enabled: typeof p.enabled === 'boolean' ? p.enabled : current.enabled,
+    everyMs: num(p.everyMs, current.everyMs, 60_000, 86_400_000),
+    minContextPct: num(p.minContextPct, current.minContextPct, 0, 100),
+    minContextPctLargeWindow: num(p.minContextPctLargeWindow, current.minContextPctLargeWindow, 0, 100),
+    message: typeof p.message === 'string' ? p.message : current.message
+  };
+}
+
+// ─── IPC: Triggers — webhooks (many endpoints, one server, one tunnel) ──────
+ipcMain.handle('webhooks:list', () => readConfig().webhookTriggers ?? []);
+ipcMain.handle('webhooks:save', (_evt, arg: unknown) => {
+  const incoming = Array.isArray(arg) ? arg : [];
+  const existing = readConfig().webhookTriggers ?? [];
+  const list: WebhookTrigger[] = [];
+  const seen = new Set<string>();
+  for (const raw of incoming) {
+    const t = sanitizeWebhookTrigger(raw, existing);
+    if (!t || seen.has(t.id)) continue; // an id is a URL path segment — one owner each
+    seen.add(t.id);
+    list.push(t);
+  }
+  writeConfig({ webhookTriggers: list });
+  reconcileWebhookServer();
+  return list;
+});
+ipcMain.handle('webhooks:delete', (_evt, arg: unknown) => {
+  const id = typeof arg === 'string' ? arg : '';
+  const list = (readConfig().webhookTriggers ?? []).filter((t) => t.id !== id);
+  writeConfig({ webhookTriggers: list });
+  // Revoking one endpoint must not disturb the others: the live server is
+  // re-pointed, not restarted, so every remaining caller's URL keeps working.
+  reconcileWebhookServer();
+  return list;
+});
+/** Mint a strong (256-bit) secret for the operator to paste into their caller.
+ *  Not persisted here — it belongs to whichever endpoint the UI saves it onto. */
+ipcMain.handle('webhooks:generateSecret', () => randomBytes(32).toString('hex'));
+/** Server state + the tunnel root + one public URL per configured endpoint (the
+ *  UI offers a copy button per webhook, so the root alone isn't enough). */
+ipcMain.handle('webhooks:status', () => ({
+  running: webhookServer != null,
+  url: lastWebhookUrl,
+  endpoints: webhookEndpointUrls()
+}));
+
+/** Normalise one endpoint coming back from the renderer. Unknown/blank fields
+ *  fall back to what is already persisted, so a UI that round-trips a partially
+ *  filled row can never blank a live secret or silently widen a mode. */
+function sanitizeWebhookTrigger(raw: unknown, existing: WebhookTrigger[]): WebhookTrigger | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Partial<WebhookTrigger>;
+  const id = typeof r.id === 'string' ? r.id.trim() : '';
+  // The id is spliced into a public URL path. Restrict it to a boring charset
+  // rather than escaping later: no slashes (which would forge a nested route),
+  // no encoded traversal, nothing that could make two endpoints alias.
+  if (!/^[A-Za-z0-9._-]{1,64}$/.test(id)) return null;
+  const prior = existing.find((t) => t.id === id);
+  const secret = typeof r.secret === 'string' && r.secret.trim() ? r.secret.trim() : prior?.secret ?? '';
+  const mode = isTriggerMode(r.mode) ? r.mode : prior?.mode ?? DEFAULT_TRIGGER_MODE;
+  return {
+    id,
+    name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : prior?.name ?? id,
+    secret,
+    // A secretless endpoint can never be enabled — it would be an open door.
+    enabled: secret ? (typeof r.enabled === 'boolean' ? r.enabled : prior?.enabled ?? false) : false,
+    mode,
+    schema: typeof r.schema === 'string' && r.schema.trim() ? r.schema : prior?.schema ?? DEFAULT_WEBHOOK_SCHEMA,
+    createdAt: typeof r.createdAt === 'number' && r.createdAt > 0 ? r.createdAt : prior?.createdAt ?? Date.now()
+  };
+}
+
+function isTriggerMode(v: unknown): v is TriggerMode {
+  return v === 'strict' || v === 'allow-all' || v === 'communication-only';
+}
+
+// ─── IPC: Triggers — organisation (persistence only; no transport yet) ──────
+ipcMain.handle('org:getTrigger', () => readConfig().orgTrigger ?? DEFAULT_ORG_TRIGGER);
+ipcMain.handle('org:setTrigger', (_evt, arg: unknown) => {
+  const current = readConfig().orgTrigger ?? DEFAULT_ORG_TRIGGER;
+  const p = (arg ?? {}) as Partial<OrgTriggerConfig>;
+  // PERSIST ONLY — the peer messaging service does not exist yet, so nothing
+  // reads `apiKey` beyond the settings surface that shows it. Deliberately no
+  // start/stop, no network, no side effect of any kind.
+  const next: OrgTriggerConfig = {
+    apiKey: typeof p.apiKey === 'string' ? p.apiKey.trim() : current.apiKey,
+    enabled: typeof p.enabled === 'boolean' ? p.enabled : current.enabled,
+    mode: isTriggerMode(p.mode) ? p.mode : current.mode
+  };
+  writeConfig({ orgTrigger: next });
+  return next;
+});
+
+// ─── IPC: Triggers — history ledger + the approval gate ─────────────────────
+ipcMain.handle('triggerHistory:list', () => listTriggerHistory());
+ipcMain.handle('triggerHistory:clear', (_evt, arg: unknown) => {
+  const source = arg === 'webhook' || arg === 'org' ? arg : undefined;
+  clearTriggerHistory(source);
+  pruneHeldTokens();
+  notifyTriggerHistoryUpdated();
+  return { ok: true };
+});
+/**
+ * The operator's verdict on a held message.
+ *
+ * 'approved' RELEASES it: it takes the identical path an auto-allowed message
+ * would have taken (card + god request), then the entry flips. 'rejected' just
+ * flips — nothing is ever dispatched.
+ *
+ * Idempotent by construction: only an entry still sitting at `pending` can be
+ * decided, so a double-click (or two windows deciding at once) cannot dispatch
+ * the same message twice.
+ */
+ipcMain.handle('triggerHistory:decide', (_evt, arg: unknown) => {
+  const p = (arg ?? {}) as { id?: unknown; decision?: unknown };
+  const id = typeof p.id === 'string' ? p.id : '';
+  const decision = p.decision === 'approved' ? 'approved' : p.decision === 'rejected' ? 'rejected' : null;
+  if (!id || !decision) return null;
+  const entry: TriggerHistoryEntry | undefined = listTriggerHistory().find((e) => e.id === id);
+  if (!entry) return null;
+  if (entry.decision !== 'pending') return entry; // already decided → no-op, not a re-dispatch
+
+  if (decision === 'rejected') {
+    const next = updateTriggerHistory(id, { decision: 'rejected' });
+    notifyTriggerHistoryUpdated();
+    return next;
+  }
+
+  const taskId = `webhook-${randomBytes(8).toString('hex')}`;
+  const tokenHash = heldTokenHashFor(id);
+  const title = entry.title ?? (entry.body.length > 80 ? `${entry.body.slice(0, 79)}…` : entry.body);
+  if (!dispatchWebhookWork({ taskId, title, message: entry.body, tokenHash, origin: entry.source })) {
+    // The card is what the caller polls and what god works from. Leave the entry
+    // pending so the operator can approve again once the hive is writable.
+    return entry;
+  }
+  // The hash now lives on the card, so the caller's GET resolves through the
+  // normal task lookup from here on.
+  if (tokenHash) { heldTokens().delete(tokenHash); persistHeldTokens(); }
+  const next = updateTriggerHistory(id, { decision: 'approved', taskId });
+  pruneHeldTokens();
+  notifyTriggerHistoryUpdated();
+  return next;
+});
+
+// ─── IPC: Generic webhook (LEGACY single-endpoint channels) ─────────────────
+// Kept alive for Settings → Webhook, which still speaks the one-secret shape.
+// They are now THIN SHIMS over the multi-endpoint engine: the legacy secret and
+// enabled flag map onto the `legacy` WebhookTrigger the config migration created,
+// so the two surfaces can never disagree about whether the endpoint is live.
 ipcMain.handle('webhook:start', () => startWebhookServer());
 ipcMain.handle('webhook:stop', () => { stopWebhookServer(); return { ok: true }; });
 /** Current state + last public endpoint URL, for the Settings badge/URL field. */
@@ -3132,6 +3874,7 @@ ipcMain.handle('webhook:status', () => ({ running: webhookServer != null, url: l
 ipcMain.handle('webhook:generateSecret', () => {
   const secret = randomBytes(32).toString('hex');
   writeConfig({ webhookSecret: secret });
+  upsertLegacyWebhookTrigger({ secret });
   return { ok: true, secret };
 });
 ipcMain.handle('webhook:setConfig', (_evt, patch: unknown) => {
@@ -3141,13 +3884,39 @@ ipcMain.handle('webhook:setConfig', (_evt, patch: unknown) => {
   if (typeof p.port === 'number' && Number.isFinite(p.port)) next.webhookPort = p.port;
   if (typeof p.enabled === 'boolean') next.webhookEnabled = p.enabled;
   writeConfig(next);
-  // Disabling (or clearing the secret) stops the public surface immediately. As
-  // with Slack we do NOT auto-(re)start — the user presses Start to open the
-  // tunnel and fetch the fresh endpoint URL.
-  const cfg = readConfig();
-  if (!cfg.webhookEnabled || !cfg.webhookSecret) stopWebhookServer();
+  upsertLegacyWebhookTrigger({
+    secret: typeof p.secret === 'string' ? p.secret.trim() : undefined,
+    enabled: typeof p.enabled === 'boolean' ? p.enabled : undefined
+  });
+  // Disabling (or clearing the secret) stops the public surface immediately; the
+  // reconcile also picks up the case where OTHER endpoints are still enabled, in
+  // which case the server stays up minus the legacy one.
+  reconcileWebhookServer();
   return { ok: true };
 });
+
+/** Mirror a legacy `webhook:setConfig` / `webhook:generateSecret` edit onto the
+ *  `legacy` WebhookTrigger. Creates the row only once a secret exists — an
+ *  enabled endpoint without a secret would be an open door, so a bare "enable"
+ *  against a never-configured webhook is deliberately a no-op. */
+function upsertLegacyWebhookTrigger(patch: { secret?: string; enabled?: boolean }): void {
+  const list = readConfig().webhookTriggers ?? [];
+  const prior = list.find((t) => t.id === 'legacy');
+  const secret = patch.secret !== undefined ? patch.secret : prior?.secret ?? '';
+  if (!secret) return;
+  const row: WebhookTrigger = {
+    id: 'legacy',
+    name: prior?.name ?? 'Default webhook',
+    secret,
+    enabled: patch.enabled !== undefined ? patch.enabled : prior?.enabled ?? false,
+    mode: prior?.mode ?? DEFAULT_TRIGGER_MODE,
+    schema: prior?.schema ?? DEFAULT_WEBHOOK_SCHEMA,
+    createdAt: prior?.createdAt ?? Date.now()
+  };
+  writeConfig({
+    webhookTriggers: prior ? list.map((t) => (t.id === 'legacy' ? row : t)) : [...list, row]
+  });
+}
 
 // ─── IPC: Free Flow (voice dictation → message queue) ────────────────────────
 // Entry point B is hold-Option-to-talk, handled entirely in the renderer
@@ -3757,6 +4526,12 @@ function bootstrapHiveServices(): void {
   });
   ensureDefaultMissions(); // one-time: seed the built-in hourly ops standup
   syncMissions(); // arm recurring auto-dispatch missions now the router is live
+  syncContextTriggers(); // …and the context trigger's own compact/clear cadences
+  // Pair replies to inbound webhook messages in the ledger. Tied to the FEATURE
+  // (any endpoint configured), not to the server: an approved message's card can
+  // finish long after the operator switched the public surface back off, and its
+  // reply still belongs in the history.
+  if ((readConfig().webhookTriggers ?? []).length > 0) startWebhookDoneObserver();
   hookServer.start();
   // Bind the telemetry collector BEFORE the renderer spawns any agent, then point
   // the hive at it so every subsequent spawn is instrumented. Best-effort — a bind
@@ -3835,6 +4610,10 @@ function healthCheckPtys(reason: string, awayMs: number | null): void {
 function onSystemResume(reason: string): void {
   console.log(`[power] ${reason} — re-arming scheduler, beats, router, keep-awake`);
   try { syncMissions(); } catch (e) { console.error('[power] syncMissions on resume', e); }
+  // Same freeze, same catch-up: the context timers honour elapsed-time-since-last-
+  // run, so a compact/clear that came due while the machine slept fires ONCE here
+  // rather than being lost or replayed N times.
+  try { syncContextTriggers(); } catch (e) { console.error('[power] syncContextTriggers on resume', e); }
   try { armAlwaysOnBeats(); } catch (e) { console.error('[power] armAlwaysOnBeats on resume', e); }
   // The hive message router (outbox→inbox drain) is a setInterval that freezes
   // during true system sleep exactly like the beats above — but it was the one
@@ -3870,6 +4649,11 @@ app.whenReady().then(() => {
   // live session. Force it closed at startup (a real session re-opens it via
   // setMicGate(true)); macOS TCC stays a second gate regardless.
   if (readConfig().realtimeVoiceEnabled) writeConfig({ realtimeVoiceEnabled: false });
+
+  // Reinstate usage-limit holds. A limit does not lapse because the app was
+  // closed, so quitting and reopening must not be a way to walk back into the
+  // wall — `hydrate` keeps only holds with time genuinely left.
+  limitGate.hydrate({ holds: readConfig().limitHolds ?? [] }, Date.now());
 
   // A cold-start deep link (Windows/Linux) rides in on OUR argv.
   const startupHireLink = process.argv.find((a) => a.startsWith('munderdifflin://'));
@@ -3914,9 +4698,10 @@ app.whenReady().then(() => {
       else console.log('[slack] webhook listening', r.url ? `(tunnel: ${r.url})` : '(no tunnel)');
     });
   }
-  // Auto-start the generic webhook only when the user has explicitly enabled it
-  // AND a secret exists — never a default-on public surface. Opt-in, like Slack.
-  if (slackCfg.webhookEnabled && slackCfg.webhookSecret) {
+  // Auto-start the generic webhook only for endpoints the user has explicitly
+  // enabled (each with its own secret) — never a default-on public surface.
+  // Opt-in, like Slack; an install with no enabled endpoint opens no tunnel.
+  if (enabledWebhookEndpoints().length > 0) {
     void startWebhookServer().then((r) => {
       if (!r.ok) console.error('[webhook] auto-start failed:', r.error);
       else console.log('[webhook] listening', r.url ? `(tunnel: ${r.url})` : '(no tunnel)');

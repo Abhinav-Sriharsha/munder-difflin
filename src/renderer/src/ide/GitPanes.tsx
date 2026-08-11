@@ -129,7 +129,11 @@ export function HistoryPane({ gitRoot, onOpenRevDiff }: {
             </button>
             <button style={{ ...smallBtn, width: 20, justifyContent: 'center' }} onClick={() => setSelected(null)} title="Close">✕</button>
           </div>
-          <div style={{ overflow: 'auto', minHeight: 0 }}>
+          {/* `flex: 1` is load-bearing: without it this scroller sizes to its
+              CONTENT, overflows the parent's maxHeight and never reaches its own
+              scroll threshold, so a commit touching many files runs off the
+              bottom with no way to scroll to the rest. */}
+          <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
             {!files && !note && <div style={noteStyle}>loading files…</div>}
             {note && <div style={{ ...noteStyle, color: 'var(--cth-ink-700)' }}>{note}</div>}
             {files && files.length === 0 && <div style={noteStyle}>no file changes (merge?)</div>}

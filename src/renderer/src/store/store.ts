@@ -5,6 +5,9 @@ import type { ThemeId } from '@/scene/office/themeRegistry';
 import type { StatusKind } from '@/components/PixelBadge';
 import type { AgentProvider } from '@shared/agentProvider';
 import type { HireManifest } from '@shared/hire';
+import { DEFAULT_ORG_TRIGGER, type OrgTriggerConfig, type WebhookTrigger } from '@shared/triggers';
+import { isCompactionCommand } from '@shared/providerAutomation';
+import type { LimitHold } from '@shared/rateLimit';
 
 export type ToolKind =
   | 'Read' | 'Edit' | 'Write' | 'Bash' | 'WebFetch' | 'WebSearch'
@@ -167,6 +170,11 @@ interface State {
   /** Per-agent tool-call count this session — a lightweight activity/usage proxy
    *  shown in the command center (interactive sessions don't expose billed $). */
   toolCounts: Record<string, number>;
+  /** Usage-limit holds in force, soonest first. MAIN owns these — this is a
+   *  read-only mirror kept fresh by `limit:changed`, so a renderer reload can
+   *  never lose a hold or invent one. */
+  limitHolds: LimitHold[];
+  setLimitHolds: (holds: LimitHold[]) => void;
   bumpToolCount: (id: string) => void;
   setGodStatus: (status: GodStatus) => void;
   select: (id: string) => void;
@@ -225,6 +233,23 @@ interface State {
    *  on switch). OfficeFloor depends on this and rebuilds the scene on change. */
   officeTheme: ThemeId;
   setOfficeTheme: (theme: ThemeId) => void;
+  /** Mirror of config.webhookTriggers — the inbound HTTP endpoints. Webhooks are
+   *  editable from BOTH Settings → Connections and the Triggers tab, so neither
+   *  surface keeps its own copy: both render off this list and both call the
+   *  setter after persisting, and the other one repaints without a refetch.
+   *  Seeded by App from getConfig() (main deep-fills the field on every read).
+   *
+   *  Holds per-endpoint secrets, because a secret is what the UI has to show for
+   *  reveal/copy to mean anything. Renderer memory only — never persisted to
+   *  localStorage or the roster file, never logged, masked in every surface. */
+  webhookTriggers: WebhookTrigger[];
+  setWebhookTriggers: (list: WebhookTrigger[]) => void;
+  /** Mirror of config.orgTrigger (peer messaging between teammates' clone nodes).
+   *  Same two-way contract as `webhookTriggers`, and the same handling for
+   *  `apiKey` — in memory for the two surfaces that display it masked, nowhere
+   *  else. Configuration only for now: no transport reads the key yet. */
+  orgTrigger: OrgTriggerConfig;
+  setOrgTrigger: (cfg: OrgTriggerConfig) => void;
   /** Park a message for an agent. Returns nothing; the flush loop delivers it.
    *  `meta.instruction`, when set, is what gets typed into the PTY instead of
    *  `text` (UI/card surfaces still show `text`). */
@@ -562,6 +587,10 @@ export const useStore = create<State>((set) => ({
   godStatus: 'booting',
   messageQueues: initialQueues,
   toolCounts: {},
+  // Seeded from main by `App.tsx` and refreshed by `limit:changed`; never
+  // written speculatively from the renderer, so the two can't disagree.
+  limitHolds: [],
+  setLimitHolds: (holds) => set({ limitHolds: holds }),
   bumpToolCount: (id) =>
     set((s) => ({ toolCounts: { ...s.toolCounts, [id]: (s.toolCounts[id] ?? 0) + 1 } })),
   setGodStatus: (status) => set({ godStatus: status }),
@@ -691,10 +720,32 @@ export const useStore = create<State>((set) => ({
   setHasOpenAiKey: (has) => set({ hasOpenAiKey: has }),
   officeTheme: 'office',
   setOfficeTheme: (theme) => set({ officeTheme: theme }),
+  webhookTriggers: [],
+  setWebhookTriggers: (list) => set({ webhookTriggers: list }),
+  // A copy, not the shared DEFAULT_ORG_TRIGGER instance — main takes the same
+  // care (withTriggerDefaults), and handing the module-level default out is how
+  // one careless mutation rewrites the default for everyone.
+  orgTrigger: { ...DEFAULT_ORG_TRIGGER },
+  setOrgTrigger: (cfg) => set({ orgTrigger: cfg }),
   enqueueMessage: (agentId, text, meta) =>
     set((s) => {
       const trimmed = text.trim();
       if (!trimmed) return s;
+      // ONE PENDING COMPACT PER AGENT. Compaction is idempotent in the worst way:
+      // the first `/compact` does the work and every one behind it answers
+      // "nothing to compact", so a queue that accumulates them spends a delivery
+      // slot and a model round-trip per copy to achieve nothing, and buries the
+      // operator's real backlog behind them.
+      //
+      // The invariant lives HERE rather than at the call sites because there are
+      // several — the context trigger, god dispatching a work order, Slack, the
+      // composer — and each one that grew its own check could still be bypassed
+      // by the next path someone adds. The context trigger's own check stays as
+      // cheap defence in depth, but this is the one that cannot be routed around.
+      const queued = s.messageQueues[agentId] ?? [];
+      if (isCompactionCommand(trimmed) && queued.some((m) => isCompactionCommand(m.text))) {
+        return s;
+      }
       const msg: QueuedMessage = {
         id: newQueuedId(), text: trimmed, ts: Date.now(),
         ...(meta?.slack ? { slack: meta.slack } : {}),
@@ -778,4 +829,12 @@ export const useStore = create<State>((set) => ({
 
 export function selectedAgent(s: State): Agent | undefined {
   return s.agents.find(a => a.id === s.selectedId);
+}
+
+/** Whether the Command Center's Trigger History tab has anything to be about
+ *  yet: an organisation key is set, or at least one webhook exists. Derived from
+ *  the two mirrors rather than stored beside them, so it cannot fall out of step
+ *  with the thing it describes. Use as `useStore(triggerHistoryVisible)`. */
+export function triggerHistoryVisible(s: State): boolean {
+  return s.webhookTriggers.length > 0 || s.orgTrigger.apiKey.trim() !== '';
 }

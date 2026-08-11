@@ -6,7 +6,7 @@ import { CSSProperties } from 'react';
 export type IconName =
   | 'gear' | 'plus' | 'x' | 'check' | 'arrow-right' | 'pause' | 'play'
   | 'bell' | 'folder' | 'terminal' | 'code' | 'web' | 'mcp' | 'sparkle'
-  | 'expand' | 'minimize' | 'clock' | 'mic';
+  | 'expand' | 'minimize' | 'clock' | 'mic' | 'ledger' | 'info' | 'sidebar';
 
 interface IconDef {
   ink: string;     // primary color path d
@@ -88,10 +88,34 @@ const paths: Record<IconName, IconDef> = {
     accentColor: 'var(--cth-lemon)',
     ink:   'M5 1h6v1h2v2h1v2h1v4h-1v2h-1v2h-2v1H5v-1H3v-2H2V8H1V6h1V4h1V2h2V1zm0 2H4v1H3v2H2v4h1v2h1v1h1v1h6v-1h1v-1h1v-2h1V6h-1V4h-1V3h-1V2H5v1zm2 1h2v4h2v1h1v1h-1v1h-1v-1H9v1H7V4z'
   },
+  // Ruled page — the trigger-history ledger. Frame as an evenodd cutout, three
+  // written lines inside it (the last one short, like a part-filled entry).
+  ledger: {
+    accentColor: 'var(--cth-lemon)',
+    ink:   'M2 1h12v14H2V1zM3 2v12h10V2H3zM5 4h6v1H5zM5 7h6v1H5zM5 10h4v1H5z'
+  },
   // Microphone: a solid capsule head, an open cradle, a stem, and a base.
   mic: {
     accentColor: 'var(--cth-coral)',
     ink:   'M6 2h4v7H6V2z M4 9h1v2H4z M11 9h1v2h-1z M4 11h8v1H4z M7 12h2v2H7z M5 14h6v1H5z'
+  },
+  // Filled disc with the 'i' knocked OUT of it — the dot and stem are separate
+  // subpaths cut by fill-rule: evenodd, same trick as the gear's hub hole. A
+  // knocked-out glyph stays legible at 16px where a 1px-stroked outline would
+  // shimmer against the pixel grid.
+  info: {
+    accentColor: 'var(--cth-sky)',
+    ink:   'M5 1h6v1h2v1h1v2h1v6h-1v2h-1v1h-2v1H5v-1H3v-1H2v-2H1V5h1V3h1V2h2V1z M7 4h2v2H7z M7 7h2v5H7z'
+  },
+  // Panel outline with the left column filled — the standard sidebar-toggle
+  // glyph. Three subpaths under fill-rule: evenodd — frame, hollow interior,
+  // then the left column, which lands on an ODD crossing count and so fills back
+  // in. Deliberately NOT `minimize`/`expand`: those sit in the same toolbar
+  // meaning "exit fullscreen", and two size-ish arrows side by side read as the
+  // same control twice.
+  sidebar: {
+    accentColor: 'var(--cth-ink-300)',
+    ink:   'M1 3h14v10H1z M2 4h12v8H2z M2 4h4v8H2z'
   }
 };
 
@@ -114,7 +138,14 @@ export function Icon({ name, size = 1, style }: IconProps) {
       aria-hidden
     >
       {def.accent && <path d={def.accent} fill={def.accentColor} fillRule="evenodd" />}
-      <path d={def.ink} fill="var(--cth-ink-900)" fillRule="evenodd" />
+      {/* currentColor, not a hardcoded `--cth-ink-900`. `body` already sets that
+          same token as its color, so this is a no-op for every icon sitting on a
+          normal surface — but on an INVERTED surface it is the difference between
+          an icon and a blank space. A primary PixelButton fills itself with
+          `--cth-ink-900` and an icon painted the same token vanished into it (the
+          arrow on Send, in both themes). Inheriting means an icon is always the
+          colour of the text it sits beside, which is what every call site meant. */}
+      <path d={def.ink} fill="currentColor" fillRule="evenodd" />
     </svg>
   );
 }

@@ -16,6 +16,10 @@ export const CODEX_COMMAND_GROUPS: CmdGroup[] = [
     title: 'SESSION',
     items: [
       { cmd: '/clear', kind: 'slash', desc: 'Start a fresh chat without quitting — clears the conversation context.' },
+      // Verified present in the codex 0.137.0 binary's own command table. It was
+      // missing here while providerAutomation sent it, so the two disagreed.
+      // Unlike Claude's, this one ignores any trailing focus text.
+      { cmd: '/compact', kind: 'slash', desc: 'Summarize the conversation so far to stay under the context limit.' },
       { cmd: '/help', kind: 'slash', desc: 'List every available slash command.' },
       { cmd: '/copy', kind: 'slash', desc: 'Copy the latest model output to the clipboard.' },
       { cmd: '/logout', kind: 'slash', desc: 'Clear locally stored credentials.' },

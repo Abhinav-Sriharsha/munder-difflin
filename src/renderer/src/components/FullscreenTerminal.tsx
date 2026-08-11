@@ -6,6 +6,7 @@ import { PtyTerminalView } from './PtyTerminalView';
 import { terminalInstanceKey } from './terminalRecovery';
 import { MessageQueueComposer } from './MessageQueueComposer';
 import { AgentControlStrip } from './AgentControlStrip';
+import { LimitBanner } from './LimitBanner';
 import { CommandCenterPanel } from './CommandCenterPanel';
 import { Icon } from './Icon';
 import { SpritePortrait } from './SpritePortrait';
@@ -23,6 +24,8 @@ import type { HarnessConfig } from '@/store/config';
  *  sliver on a 27" display, where names truncate for no reason — so it tracks
  *  the viewport between those two ends. */
 const SIDEBAR_WIDTH = 'clamp(232px, 14vw, 340px)';
+/** Remembers the roster collapse across fullscreen sessions and app restarts. */
+const ROSTER_COLLAPSED_KEY = 'cth.fullscreen.rosterCollapsed';
 
 /** Roster type scale, derived from the shared terminal zoom so Cmd +/- resizes
  *  the whole roster along with the terminal — one knob for the whole view
@@ -161,6 +164,19 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
   const reorderAgents = useStore(s => s.reorderAgents);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  // Roster collapse. Persisted because it is a working preference, not a mode:
+  // someone who hides the rail to read wide terminal output wants it still hidden
+  // the next time they go fullscreen, not to re-hide it every single time.
+  const [rosterCollapsed, setRosterCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(ROSTER_COLLAPSED_KEY) === '1'; } catch { return false; }
+  });
+  const toggleRoster = (): void => {
+    setRosterCollapsed((v) => {
+      const next = !v;
+      try { localStorage.setItem(ROSTER_COLLAPSED_KEY, next ? '1' : '0'); } catch { /* private mode */ }
+      return next;
+    });
+  };
   const drag: RowDrag = {
     dragId,
     overId,
@@ -272,6 +288,24 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
             {appThemeNow === 'dark' ? '☀' : '☾'}
           </button>
           <button
+            onClick={toggleRoster}
+            title={rosterCollapsed ? 'Show the agent list' : 'Hide the agent list — full-width terminal'}
+            aria-label={rosterCollapsed ? 'Show the agent list' : 'Hide the agent list'}
+            aria-pressed={rosterCollapsed}
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, padding: 0,
+              // Pressed-in when collapsed, so the rail's absence reads as a state
+              // this button is holding rather than something that broke.
+              background: rosterCollapsed ? 'var(--cth-lemon)' : 'var(--cth-paper-100)',
+              boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
+              border: 'none', borderRadius: 2, cursor: 'pointer',
+              color: rosterCollapsed ? 'var(--cth-ink-900)' : 'var(--cth-ink-900)'
+            }}
+          >
+            <Icon name="sidebar" size={1} style={{ width: 16, height: 16 }} />
+          </button>
+          <button
             onClick={() => setFullscreen(null)}
             title="Exit fullscreen (Esc)"
             aria-label="Exit fullscreen"
@@ -296,6 +330,11 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
           could show, and grouping by repository is how the user actually thinks
           about the fleet. */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        {/* Unmounted rather than width:0 when collapsed — the roster renders a row
+            per agent with live status, and keeping a hidden copy mounted would go
+            on doing that work for a rail nobody can see. Remounting is cheap; the
+            terminals live in the pool and are untouched by this. */}
+        {!rosterCollapsed && (
         <aside style={{
           width: SIDEBAR_WIDTH, flexShrink: 0,
           display: 'flex', flexDirection: 'column',
@@ -445,6 +484,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
             </div>
           )}
         </aside>
+        )}
 
         <div style={{
           flex: 1, minWidth: 0, minHeight: 0,
@@ -453,7 +493,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
         }}>
           {agent.isGod ? (
             // Michael runs the floor from the command center — its tabs (tasks,
-            // ask me, schedules, memory, graph…) are the whole point of selecting
+            // ask me, triggers, memory, graph…) are the whole point of selecting
             // him, and fullscreen used to drop them for a bare terminal.
             // Column so the panel's `height: 100%` resolves against a definite
             // height and `align-items: stretch` gives it the full width.
@@ -466,6 +506,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
 
               {/* #7C — pause / halt / steer. These only existed in the docked
                   sidebar, so going fullscreen took the operator controls away. */}
+              <LimitBanner key={`limit-${agent.id}`} agentId={agent.id} />
               <AgentControlStrip key={agent.id} agentId={agent.id} />
 
               <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>

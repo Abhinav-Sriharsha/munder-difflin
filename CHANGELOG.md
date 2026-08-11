@@ -4,6 +4,73 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.8] — 2026-08-11
+
+**The floor stops typing when it can't be heard.**
+A rate-limited CLI discards keystrokes silently — no error, no bounce — so every message
+delivered during the window was simply gone. That is the headline fix. Behind it, a run of things
+that had been quietly costing tokens or hiding in plain sight: compaction firing on two schedules
+at once, a commit history that rendered no commit messages, and buttons whose labels were
+invisible in dark mode.
+
+### Added
+- **Usage-limit guard.** When a CLI reports it has hit its limit, every agent on that provider
+  stops being typed into, queues stay intact, and delivery resumes by itself at the reset — one
+  message at a time. Holds are scoped to the **provider**, because a usage limit belongs to an
+  account and siblings on one subscription are already behind the same wall. Two tiers: a spent
+  quota holds until its stated reset, while a transient throttle is off by default since the CLIs
+  already retry those themselves. Every hold shows the line that caused it, a countdown, and a
+  resume button; the whole guard is one switch in **Settings → Usage limits**. Reset times are
+  read from the CLI where it states one (including a two-pass timezone solve so a reset after a
+  DST change doesn't land an hour out) and fall back to an escalating backoff where it doesn't.
+- **Triggers hub.** Schedules, inbound webhooks, context rules and peer messaging now share one
+  home in Settings, with a history of what fired and what it did.
+- **Collapsible panels.** The IDE's git rail folds away to give the file tree its height back, and
+  the fullscreen roster folds for a full-width terminal. Both remember the choice.
+- **The OpenAI key can be set where voice is explained.** Settings → Voice now carries the field
+  itself, names the model it pays for (`gpt-realtime-2.1`), and the disabled Talk button links
+  straight to it.
+
+### Fixed
+- **Claude Code transcripts were read from a directory that has not existed for months.**
+  `projectDir()` built the pre-2026 project key — leading slash dropped — while Claude Code dashes
+  every non-alphanumeric character. Nothing errored, because every caller reads an absent directory
+  as "no transcripts yet", so memory condensation had never once succeeded: a long run of
+  `condense-abort`s and zero successes, each failed attempt still writing a full backup first. The
+  offline usage reconciler and cross-cwd session-resume read and wrote the same wrong path. Found
+  and diagnosed by [@gts-47](https://github.com/gts-47).
+- **Compaction ran on two schedules at once.** The hourly ops standup carried an `autoCompact`
+  flag that the context trigger was supposed to have replaced, so a default install requested
+  compaction on both cadences — and turning the trigger off left the standup compacting anyway.
+  There is now one control, and its off-switch is honest.
+- **Duplicate `/compact` messages piled up in the queue** and fired together, each answering
+  "nothing to compact" after the first had done the work. One pending compaction per agent is now
+  enforced in the message store, where no caller can route around it.
+- **The commit history is legible.** It rendered through a library that positions rows at a fixed
+  64px regardless of the spacing it draws the graph at (rows overlapped), reserves 500px for the
+  graph regardless of available width (text was squeezed into the remainder and wrapped), and
+  never displayed the commit subject at all. It is now drawn directly and fits any panel width.
+- **Disabled buttons were unreadable, and icons vanished on dark buttons.** Disabled fills swapped
+  to a mid surface while the label kept its inverted colour — roughly 1.4:1 in dark mode. Icons
+  were painted in the same token as a primary button's fill, so the arrow on **Send** was
+  invisible whenever it was enabled.
+- **Two scrollers that never scrolled** — the IDE's changed-file list and the per-commit file list.
+  `overflow: auto` inside a capped column sizes to its content without `flex: 1`, so it overflowed
+  the cap rather than reaching its own scroll threshold.
+- **Codex hooks stopped timing out after 1s.** Codex reads `timeout` as seconds and normalises it
+  with `.max(1)`, so the `timeout: 0` sentinel copied from Claude's config meant *one second*, not
+  "no timeout" — every Codex worker logged a failed SessionStart hook.
+- **Every download link on the release page 404'd.** They carried a version-pinned filename that
+  stopped resolving four releases ago; mac downloads fell from ~118 to single digits. The release
+  gate now refuses to ship links that don't resolve.
+- **A tooltip clipped by the agent dock**, and the missing-key notice that overflowed the agent
+  card.
+
+### Changed
+- Scheduled auto-compact is held while any provider is rate-limited: `/compact` is a model call,
+  and sending it into a capped CLI spends a rejected attempt *and* parks a `/compact` ahead of
+  your real backlog.
+
 ## [0.3.7] — 2026-08-08
 
 **Auto-update, fixed.**

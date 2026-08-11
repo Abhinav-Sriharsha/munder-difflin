@@ -1,6 +1,15 @@
 import { useState, useEffect, type CSSProperties } from 'react';
 import { AGENT_MODELS, type HarnessConfig } from '@/store/config';
 import { useStore } from '@/store/store';
+import {
+  CLONE_NODE_BLURB,
+  DEFAULT_TRIGGER_MODE,
+  DEFAULT_WEBHOOK_SCHEMA,
+  TRIGGER_MODES,
+  type OrgTriggerConfig,
+  type TriggerMode,
+  type WebhookTrigger
+} from '@shared/triggers';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
 import { Icon } from './Icon';
@@ -8,27 +17,42 @@ import { OfficeThemePicker } from './OfficeThemePicker';
 import { McpDefaultsSettings } from './McpDefaultsSettings';
 import { IntegrationsRegistry } from './IntegrationsRegistry';
 import { AiEnginesSettings } from './AiEnginesSettings';
+import { REALTIME_MODEL } from '@shared/realtimePricing';
 import { RealtimeDevicePicker } from '@/realtime/DevicePicker';
 import { CostHud } from '@/realtime/CostHud';
 
 export interface SettingsModalProps {
   config: HarnessConfig;
   onClose: () => void;
+  /** Open straight to a section instead of General. Used by deep links from
+   *  elsewhere in the UI — "set it now" beside a disabled Talk button lands on
+   *  the tab that actually holds the field, rather than making the user hunt. */
+  initialSection?: Section;
 }
 
-/** Slack fields live on the main-process config; the renderer mirror type doesn't
- *  declare them yet (same as `notifications`), so read them off a widened view. */
-type SlackConfig = HarnessConfig & {
-  slackEnabled?: boolean;
-  slackSigningSecret?: string;
-  slackBotToken?: string;
-  slackChannelId?: string;
-  slackPort?: number;
-  slackProactivePosting?: boolean;
-  webhookEnabled?: boolean;
-  webhookSecret?: string;
-  webhookPort?: number;
-};
+/**
+ * The triggers IPC surface. `src/preload/index.ts` is owned by another lane and
+ * these methods are landing there in parallel, so `CthApi` doesn't declare them
+ * yet — read them off a narrow local view instead of widening the preload
+ * contract from the renderer. Every call site wraps them in try/catch, which also
+ * covers the window in which a method is still missing at runtime.
+ */
+interface TriggersApi {
+  listWebhooks: () => Promise<WebhookTrigger[]>;
+  saveWebhooks: (list: WebhookTrigger[]) => Promise<{ ok: boolean; error?: string }>;
+  deleteWebhook: (id: string) => Promise<{ ok: boolean; error?: string }>;
+  generateWebhookSecret: () => Promise<{ ok: boolean; secret?: string }>;
+  webhooksStatus: () => Promise<{ running: boolean; url?: string }>;
+  getOrgTrigger: () => Promise<OrgTriggerConfig>;
+  setOrgTrigger: (cfg: OrgTriggerConfig) => Promise<{ ok: boolean; error?: string }>;
+}
+const triggersApi = (): TriggersApi => window.cth as unknown as TriggersApi;
+
+/** Process-unique id for a new webhook — it is the path segment callers POST to,
+ *  so it must be stable and collision-free across renames. */
+function newWebhookId(): string {
+  return `wh-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /** Pixel-aesthetic text input, mirroring AddAgentModal's inputStyle. */
 const slackInputStyle: CSSProperties = {
@@ -81,24 +105,38 @@ const SLACK_CONNECT_STEPS = `Connect Munder Difflin to Slack
 8. Save Changes, reinstall if Slack prompts, then invite the bot
    to your channel:  /invite @MunderDifflin`;
 
-/** The request/response contract shown behind the webhook i icon. `<endpoint>` is the
- *  public URL printed once the server starts; the secret/token go in headers so
- *  they stay out of URLs and access logs. */
-const WEBHOOK_API_DOC = `Generic webhook API
+/** The request/response contract shown behind the webhook i icon. Every webhook
+ *  shares one server and one tunnel and is told apart by its id in the path, so
+ *  `<tunnel>` is the public base URL and `<webhookId>` picks the endpoint. The
+ *  secret/token go in headers so they stay out of URLs and access logs. */
+const WEBHOOK_API_DOC = `Webhook API
 
-Trigger work (POST <endpoint>):
-  header  x-md-webhook-secret: <your secret>
-  body    {"message": "do X for me", "title": "optional short title"}
+Every webhook has its own URL, its own secret and its own mode. They share one
+server and one tunnel; the id in the path says which one you are calling.
+
+Trigger work (POST <tunnel>/<webhookId>):
+  header  x-md-webhook-secret: <that webhook's secret>
+  body    {"message": "do X for me", "title": "optional short title",
+           "kind": "directive" | "communication", "from": "who is calling"}
   -> 200  {"ok": true, "token": "<capability token>", "taskId": "<card id>"}
+  -> 202  {"ok": true, "status": "awaiting approval"}
 
-Check status (GET <endpoint>):
+Check status (GET <tunnel>/<webhookId>):
   header  x-md-webhook-token: <token>     (or  ?token=<token>)
   -> 200  {"ok": true, "status": "todo|doing|blocked|done",
            "title": "...", "result": "<summary or null>"}
 
-The secret authorizes new work; the returned token is a read-only handle to
-that one task's status (it reveals nothing else). Keep both private. The
-endpoint URL rotates every time you press Start.`;
+The mode decides which of the two answers you get:
+  allow all           routes straight through -> 200
+  communication only  chatter routes; a directive gets 202 awaiting approval
+  strict              everything gets 202 awaiting approval
+
+A 202 means the message is parked in Trigger History until you approve it; the
+token you were handed still reads that task once it is routed. The secret
+authorizes new work, the token only reads one task's status. Keep both private.
+
+Each webhook checks bodies against its own JSON schema — edit that in the
+Triggers tab of Michael's Command Center.`;
 
 /** Clear every renderer-side persisted key so a relaunch starts truly empty. */
 function clearLocalState(): void {
@@ -115,13 +153,45 @@ function clearLocalState(): void {
 // v0.3.4 redesign: six tabs, one topic each. 'AI Engines' folded into
 // Agents & Models; MCP + Slack + webhook + REST live together in Connections;
 // voice gets its own tab; Danger Zone became a red row at the bottom of General.
-type Section = 'General' | 'Agents & Models' | 'Autonomy & Budgets' | 'Connections' | 'Voice' | 'Memory & Knowledge';
+export type Section = 'General' | 'Agents & Models' | 'Autonomy & Budgets' | 'Connections' | 'Voice' | 'Memory & Knowledge';
 const NAV_SECTIONS: Section[] = ['General', 'Agents & Models', 'Autonomy & Budgets', 'Connections', 'Voice', 'Memory & Knowledge'];
 
-export function SettingsModal({ config, onClose }: SettingsModalProps) {
+/** One labelled on/off row. The surrounding settings pane repeats this
+ *  title + blurb + toggle shape inline everywhere; the usage-limit section has
+ *  four of them, which is the point at which repeating it stops being cheaper
+ *  than naming it. */
+function SettingRow({ title, blurb, on, onClick, disabled }: {
+  title: string;
+  blurb: string;
+  on: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      opacity: disabled ? 0.5 : 1
+    }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>{title}</span>
+        <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>{blurb}</span>
+      </div>
+      <PixelButton
+        variant={on ? 'primary' : 'secondary'}
+        size="sm"
+        onClick={onClick}
+        disabled={disabled}
+      >
+        {on ? 'on' : 'off'}
+      </PixelButton>
+    </div>
+  );
+}
+
+export function SettingsModal({ config, onClose, initialSection }: SettingsModalProps) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [activeSection, setActiveSection] = useState<Section>('General');
+  const [activeSection, setActiveSection] = useState<Section>(initialSection ?? 'General');
 
   // Change-home flow: null until the user picks a new folder, then the sub-modal
   // confirms move-vs-fresh. Pre-selects 'move' (recommended - keeps the data).
@@ -141,6 +211,21 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
     setNotifications(next); // optimistic
     try { await window.cth.setNotifications(next); }
     catch { setNotifications(!next); /* revert on failure */ }
+  };
+
+  // ─── Usage-limit guard ────────────────────────────────────────────────────
+  // Persisted as one object rather than four scalars so a rapid double-toggle
+  // can't write a half-applied guard: `config:update` shallow-merges, and two
+  // in-flight patches of the same key resolve to the last write, not a blend.
+  const LIMIT_GUARD_FALLBACK = { enabled: true, autoResume: true, holdOnThrottle: false, notify: true };
+  const [limitGuard, setLimitGuard] = useState(
+    () => ({ ...LIMIT_GUARD_FALLBACK, ...(config.limitGuard ?? {}) })
+  );
+  const patchLimitGuard = async (patch: Partial<typeof LIMIT_GUARD_FALLBACK>) => {
+    const next = { ...limitGuard, ...patch };
+    setLimitGuard(next); // optimistic
+    try { await window.cth.updateConfig({ limitGuard: next } as Partial<HarnessConfig>); }
+    catch { setLimitGuard(limitGuard); /* revert on failure */ }
   };
 
   // ─── v0.3.4 redesign: settings that were onboarding-trapped or UI-less ────
@@ -238,15 +323,14 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
   };
 
   // --- Slack integration ---
-  const slackCfg = config as SlackConfig;
-  const [slackEnabled, setSlackEnabled] = useState(slackCfg.slackEnabled ?? false);
-  const [slackSecret, setSlackSecret] = useState(slackCfg.slackSigningSecret ?? '');
-  const [slackBotToken, setSlackBotToken] = useState(slackCfg.slackBotToken ?? '');
-  const [slackChannel, setSlackChannel] = useState(slackCfg.slackChannelId ?? '');
-  const [slackPort, setSlackPort] = useState(String(slackCfg.slackPort ?? 3847));
+  const [slackEnabled, setSlackEnabled] = useState(config.slackEnabled ?? false);
+  const [slackSecret, setSlackSecret] = useState(config.slackSigningSecret ?? '');
+  const [slackBotToken, setSlackBotToken] = useState(config.slackBotToken ?? '');
+  const [slackChannel, setSlackChannel] = useState(config.slackChannelId ?? '');
+  const [slackPort, setSlackPort] = useState(String(config.slackPort ?? 3847));
   // App/voice-initiated proactive posting (the "queued" ack). Default OFF —
   // the Slack-origin done-reply round-trip is unaffected by this toggle.
-  const [slackProactivePosting, setSlackProactivePosting] = useState(slackCfg.slackProactivePosting ?? false);
+  const [slackProactivePosting, setSlackProactivePosting] = useState(config.slackProactivePosting ?? false);
   const [tunnelUrl, setTunnelUrl] = useState('');
   const [slackBusy, setSlackBusy] = useState(false);
   const [slackNote, setSlackNote] = useState('');
@@ -256,16 +340,29 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
   // Whether the connect-steps help panel is expanded.
   const [showSlackHelp, setShowSlackHelp] = useState(false);
 
-  // --- Generic webhook + status API ---
-  const [webhookEnabled, setWebhookEnabled] = useState(slackCfg.webhookEnabled ?? false);
-  const [webhookSecret, setWebhookSecret] = useState(slackCfg.webhookSecret ?? '');
-  const [webhookPort, setWebhookPort] = useState(String(slackCfg.webhookPort ?? 3849));
+  // --- Webhook triggers (a LIST; src/shared/triggers.ts owns the type) ---------
+  // The list itself lives in the store, not in local state: the Triggers tab
+  // edits the same webhooks, and one of the two surfaces holding a private copy
+  // is exactly the drift this feature exists to prevent.
+  const webhookTriggers = useStore((s) => s.webhookTriggers);
+  const setWebhookTriggersStore = useStore((s) => s.setWebhookTriggers);
+  /** Public base URL of the shared tunnel; each webhook's endpoint is `<base>/<id>`. */
   const [webhookUrl, setWebhookUrl] = useState('');
   const [webhookRunning, setWebhookRunning] = useState(false);
   const [webhookBusy, setWebhookBusy] = useState(false);
   const [webhookNote, setWebhookNote] = useState('');
-  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
+  /** Which secrets the user has unmasked, by webhook id. Reset on every reopen. */
+  const [shownSecrets, setShownSecrets] = useState<Record<string, boolean>>({});
+  /** Webhook awaiting a second delete click — deleting one revokes a live caller. */
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [showWebhookHelp, setShowWebhookHelp] = useState(false);
+
+  // --- Organisation trigger (peer messaging; configuration only for now) ------
+  const orgTrigger = useStore((s) => s.orgTrigger);
+  const setOrgTriggerStore = useStore((s) => s.setOrgTrigger);
+  const [showOrgKey, setShowOrgKey] = useState(false);
+  const [orgBusy, setOrgBusy] = useState(false);
+  const [orgNote, setOrgNote] = useState('');
 
   // ─── Knowledge Graph (enterprise multimodal context for agents) ───────────
   const [kgEnabled, setKgEnabled] = useState<boolean>(
@@ -303,8 +400,8 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
   };
 
   // ─── Scheduled auto-compact — the compact-maintenance mission's enabled flag.
-  // The mission itself stays the single source of truth (SchedulesTab edits the
-  // same field); this is just a General-section shortcut. Default OFF (v0.3.4).
+  // The mission itself stays the single source of truth (the Triggers tab edits
+  // the same field); this is just a General-section shortcut. Default OFF (v0.3.4).
   const [autoCompactOn, setAutoCompactOn] = useState<boolean>(
     (config.missions ?? []).some((m) => m.id === 'compact-maintenance' && m.enabled)
   );
@@ -335,11 +432,31 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
   // Talk (Realtime Michael) is gated on the OpenAI key — read the live presence
   // boolean so the Realtime Michael section can show its enabled/disabled status.
   const hasOpenAiKey = useStore((s) => s.hasOpenAiKey);
+  // Voice-tab entry for the SAME broker slot Agents & Models writes (apikey:openai).
+  // Mirroring presence into the store on save is what makes the Talk button light up
+  // immediately instead of on next launch.
+  const setHasOpenAiKey = useStore((s) => s.setHasOpenAiKey);
+  const [openAiVoiceKey, setOpenAiVoiceKey] = useState('');
+  const [openAiVoiceNote, setOpenAiVoiceNote] = useState('');
+  const saveOpenAiVoiceKey = async (): Promise<void> => {
+    const key = openAiVoiceKey.trim();
+    if (!key) return;
+    try {
+      const r = await window.cth.providerKeySet({ backend: 'openai', key });
+      if (r.ok) {
+        setOpenAiVoiceKey('');
+        setHasOpenAiKey(true);
+        setOpenAiVoiceNote('Key saved — Talk is ready.');
+      } else setOpenAiVoiceNote(r.error ?? 'Could not save the key.');
+    } catch (e) {
+      setOpenAiVoiceNote(e instanceof Error ? e.message : String(e));
+    }
+  };
   // v0.3.4 fix: the config default is ON ('now on by default', 0.2.7) — seeding
   // with `?? false` displayed OFF while the feature was actually running.
-  const [freeflowEnabled, setFreeflowEnabled] = useState(slackCfg.freeflowEnabled !== false);
-  const [groqKey, setGroqKey] = useState(slackCfg.groqApiKey ?? '');
-  const [freeflowModel, setFreeflowModel] = useState(slackCfg.freeflowModel ?? 'whisper-large-v3-turbo');
+  const [freeflowEnabled, setFreeflowEnabled] = useState(config.freeflowEnabled !== false);
+  const [groqKey, setGroqKey] = useState(config.groqApiKey ?? '');
+  const [freeflowModel, setFreeflowModel] = useState(config.freeflowModel ?? 'whisper-large-v3-turbo');
   const [showGroqKey, setShowGroqKey] = useState(false);
   const [freeflowBusy, setFreeflowBusy] = useState(false);
   const [freeflowNote, setFreeflowNote] = useState('');
@@ -355,8 +472,9 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
     let alive = true;
     window.cth.getConfig().then((c) => {
       if (!alive) return;
-      const cc = c as BreakerCfgView & SlackConfig & { notifications?: boolean };
+      const cc = c as BreakerCfgView;
       setNotifications(cc.notifications === true);
+      setLimitGuard({ ...LIMIT_GUARD_FALLBACK, ...((c as HarnessConfig).limitGuard ?? {}) });
       setAgentBudget(cc.costCapTokens != null ? String(cc.costCapTokens) : '');
       setVelocityCeiling(cc.circuitBreaker?.tokenVelocityPerMin != null ? String(cc.circuitBreaker.tokenVelocityPerMin) : '');
       setSlackEnabled(cc.slackEnabled ?? false);
@@ -365,9 +483,6 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
       setSlackChannel(cc.slackChannelId ?? '');
       setSlackPort(String(cc.slackPort ?? 3847));
       setSlackProactivePosting(cc.slackProactivePosting ?? false);
-      setWebhookEnabled(cc.webhookEnabled ?? false);
-      setWebhookSecret(cc.webhookSecret ?? '');
-      setWebhookPort(String(cc.webhookPort ?? 3849));
       const kgOn = (cc as { knowledgeGraph?: { enabled?: boolean } }).knowledgeGraph?.enabled === true;
       setKgEnabled(kgOn);
       setFreeflowEnabled(cc.freeflowEnabled !== false);
@@ -384,11 +499,26 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
       setRunning(s.running);
       if (s.url) setTunnelUrl(s.url);
     }).catch(() => { /* status unavailable - assume not running */ });
-    window.cth.webhookStatus().then((s) => {
-      if (!alive) return;
-      setWebhookRunning(s.running);
-      if (s.url) setWebhookUrl(s.url);
-    }).catch(() => { /* status unavailable - assume not running */ });
+    // Triggers: re-read main and push the result into the shared mirror. App
+    // already seeded it at launch; this catches anything the Triggers tab (or
+    // another window) changed since, and is the ONLY place Settings reads them —
+    // every render below comes off the store.
+    void (async () => {
+      try {
+        const list = await triggersApi().listWebhooks();
+        if (alive && Array.isArray(list)) useStore.getState().setWebhookTriggers(list);
+      } catch { /* keep the mirror App seeded from getConfig() */ }
+      try {
+        const org = await triggersApi().getOrgTrigger();
+        if (alive && org) useStore.getState().setOrgTrigger(org);
+      } catch { /* ditto */ }
+      try {
+        const s = await triggersApi().webhooksStatus();
+        if (!alive) return;
+        setWebhookRunning(s.running);
+        if (s.url) setWebhookUrl(s.url);
+      } catch { /* status unavailable - assume not listening */ }
+    })();
     return () => { alive = false; };
   }, []);
 
@@ -440,63 +570,104 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
     finally { setSlackBusy(false); }
   };
 
-  // --- Generic webhook handlers ---
-  const webhookPatch = (enabled: boolean) => ({
-    secret: webhookSecret,
-    port: Number(webhookPort) || 3849,
-    enabled
-  });
-
-  const saveWebhook = async () => {
+  // --- Webhook trigger handlers ---
+  /** The one write path. Updates the shared mirror FIRST so the Triggers tab
+   *  repaints immediately, then persists. Pass `persist: false` for keystroke
+   *  edits (a rename) — the blur commits them. */
+  const applyWebhooks = async (list: WebhookTrigger[], persist = true) => {
+    setWebhookTriggersStore(list);
+    if (!persist) return;
     setWebhookBusy(true); setWebhookNote('');
     try {
-      await window.cth.webhookSetConfig(webhookPatch(webhookEnabled));
+      const res = await triggersApi().saveWebhooks(list);
+      if (res && res.ok === false) { setWebhookNote(res.error ?? 'could not save'); return; }
       setWebhookNote('saved');
+      setTimeout(() => setWebhookNote(''), 1500);
     } catch (e) {
       setWebhookNote(e instanceof Error ? e.message : String(e));
     } finally { setWebhookBusy(false); }
   };
 
-  /** Mint a fresh secret in main (256-bit) and show it for copying. */
-  const generateWebhookSecret = async () => {
+  /** Replace one entry by id (the shape every per-row control uses). */
+  const patchWebhook = (id: string, patch: Partial<WebhookTrigger>, persist = true) =>
+    applyWebhooks(webhookTriggers.map((w) => (w.id === id ? { ...w, ...patch } : w)), persist);
+
+  /** New endpoint: main mints the secret (256-bit), and it ships DISABLED —
+   *  turning on a public surface is always an explicit second click. */
+  const addWebhook = async () => {
+    setWebhookBusy(true); setWebhookNote('');
+    let secret = '';
+    try {
+      const res = await triggersApi().generateWebhookSecret();
+      secret = res.ok && res.secret ? res.secret : '';
+    } catch (e) {
+      setWebhookNote(e instanceof Error ? e.message : String(e));
+    } finally { setWebhookBusy(false); }
+    if (!secret) { setWebhookNote('could not generate a secret'); return; }
+    const entry: WebhookTrigger = {
+      id: newWebhookId(),
+      name: `Webhook ${webhookTriggers.length + 1}`,
+      secret,
+      enabled: false,
+      mode: DEFAULT_TRIGGER_MODE,
+      schema: DEFAULT_WEBHOOK_SCHEMA,
+      createdAt: Date.now()
+    };
+    setShownSecrets((s) => ({ ...s, [entry.id]: true })); // show it once, to copy
+    await applyWebhooks([...webhookTriggers, entry]);
+  };
+
+  /** Mint a fresh secret for ONE endpoint. The old one stops working at once —
+   *  that is the point, and it never disturbs the other webhooks. */
+  const rotateWebhookSecret = async (id: string) => {
+    setWebhookBusy(true); setWebhookNote('');
+    let secret = '';
+    try {
+      const res = await triggersApi().generateWebhookSecret();
+      secret = res.ok && res.secret ? res.secret : '';
+    } catch (e) {
+      setWebhookNote(e instanceof Error ? e.message : String(e));
+    } finally { setWebhookBusy(false); }
+    if (!secret) { setWebhookNote('could not generate a secret'); return; }
+    setShownSecrets((s) => ({ ...s, [id]: true }));
+    await patchWebhook(id, { secret });
+    setWebhookNote('new secret — copy it now');
+  };
+
+  const removeWebhook = async (id: string) => {
+    setPendingDelete(null);
     setWebhookBusy(true); setWebhookNote('');
     try {
-      const res = await window.cth.webhookGenerateSecret();
-      if (res.ok && res.secret) { setWebhookSecret(res.secret); setShowWebhookSecret(true); setWebhookNote('new secret - copy it now'); }
-      else setWebhookNote('could not generate secret');
+      await triggersApi().deleteWebhook(id);
+      setWebhookNote('deleted');
+      setTimeout(() => setWebhookNote(''), 1500);
     } catch (e) {
       setWebhookNote(e instanceof Error ? e.message : String(e));
     } finally { setWebhookBusy(false); }
+    // Mirror the removal either way: if main rejected it, the next open re-reads.
+    setWebhookTriggersStore(webhookTriggers.filter((w) => w.id !== id));
   };
 
-  const startWebhook = async () => {
-    setWebhookBusy(true); setWebhookNote('');
-    try {
-      await window.cth.webhookSetConfig(webhookPatch(true));
-      setWebhookEnabled(true);
-      const res = await window.cth.webhookStart();
-      if (res.ok) {
-        setWebhookRunning(true);
-        if (res.url) setWebhookUrl(res.url);
-        setWebhookNote(res.url ? 'listening' : (res.error ?? 'started, but tunnel unavailable'));
-      } else {
-        setWebhookNote(res.error ?? 'failed to start');
-      }
-    } catch (e) {
-      setWebhookNote(e instanceof Error ? e.message : String(e));
-    } finally { setWebhookBusy(false); }
-  };
-
-  const stopWebhook = async () => {
-    setWebhookBusy(true); setWebhookNote('');
-    try { await window.cth.webhookStop(); setWebhookRunning(false); setWebhookNote('stopped'); }
-    catch (e) { setWebhookNote(e instanceof Error ? e.message : String(e)); }
-    finally { setWebhookBusy(false); }
-  };
-
-  const copyWebhookUrl = () => { void window.cth.copyToClipboard(webhookUrl); };
-  const copyWebhookSecret = () => { void window.cth.copyToClipboard(webhookSecret); };
+  /** Endpoint URL for one webhook: every entry shares the tunnel, the id picks it. */
+  const webhookEndpoint = (id: string) => (webhookUrl ? `${webhookUrl.replace(/\/$/, '')}/${id}` : '');
   const copyTunnel = () => { void window.cth.copyToClipboard(tunnelUrl); };
+
+  // --- Organisation trigger handlers ---
+  /** Same contract as webhooks: mirror first (so the Triggers tab is live), then
+   *  persist. Keystroke edits pass `persist: false` and commit on blur. */
+  const applyOrg = async (next: OrgTriggerConfig, persist = true) => {
+    setOrgTriggerStore(next);
+    if (!persist) return;
+    setOrgBusy(true); setOrgNote('');
+    try {
+      const res = await triggersApi().setOrgTrigger(next);
+      if (res && res.ok === false) { setOrgNote(res.error ?? 'could not save'); return; }
+      setOrgNote('saved');
+      setTimeout(() => setOrgNote(''), 1500);
+    } catch (e) {
+      setOrgNote(e instanceof Error ? e.message : String(e));
+    } finally { setOrgBusy(false); }
+  };
 
   // --- Free Flow handlers ---
   /** Persist Free Flow settings; main re-arms the global hotkey. Also mirror the
@@ -818,6 +989,53 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
 
                       <div style={{ height: 1, background: 'var(--cth-ink-300)' }} />
 
+                      {/* Usage-limit guard — pause, queue, auto-resume */}
+                      <div>
+                        <div style={{
+                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
+                        }}>
+                          Usage limits
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <SettingRow
+                            title="Hold the queue when a limit is hit"
+                            blurb={'When a CLI reports it has hit its usage limit, stop typing at every agent '
+                              + 'on that provider and keep their messages queued. Off types into a capped-out '
+                              + 'terminal, where the message is silently discarded.'}
+                            on={limitGuard.enabled}
+                            onClick={() => { void patchLimitGuard({ enabled: !limitGuard.enabled }); }}
+                          />
+                          <SettingRow
+                            title="Resume automatically"
+                            blurb={'Start sending again by itself when the limit resets, one message at a '
+                              + 'time. Off keeps the queue held until you press resume.'}
+                            on={limitGuard.autoResume}
+                            disabled={!limitGuard.enabled}
+                            onClick={() => { void patchLimitGuard({ autoResume: !limitGuard.autoResume }); }}
+                          />
+                          <SettingRow
+                            title="Also hold on transient throttling"
+                            blurb={'Stand down for burst 429s and "overloaded" errors too. Off by default: '
+                              + 'the CLIs retry those themselves within seconds, so holding mostly adds '
+                              + 'latency to a hiccup that had already cleared.'}
+                            on={limitGuard.holdOnThrottle}
+                            disabled={!limitGuard.enabled}
+                            onClick={() => { void patchLimitGuard({ holdOnThrottle: !limitGuard.holdOnThrottle }); }}
+                          />
+                          <SettingRow
+                            title="Notify when held and resumed"
+                            blurb={'Native toast on both edges, so a limit hit while the window is in the '
+                              + 'background is not discovered an hour later. Needs desktop notifications on.'}
+                            on={limitGuard.notify}
+                            disabled={!limitGuard.enabled}
+                            onClick={() => { void patchLimitGuard({ notify: !limitGuard.notify }); }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ height: 1, background: 'var(--cth-ink-300)' }} />
+
                       {/* Scheduled auto-compact (compact-maintenance mission) */}
                       <div>
                         <div style={{
@@ -833,7 +1051,7 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
                               Queue /compact for every agent on a schedule (hourly by default; interval
-                              in the Schedules tab). Off by default — long-running agents may overflow
+                              in the Triggers tab). Off by default — long-running agents may overflow
                               their context without it.
                             </span>
                           </div>
@@ -1300,18 +1518,21 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
 
                       <div style={{ height: 2, background: 'var(--cth-ink-300)' }} />
 
-                      {/* Generic webhook + status API */}
+                      {/* Webhook triggers — a LIST of endpoints, one per caller.
+                          Everything renders off the store mirror, so a change made
+                          in the Triggers tab lands here without a refetch (and the
+                          other way round). */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         <div style={{
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
                         }}>
-                          Webhook API
+                          Webhook triggers
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              Webhook API
+                              Webhook triggers
                               <button
                                 type="button"
                                 aria-label="Show webhook API format"
@@ -1328,7 +1549,8 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                               >i</button>
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              A secret-gated HTTP endpoint: POST to start work and get a token, GET the token for status.
+                              One endpoint per caller, each with its own secret and mode. They all share
+                              one server, so another webhook costs nothing.
                             </span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1336,14 +1558,10 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                               fontSize: 12, lineHeight: '16px',
                               color: webhookRunning ? 'var(--cth-mint-700, #1f7a4d)' : 'var(--cth-ink-500)'
                             }}>
-                              {webhookRunning ? '● Connected' : '○ Not connected'}
+                              {webhookRunning ? '● Listening' : '○ Not listening'}
                             </span>
-                            <PixelButton
-                              variant={webhookEnabled ? 'primary' : 'secondary'}
-                              size="sm"
-                              onClick={() => setWebhookEnabled((v) => !v)}
-                            >
-                              {webhookEnabled ? 'on' : 'off'}
+                            <PixelButton variant="primary" size="sm" onClick={addWebhook} disabled={webhookBusy}>
+                              add webhook
                             </PixelButton>
                           </div>
                         </div>
@@ -1358,75 +1576,237 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                           }}>{WEBHOOK_API_DOC}</pre>
                         )}
 
-                        {webhookEnabled && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {/* Public surface warning. Loud, not buried. */}
-                            <span style={{ fontSize: 12, lineHeight: '16px', color: '#6E1423' }}>
-                              This opens a PUBLIC endpoint anyone with the secret can post to. It stays off until you press Start.
-                            </span>
+                        {/* Public surface warning. Loud, not buried. */}
+                        <span style={{ fontSize: 12, lineHeight: '16px', color: '#6E1423' }}>
+                          Every webhook you switch on is a PUBLIC endpoint anyone holding its secret can post to.
+                          New ones arrive off.
+                        </span>
 
-                            <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              <span style={slackLabelStyle}>Secret key</span>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input
-                                  type={showWebhookSecret ? 'text' : 'password'}
-                                  value={webhookSecret}
-                                  onChange={(e) => setWebhookSecret(e.target.value)}
-                                  placeholder="press Generate, or paste your own"
-                                  style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
-                                />
-                                <PixelButton variant="secondary" size="sm" onClick={() => setShowWebhookSecret((v) => !v)} disabled={!webhookSecret}>
-                                  {showWebhookSecret ? 'hide' : 'show'}
-                                </PixelButton>
-                                <PixelButton variant="secondary" size="sm" onClick={copyWebhookSecret} disabled={!webhookSecret}>copy</PixelButton>
-                                <PixelButton variant="ghost" size="sm" onClick={generateWebhookSecret} disabled={webhookBusy}>generate</PixelButton>
-                              </div>
-                            </label>
+                        {webhookTriggers.length === 0 ? (
+                          <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                            No webhooks yet. Add one to give a tool a URL it can hand work to.
+                          </span>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {webhookTriggers.map((w) => {
+                              const shown = shownSecrets[w.id] === true;
+                              const endpoint = webhookEndpoint(w.id);
+                              const modeBlurb = TRIGGER_MODES.find((m) => m.value === w.mode)?.blurb ?? '';
+                              return (
+                                <div
+                                  key={w.id}
+                                  style={{
+                                    display: 'flex', flexDirection: 'column', gap: 8,
+                                    padding: '10px 12px',
+                                    background: 'var(--cth-cream-100)',
+                                    boxShadow: `inset 0 0 0 ${w.enabled ? 1.5 : 1}px ${w.enabled ? 'var(--cth-ink-500)' : 'var(--cth-ink-100)'}`
+                                  }}
+                                >
+                                  {/* Name, on/off, delete. Renaming is live in the
+                                      mirror on every keystroke and persists on blur. */}
+                                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    <input
+                                      value={w.name}
+                                      onChange={(e) => { void patchWebhook(w.id, { name: e.target.value }, false); }}
+                                      onBlur={() => { void applyWebhooks(webhookTriggers); }}
+                                      placeholder="what calls this?"
+                                      style={{ ...slackInputStyle, flex: 1 }}
+                                    />
+                                    <PixelButton
+                                      variant={w.enabled ? 'primary' : 'secondary'}
+                                      size="sm"
+                                      onClick={() => { void patchWebhook(w.id, { enabled: !w.enabled }); }}
+                                      disabled={webhookBusy}
+                                    >
+                                      {w.enabled ? 'on' : 'off'}
+                                    </PixelButton>
+                                    {/* Two clicks: deleting revokes a caller's access for good. */}
+                                    <PixelButton
+                                      variant={pendingDelete === w.id ? 'destructive' : 'ghost'}
+                                      size="sm"
+                                      onClick={() => {
+                                        if (pendingDelete === w.id) void removeWebhook(w.id);
+                                        else setPendingDelete(w.id);
+                                      }}
+                                      disabled={webhookBusy}
+                                    >
+                                      {pendingDelete === w.id ? 'sure?' : 'delete'}
+                                    </PixelButton>
+                                  </div>
 
-                            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 100 }}>
-                              <span style={slackLabelStyle}>Port</span>
-                              <input
-                                type="number"
-                                value={webhookPort}
-                                onChange={(e) => setWebhookPort(e.target.value)}
-                                placeholder="3849"
-                                style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
-                              />
-                            </label>
+                                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    <span style={{ ...slackLabelStyle, width: 56, flexShrink: 0 }}>URL</span>
+                                    <input
+                                      readOnly
+                                      value={endpoint || 'starts once the webhook server is listening'}
+                                      onFocus={(e) => e.currentTarget.select()}
+                                      style={{
+                                        ...slackInputStyle, fontFamily: 'var(--cth-font-mono)', fontSize: 12,
+                                        color: endpoint ? 'var(--cth-ink-900)' : 'var(--cth-ink-500)'
+                                      }}
+                                    />
+                                    <PixelButton
+                                      variant="secondary"
+                                      size="sm"
+                                      onClick={() => { void window.cth.copyToClipboard(endpoint); }}
+                                      disabled={!endpoint}
+                                    >
+                                      copy
+                                    </PixelButton>
+                                  </div>
 
-                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                              <PixelButton variant="primary" size="sm" onClick={startWebhook} disabled={webhookBusy || !webhookSecret.trim() || webhookRunning}>
-                                {webhookBusy ? '...' : webhookRunning ? 'connected' : 'start'}
-                              </PixelButton>
-                              <PixelButton variant="secondary" size="sm" onClick={stopWebhook} disabled={webhookBusy || !webhookRunning}>
-                                stop
-                              </PixelButton>
-                              <PixelButton variant="ghost" size="sm" onClick={saveWebhook} disabled={webhookBusy}>
-                                save
-                              </PixelButton>
-                              {webhookNote && (
-                                <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{webhookNote}</span>
-                              )}
-                            </div>
+                                  {/* Masked by default; never in a title attribute. */}
+                                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    <span style={{ ...slackLabelStyle, width: 56, flexShrink: 0 }}>Secret</span>
+                                    <input
+                                      type={shown ? 'text' : 'password'}
+                                      readOnly
+                                      value={w.secret}
+                                      onFocus={(e) => e.currentTarget.select()}
+                                      style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
+                                    />
+                                    <PixelButton
+                                      variant="secondary"
+                                      size="sm"
+                                      onClick={() => setShownSecrets((s) => ({ ...s, [w.id]: !shown }))}
+                                    >
+                                      {shown ? 'hide' : 'show'}
+                                    </PixelButton>
+                                    <PixelButton
+                                      variant="secondary"
+                                      size="sm"
+                                      onClick={() => { void window.cth.copyToClipboard(w.secret); }}
+                                    >
+                                      copy
+                                    </PixelButton>
+                                    <PixelButton
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => { void rotateWebhookSecret(w.id); }}
+                                      disabled={webhookBusy}
+                                    >
+                                      rotate
+                                    </PixelButton>
+                                  </div>
 
-                            {(webhookRunning || webhookUrl) && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, opacity: webhookRunning ? 1 : 0.55 }}>
-                                <span style={slackLabelStyle}>
-                                  {webhookRunning ? 'Endpoint URL - POST work / GET status here' : 'last endpoint URL - rotates on next Start'}
-                                </span>
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                  <input
-                                    readOnly
-                                    value={webhookUrl}
-                                    onFocus={(e) => e.currentTarget.select()}
-                                    style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)', fontSize: 12 }}
-                                  />
-                                  <PixelButton variant="secondary" size="sm" onClick={copyWebhookUrl} disabled={!webhookUrl}>copy</PixelButton>
+                                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    <span style={{ ...slackLabelStyle, width: 56, flexShrink: 0 }}>Mode</span>
+                                    <select
+                                      value={w.mode}
+                                      onChange={(e) => { void patchWebhook(w.id, { mode: e.target.value as TriggerMode }); }}
+                                      style={{ ...slackInputStyle, width: 160, flexShrink: 0 }}
+                                    >
+                                      {TRIGGER_MODES.map((m) => (
+                                        <option key={m.value} value={m.value}>{m.label}</option>
+                                      ))}
+                                    </select>
+                                    <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                                      {modeBlurb}
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })}
                           </div>
                         )}
+
+                        <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                          Callers POST to a webhook's URL with its secret in the{' '}
+                          <code>x-md-webhook-secret</code> header. Each one checks bodies against its own JSON
+                          schema — edit that in the Triggers tab of Michael's Command Center, where the history
+                          of everything that arrived lives too.
+                        </span>
+
+                        {webhookNote && (
+                          <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{webhookNote}</span>
+                        )}
+                      </div>
+
+                      <div style={{ height: 2, background: 'var(--cth-ink-300)' }} />
+
+                      {/* Organisation trigger — teammates messaging this clone node.
+                          Persisted + mirrored; no transport reads the key yet. */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{
+                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
+                        }}>
+                          Organisation
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                              Organisation key
+                            </span>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              How a teammate's install addresses yours.
+                            </span>
+                          </div>
+                          <PixelButton
+                            variant={orgTrigger.enabled ? 'primary' : 'secondary'}
+                            size="sm"
+                            onClick={() => { void applyOrg({ ...orgTrigger, enabled: !orgTrigger.enabled }); }}
+                            disabled={orgBusy}
+                          >
+                            {orgTrigger.enabled ? 'on' : 'off'}
+                          </PixelButton>
+                        </div>
+
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span style={slackLabelStyle}>API key</span>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <input
+                              type={showOrgKey ? 'text' : 'password'}
+                              value={orgTrigger.apiKey}
+                              onChange={(e) => { void applyOrg({ ...orgTrigger, apiKey: e.target.value }, false); }}
+                              onBlur={() => { void applyOrg(orgTrigger); }}
+                              placeholder="paste your organisation key"
+                              style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
+                            />
+                            <PixelButton
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => setShowOrgKey((v) => !v)}
+                              disabled={!orgTrigger.apiKey}
+                            >
+                              {showOrgKey ? 'hide' : 'show'}
+                            </PixelButton>
+                          </div>
+                        </label>
+
+                        <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                          {CLONE_NODE_BLURB}
+                        </span>
+
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 200 }}>
+                          <span style={slackLabelStyle}>Mode</span>
+                          <select
+                            value={orgTrigger.mode}
+                            onChange={(e) => { void applyOrg({ ...orgTrigger, mode: e.target.value as TriggerMode }); }}
+                            style={slackInputStyle}
+                          >
+                            {TRIGGER_MODES.map((m) => (
+                              <option key={m.value} value={m.value}>{m.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                          {TRIGGER_MODES.find((m) => m.value === orgTrigger.mode)?.blurb ?? ''}
+                        </span>
+
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <PixelButton variant="ghost" size="sm" onClick={() => { void applyOrg(orgTrigger); }} disabled={orgBusy}>
+                            save
+                          </PixelButton>
+                          {orgNote && (
+                            <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{orgNote}</span>
+                          )}
+                        </div>
+
+                        <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                          Configuration only for now. The organisation messaging service does not exist yet, so a
+                          key here starts no transport — it is saved, shown in the Triggers tab, and waits.
+                        </span>
                       </div>
 
                     </>
@@ -1534,12 +1914,15 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                           </span>
                         </div>
 
-                        {/* OpenAI Realtime key — its own documented requirement. Talk mints an
-                            ephemeral token from your OpenAI key (the same OpenAI provider key
-                            under AI Engines), distinct from your Anthropic key. The status line
-                            reads the live presence boolean (key value never leaves main). */}
+                        {/* OpenAI Realtime key — settable HERE, not just described here.
+                            This is where someone looking for voice actually lands (the Talk
+                            button deep-links to it), so sending them to another tab to type
+                            the key was a dead end dressed up as documentation. Same broker
+                            slot as Agents & Models (apikey:openai) — one key, two doorways,
+                            and saving in either flips the same gate. The value never leaves
+                            main; only the presence boolean comes back. */}
                         <div style={{
-                          display: 'flex', flexDirection: 'column', gap: 6,
+                          display: 'flex', flexDirection: 'column', gap: 8,
                           padding: 10,
                           background: 'var(--cth-paper-100)',
                           boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
@@ -1548,28 +1931,51 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                             fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                             color: 'var(--cth-ink-500)', textTransform: 'uppercase'
                           }}>
-                            OpenAI Realtime key
+                            OpenAI API key · voice
                           </span>
                           <span style={{ fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
-                            Talk uses OpenAI&rsquo;s Realtime voice API, so it needs your <strong>OpenAI API key</strong> —
-                            the same key you set under <strong>AI Engines → OpenAI</strong>. It is a separate provider
-                            key from your Anthropic key. Main mints a short-lived token from it for each session; the
-                            key itself never leaves your machine. <strong>Without an OpenAI key the Talk button stays
-                            disabled.</strong>
+                            Talking to Michael runs on OpenAI&rsquo;s Realtime API — speech in, speech out, over a
+                            live connection to <strong style={{ fontFamily: 'var(--cth-font-mono)' }}>{REALTIME_MODEL}</strong>.
+                            That is a different service from the Claude subscription your agents run on, so it needs
+                            its own <strong>OpenAI API key</strong>.
                           </span>
+                          <span style={{ fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
+                            Paste it once below. It is encrypted on this machine and never shown again — each voice
+                            session mints its own short-lived token from it, and the key itself never leaves your
+                            computer. It is the same OpenAI key listed under <strong>Agents &amp; Models</strong>;
+                            setting it in either place is enough.
+                          </span>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <input
+                              type="password"
+                              value={openAiVoiceKey}
+                              onChange={(e) => setOpenAiVoiceKey(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') void saveOpenAiVoiceKey(); }}
+                              placeholder={hasOpenAiKey ? 'key saved — paste a new one to replace it' : 'sk-…'}
+                              style={{ ...slackInputStyle, flex: 1, fontFamily: 'var(--cth-font-mono)' }}
+                            />
+                            <PixelButton
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => void saveOpenAiVoiceKey()}
+                              disabled={!openAiVoiceKey.trim()}
+                            >
+                              Save
+                            </PixelButton>
+                          </div>
                           <span style={{
                             display: 'inline-flex', alignItems: 'center', gap: 6,
                             fontSize: 12, lineHeight: '16px',
-                            color: hasOpenAiKey ? 'var(--cth-ink-900)' : '#6E1423'
+                            color: hasOpenAiKey ? 'var(--cth-ink-900)' : 'var(--cth-ink-500)'
                           }}>
                             <span aria-hidden style={{
                               width: 8, height: 8, flexShrink: 0,
-                              background: hasOpenAiKey ? 'var(--cth-mint)' : 'var(--cth-lemon)',
+                              background: hasOpenAiKey ? 'var(--cth-mint)' : 'var(--cth-ink-300)',
                               boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
                             }} />
-                            {hasOpenAiKey
-                              ? 'OpenAI key detected — Talk is enabled.'
-                              : 'No OpenAI key set — Talk is disabled. Add it under AI Engines → OpenAI.'}
+                            {openAiVoiceNote || (hasOpenAiKey
+                              ? 'Key saved — Talk is ready. Start it from Michael’s card.'
+                              : 'No key yet — Talk stays disabled until one is saved.')}
                           </span>
                         </div>
 

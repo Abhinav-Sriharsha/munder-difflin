@@ -94,7 +94,7 @@ export interface CoffeeConfig {
   maxCups: number;
 }
 
-/** Clickable prop anchors (tile coords). calendar → SCHEDULES, boards → TASKS,
+/** Clickable prop anchors (tile coords). calendar → TRIGGERS, boards → TASKS,
  *  clock → CLOSING TIME. */
 export interface AnchorConfig {
   calendar: Tile;
@@ -250,7 +250,7 @@ export const BROOKLYN99_THEME: ThemeConfig = {
     maxCups: 4,
   },
   anchors: {
-    calendar: { x: 4, y: 1 },   // briefing-room top wall → SCHEDULES
+    calendar: { x: 4, y: 1 },   // briefing-room top wall → TRIGGERS
     boards: { x: 14, y: 1 },    // over the bullpen → TASKS
     clock: { x: 1, y: 1 },      // top-left corner → CLOSING TIME
   },
