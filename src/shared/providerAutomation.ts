@@ -160,6 +160,30 @@ export function compactionCommandForProvider(
   return compactTakesFocus && focus ? `${compact} ${focus}` : compact;
 }
 
+/** Every distinct compaction verb this harness can type, across all providers.
+ *  Derived from CONTEXT_COMMANDS rather than hand-listed, so a provider added to
+ *  that table is covered here without a second edit anyone could forget. */
+const COMPACT_VERBS: ReadonlySet<string> = new Set(
+  Object.values(CONTEXT_COMMANDS)
+    .map((c) => c.compact)
+    .filter((c): c is string => typeof c === 'string' && c.length > 0)
+);
+
+/**
+ * Is this queued text a compaction command?
+ *
+ * Matches the leading VERB only, so `/compact keep the auth decisions` counts
+ * while a human sentence that merely mentions compaction does not — the queue
+ * carries both, and mistaking prose for a command would silently drop real work.
+ *
+ * Provider-agnostic on purpose: the queue is keyed by agent, not provider, and a
+ * duplicate `/compact` is worth dropping regardless of which CLI is going to
+ * receive it.
+ */
+export function isCompactionCommand(text: string): boolean {
+  return COMPACT_VERBS.has(text.trim().split(/\s+/)[0]);
+}
+
 /**
  * The context-clearing command to type, or null when nothing typed can reach
  * this provider.

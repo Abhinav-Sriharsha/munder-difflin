@@ -6,6 +6,7 @@ import type { StatusKind } from '@/components/PixelBadge';
 import type { AgentProvider } from '@shared/agentProvider';
 import type { HireManifest } from '@shared/hire';
 import { DEFAULT_ORG_TRIGGER, type OrgTriggerConfig, type WebhookTrigger } from '@shared/triggers';
+import { isCompactionCommand } from '@shared/providerAutomation';
 import type { LimitHold } from '@shared/rateLimit';
 
 export type ToolKind =
@@ -730,6 +731,21 @@ export const useStore = create<State>((set) => ({
     set((s) => {
       const trimmed = text.trim();
       if (!trimmed) return s;
+      // ONE PENDING COMPACT PER AGENT. Compaction is idempotent in the worst way:
+      // the first `/compact` does the work and every one behind it answers
+      // "nothing to compact", so a queue that accumulates them spends a delivery
+      // slot and a model round-trip per copy to achieve nothing, and buries the
+      // operator's real backlog behind them.
+      //
+      // The invariant lives HERE rather than at the call sites because there are
+      // several — the context trigger, god dispatching a work order, Slack, the
+      // composer — and each one that grew its own check could still be bypassed
+      // by the next path someone adds. The context trigger's own check stays as
+      // cheap defence in depth, but this is the one that cannot be routed around.
+      const queued = s.messageQueues[agentId] ?? [];
+      if (isCompactionCommand(trimmed) && queued.some((m) => isCompactionCommand(m.text))) {
+        return s;
+      }
       const msg: QueuedMessage = {
         id: newQueuedId(), text: trimmed, ts: Date.now(),
         ...(meta?.slack ? { slack: meta.slack } : {}),

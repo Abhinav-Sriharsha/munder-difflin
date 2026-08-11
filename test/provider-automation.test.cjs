@@ -8,10 +8,42 @@ const {
   clearCommandForProvider,
   compactionCommandForProvider,
   contextCommandsForProvider,
+  isCompactionCommand,
   remoteControlCommandForProvider,
   terminalReadySettleMs,
   terminalReadyToReceive
 } = loadTs('src/shared/providerAutomation.ts');
+
+// — the queue's one-pending-compact invariant depends entirely on this predicate —
+
+test('isCompactionCommand matches every provider that has a compact verb', () => {
+  for (const p of ['claude', 'codex', 'grok', 'kimi', 'qwen', 'opencode', 'pi', 'copilot']) {
+    const cmd = compactionCommandForProvider(p, '');
+    if (!cmd) continue; // provider has no typeable compaction — nothing to dedupe
+    assert.equal(isCompactionCommand(cmd), true, `${p}: ${cmd}`);
+  }
+});
+
+test('a focus suffix still reads as a compaction command', () => {
+  // This is the real queued shape — the trigger appends the operator's focus
+  // text, so matching the whole string instead of the verb would never dedupe.
+  assert.equal(isCompactionCommand('/compact keep the auth decisions'), true);
+  assert.equal(isCompactionCommand('  /compact   keep everything  '), true);
+});
+
+test('prose that merely mentions compaction is NOT a command', () => {
+  // The queue carries human instructions too; dropping one as a duplicate
+  // compact would silently lose real work.
+  assert.equal(isCompactionCommand('please /compact when you are done'), false);
+  assert.equal(isCompactionCommand('compact the context'), false);
+  assert.equal(isCompactionCommand('summarise and compact'), false);
+  assert.equal(isCompactionCommand(''), false);
+});
+
+test('a clear command is not a compaction command', () => {
+  assert.equal(isCompactionCommand('/clear'), false);
+  assert.equal(isCompactionCommand('/new'), false);
+});
 const { DEFAULT_COMPACTION_FOCUS } = loadTs('src/shared/triggers.ts');
 const { AGENT_PROVIDER_PRESETS } = loadTs('src/shared/agentProvider.ts');
 

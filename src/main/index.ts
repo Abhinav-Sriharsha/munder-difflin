@@ -882,6 +882,31 @@ function ensureDefaultMissions(): void {
     console.log('[triggers] retired the compact-maintenance mission into contextTrigger.compact',
       `(enabled: ${retiring.enabled}, everyMs: ${retiring.intervalMs})`);
   }
+
+  // autoCompact RETIREMENT: the flag above was only ever half-removed. Retiring
+  // `compact-maintenance` left `autoCompact: true` sitting on the ops standup, so
+  // a default install still asked for compaction on TWO cadences — hourly from the
+  // standup, 2-hourly from the trigger — which is precisely the disagreement that
+  // retirement claims to have ended. (config.ts even documented a migration that
+  // strips this; it did not exist.)
+  //
+  // Strip it wherever it survives. This is a pure de-duplication, not a behaviour
+  // change: contextTrigger.compact still runs, still on the user's own cadence and
+  // pressure gate, and it is what actually performed every one of these
+  // compactions already — both paths have called emitContextTrigger since Triggers
+  // landed. Idempotent, so it costs one no-op scan per boot once clean.
+  const cfg4 = readConfig();
+  const missions4 = cfg4.missions ?? [];
+  if (missions4.some((m) => m.autoCompact)) {
+    writeConfig({
+      missions: missions4.map(({ autoCompact, ...rest }) => {
+        void autoCompact;
+        return rest;
+      })
+    });
+    console.log('[triggers] dropped the legacy per-mission autoCompact flag —',
+      'contextTrigger.compact is now the only schedule that compacts');
+  }
 }
 
 // ─── Heartbeat (Lane A #1) + circuit-breaker beat (#6.6b) ────────────────────

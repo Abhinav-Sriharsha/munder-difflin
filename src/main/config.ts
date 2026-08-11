@@ -70,8 +70,13 @@ export const OPS_STANDUP_MISSION: ScheduledMission = {
     'next step, then compact and resume from the same point — so terminal ' +
     'contexts stay bounded without losing work. The compaction is queued and ' +
     'runs when an agent is idle, so it never interrupts work mid-step.)',
-  enabled: true,
-  autoCompact: true
+  enabled: true
+  // NO autoCompact. Compaction belongs to contextTrigger.compact and nothing else.
+  // This flag used to live here as well, which meant a default install asked for
+  // compaction on TWO cadences — hourly from this standup and 2-hourly from the
+  // trigger — the exact "two controls that disagree" the maint-1 retirement below
+  // was written to end. The standup's own prose still describes compaction, and
+  // that stays true: the trigger does it, just not on this mission's clock.
 };
 
 /** The built-in heartbeat (Lane A #1). A context-aware beat that, each tick,
@@ -105,8 +110,8 @@ export const HEARTBEAT_MISSION: ScheduledMission = {
  *  Shipped DISABLED (v0.3.4 founder decision): scheduled compaction is opt-in.
  *  Turn it on in Settings → General or the Schedules tab; the Schedules warning
  *  panel explains the risk of leaving it off for long-running agents. It is the
- *  SINGLE source of truth for compaction (migration drops autoCompact off other
- *  missions), and it's persistent: deleting it makes it reappear DISABLED.
+ *  SINGLE source of truth for compaction, and it's persistent: deleting it makes
+ *  it reappear DISABLED.
  *  Existing installs keep whatever enabled state the user already has
  *  (compactMaintenanceSeeded guards re-seeding). */
 export const COMPACT_MAINTENANCE_MISSION: ScheduledMission = {
