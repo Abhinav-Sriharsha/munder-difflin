@@ -140,3 +140,87 @@ export function describeUpdate(status: UpdateStatus | null, currentVersion: stri
       return { label: null, action: 'check', tone: 'idle', busy: false, title: `v${v} — click to check for updates` };
   }
 }
+
+/** The same status, rendered for Settings instead of the toolbar chip. */
+export interface UpdateSettingsView {
+  /** Headline: the version that matters right now — yours, or the one waiting. */
+  headline: string;
+  /** One sentence of explanation. Carries the verbatim error when there is one. */
+  detail: string;
+  /** Primary button label, or null while the updater is mid-flight and there is
+   *  nothing useful to press. */
+  button: string | null;
+  action: UpdateAction;
+  busy: boolean;
+  tone: 'idle' | 'busy' | 'ready' | 'warn';
+}
+
+/**
+ * What the Settings → General "Updates" block shows and does.
+ *
+ * Separate from `describeUpdate` on purpose. The toolbar chip has room for two
+ * words and has to stay quiet when nothing is happening, so its idle state says
+ * nothing at all; Settings is where someone goes *to ask*, so every state gets a
+ * full sentence and — outside the two mid-flight states — a button. The states
+ * and the transitions between them are shared, which is the part that has to
+ * stay in sync.
+ */
+export function describeUpdateSettings(
+  status: UpdateStatus | null,
+  currentVersion: string
+): UpdateSettingsView {
+  const v = currentVersion;
+  switch (status?.state) {
+    case 'checking':
+      return {
+        headline: `You're on v${v}`,
+        detail: 'Checking for a newer release…',
+        button: null, action: 'none', busy: true, tone: 'busy'
+      };
+    case 'available':
+      return {
+        headline: `v${status.version} is available`,
+        detail: `You're on v${v}. Download it now — you'll be asked to restart once it's ready.`,
+        button: `Download v${status.version}`, action: 'download', busy: false, tone: 'ready'
+      };
+    case 'downloading':
+      return {
+        headline: `Downloading v${status.version}`,
+        detail: `${clampPercent(status.percent)}% done. You can keep working; the restart is yours to trigger.`,
+        button: null, action: 'none', busy: true, tone: 'busy'
+      };
+    case 'downloaded':
+      return {
+        headline: `v${status.version} is ready to install`,
+        detail: `Restart Munder Difflin to finish updating from v${v}.`,
+        button: 'Restart to update', action: 'restart', busy: false, tone: 'ready'
+      };
+    case 'available-manual':
+      return {
+        headline: `v${status.version} is available`,
+        detail: status.reason
+          ? `This install can't update itself (${status.reason}) — download it from the release page.`
+          : `This install can't update itself — download it from the release page.`,
+        button: 'Open release page', action: 'open-release', busy: false, tone: 'warn'
+      };
+    case 'error':
+      return {
+        headline: 'Update check failed',
+        detail: `${status.message} (you're on v${v}).`,
+        button: 'Try again', action: 'check', busy: false, tone: 'warn'
+      };
+    case 'not-available':
+      return {
+        headline: `v${v} is the latest version`,
+        detail: "You're already up to date — nothing to install.",
+        button: 'Check again', action: 'check', busy: false, tone: 'idle'
+      };
+    case 'idle':
+    default:
+      return {
+        headline: `You're on v${v}`,
+        detail: 'Updates are checked automatically every 6 hours. Check now if you want to be sure.',
+        button: 'Check for updates', action: 'check', busy: false, tone: 'idle'
+      };
+  }
+}

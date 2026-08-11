@@ -112,3 +112,79 @@ test('the underlying failure reaches the tooltip instead of being swallowed', ()
   );
   assert.match(manual.title, /ENOTFOUND github\.com/);
 });
+
+// ---------------------------------------------------------------------------
+// Settings → General "Updates" block (v0.3.9)
+//
+// The toolbar chip stays silent when nothing is happening, which is right for a
+// chip and useless for someone who opened Settings *to ask*. These lock in the
+// two things that make the block worth having: every state says something, and
+// the states you can act on hand you a button that names the action.
+// ---------------------------------------------------------------------------
+
+const { describeUpdateSettings } = loadTs('src/shared/updateState.ts');
+
+test('every update state produces a headline and a sentence', () => {
+  const states = [
+    null,
+    { state: 'idle' },
+    { state: 'checking' },
+    { state: 'not-available' },
+    { state: 'available', version: '0.4.0' },
+    { state: 'downloading', version: '0.4.0', percent: 12 },
+    { state: 'downloaded', version: '0.4.0' },
+    { state: 'available-manual', version: '0.4.0', url: 'https://x' },
+    { state: 'error', message: 'ENOTFOUND github.com' }
+  ];
+  for (const s of states) {
+    const v = describeUpdateSettings(s, '0.3.9');
+    assert.ok(v.headline.length > 0, `no headline for ${s?.state ?? 'null'}`);
+    assert.ok(v.detail.length > 0, `no detail for ${s?.state ?? 'null'}`);
+  }
+});
+
+test('idle and up-to-date both offer a check, and say which version you are on', () => {
+  const idle = describeUpdateSettings({ state: 'idle' }, '0.3.9');
+  assert.equal(idle.action, 'check');
+  assert.match(idle.button, /check for updates/i);
+  assert.match(idle.headline, /0\.3\.9/);
+
+  const latest = describeUpdateSettings({ state: 'not-available' }, '0.3.9');
+  assert.equal(latest.action, 'check');
+  assert.match(latest.headline, /0\.3\.9 is the latest/i);
+  assert.match(latest.detail, /up to date/i);
+});
+
+test('a staged update offers the restart, and names the version it installs', () => {
+  const done = describeUpdateSettings({ state: 'downloaded', version: '0.4.0' }, '0.3.9');
+  assert.equal(done.action, 'restart');
+  assert.match(done.button, /restart to update/i);
+  assert.equal(done.tone, 'ready');
+  assert.match(done.headline, /0\.4\.0/);
+});
+
+test('an available update offers the download, not the restart', () => {
+  const avail = describeUpdateSettings({ state: 'available', version: '0.4.0' }, '0.3.9');
+  assert.equal(avail.action, 'download');
+  assert.match(avail.button, /download v0\.4\.0/i);
+});
+
+test('the two mid-flight states have no button to press', () => {
+  assert.equal(describeUpdateSettings({ state: 'checking' }, '0.3.9').button, null);
+  assert.equal(describeUpdateSettings({ state: 'downloading', version: '0.4.0', percent: 42.4 }, '0.3.9').button, null);
+  assert.match(describeUpdateSettings({ state: 'downloading', version: '0.4.0', percent: 42.4 }, '0.3.9').detail, /42%/);
+  assert.equal(describeUpdateSettings({ state: 'checking' }, '0.3.9').busy, true);
+});
+
+test('failures reach Settings verbatim, same as the tooltip', () => {
+  const err = describeUpdateSettings({ state: 'error', message: 'ENOTFOUND github.com' }, '0.3.9');
+  assert.match(err.detail, /ENOTFOUND github\.com/);
+  assert.equal(err.action, 'check');
+
+  const manual = describeUpdateSettings(
+    { state: 'available-manual', version: '0.4.0', url: 'https://x', reason: 'win-portable' },
+    '0.3.9'
+  );
+  assert.match(manual.detail, /win-portable/);
+  assert.equal(manual.action, 'open-release');
+});

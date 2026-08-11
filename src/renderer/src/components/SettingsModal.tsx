@@ -12,6 +12,7 @@ import {
 } from '@shared/triggers';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
+import { UpdatesSection } from './UpdatesSection';
 import { Icon } from './Icon';
 import { OfficeThemePicker } from './OfficeThemePicker';
 import { McpDefaultsSettings } from './McpDefaultsSettings';
@@ -857,6 +858,14 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                   {/* GENERAL */}
                   {activeSection === 'General' && (
                     <>
+                      {/* Updates — first, because "am I on the latest?" is the
+                          question people open Settings to answer, and the
+                          toolbar chip says nothing at all when the answer is
+                          yes. */}
+                      <UpdatesSection />
+
+                      <div style={{ height: 1, background: 'var(--cth-ink-300)' }} />
+
                       {/* Home folder */}
                       <div>
                         <div style={{

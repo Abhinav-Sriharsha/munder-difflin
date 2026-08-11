@@ -7,7 +7,10 @@ const FRAME_H = PORTRAIT_H;
 
 export interface SpritePortraitProps {
   character: OfficeCharacterName;
-  scale?: number; // integer
+  /** Pixels per source pixel. Whole numbers are exact; half-steps (1.5, 2.5)
+   *  double every other row, which pixel art survives. The blit runs with
+   *  smoothing off, so nothing here is ever interpolated. */
+  scale?: number;
   background?: string;
 }
 
@@ -35,14 +38,21 @@ export function SpritePortrait({
     return () => { cancelled = true; void cancelled; };
   }, [character, scale, background]);
 
+  // A fractional scale can land on a fractional pixel count; the canvas
+  // attributes are integers either way, so round once and use the same number
+  // for the backing store and the CSS box (a mismatch is what makes pixel art
+  // blurry).
+  const w = Math.round(FRAME_W * scale);
+  const h = Math.round(FRAME_H * scale);
+
   return (
     <canvas
       ref={canvasRef}
-      width={FRAME_W * scale}
-      height={FRAME_H * scale}
+      width={w}
+      height={h}
       style={{
-        width: FRAME_W * scale,
-        height: FRAME_H * scale,
+        width: w,
+        height: h,
         imageRendering: 'pixelated'
       }}
     />
