@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>When the CLI Stops Listening: Rate Limits Are Silent Data Loss — Munder Difflin Blog</title>
+<meta name="description" content="A rate-limited coding CLI doesn&#39;t reject your input — it discards it. No error, no bounce, no record. Munder Difflin was typing into that void for months. Here&#39;s how we detect the wall, hold the whole account behind it, and drain the backlog on the other side." />
+<link rel="canonical" href="https://munderdiffl.in/blog/when-the-cli-stops-listening/" />
+
+<link rel="icon" type="image/png" href="https://munderdiffl.in/logo.png" />
+<link rel="apple-touch-icon" href="https://munderdiffl.in/logo.png" />
+<meta name="theme-color" content="#F5F2E8" />
+
+<!-- Open Graph -->
+<meta property="og:site_name" content="Munder Difflin Blog" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="When the CLI Stops Listening: Rate Limits Are Silent Data Loss — Munder Difflin Blog" />
+<meta property="og:description" content="A rate-limited coding CLI doesn&#39;t reject your input — it discards it. No error, no bounce, no record. Munder Difflin was typing into that void for months. Here&#39;s how we detect the wall, hold the whole account behind it, and drain the backlog on the other side." />
+<meta property="og:url" content="https://munderdiffl.in/blog/when-the-cli-stops-listening/" />
+<meta property="og:image" content="https://munderdiffl.in/media/og.png" />
+<meta property="og:locale" content="en_US" />
+<meta property="article:published_time" content="2026-08-11T00:00:00.000Z" />
+<meta property="article:author" content="Chaitanya Giri" />
+<meta property="article:tag" content="Internals" />
+<meta property="article:tag" content="Reliability" />
+<meta property="article:tag" content="Agents" />
+<meta property="article:tag" content="Release" />
+<meta property="article:tag" content="Open Source" />
+
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="When the CLI Stops Listening: Rate Limits Are Silent Data Loss — Munder Difflin Blog" />
+<meta name="twitter:description" content="A rate-limited coding CLI doesn&#39;t reject your input — it discards it. No error, no bounce, no record. Munder Difflin was typing into that void for months. Here&#39;s how we detect the wall, hold the whole account behind it, and drain the backlog on the other side." />
+<meta name="twitter:image" content="https://munderdiffl.in/media/og.png" />
+
+<link rel="alternate" type="application/atom+xml" title="Munder Difflin Blog" href="https://munderdiffl.in/blog/feed.xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/blog/assets/blog.css" />
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "When the CLI Stops Listening: Rate Limits Are Silent Data Loss",
+  "description": "A rate-limited coding CLI doesn't reject your input — it discards it. No error, no bounce, no record. Munder Difflin was typing into that void for months. Here's how we detect the wall, hold the whole account behind it, and drain the backlog on the other side.",
+  "image": ["https://munderdiffl.in/media/og.png"],
+  "datePublished": "2026-08-11T00:00:00.000Z",
+  "dateModified": "2026-08-11T00:00:00.000Z",
+  "author": { "@type": "Person", "name": "Chaitanya Giri" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Munder Difflin",
+    "logo": { "@type": "ImageObject", "url": "https://munderdiffl.in/logo.png" }
+  },
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://munderdiffl.in/blog/when-the-cli-stops-listening/" },
+  "keywords": "claude code rate limit, claude code usage limit reached, claude code session limit resets, cli agent rate limit handling, queue messages during rate limit, codex rate limit resets_at",
+  "articleSection": "Internals",
+  "inLanguage": "en-US",
+  "url": "https://munderdiffl.in/blog/when-the-cli-stops-listening/"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://munderdiffl.in/" },
+    { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://munderdiffl.in/blog/" },
+    { "@type": "ListItem", "position": 3, "name": "When the CLI Stops Listening: Rate Limits Are Silent Data Loss", "item": "https://munderdiffl.in/blog/when-the-cli-stops-listening/" }
+  ]
+}
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "What happens if you type into a rate-limited Claude Code session?", "acceptedAnswer": { "@type": "Answer", "text": "The TUI accepts the keystrokes and discards them. There is no error, no bounce, and no record that a message existed — the input area simply clears. Anything sent during the limit window is gone, and the only symptom is noticing later that the agent never did the thing you asked. This is why a rate limit is worse than an outage for an automated sender: an outage fails loudly, and this fails silently." } },
+    { "@type": "Question", "name": "How do you detect a usage limit from a CLI's terminal output?", "acceptedAnswer": { "@type": "Answer", "text": "You read the terminal stream, not the exit code — these are TUIs, and the limit is a banner rather than a status. Most CLIs relay the provider's own wording, so generic natural-language patterns carry most of the work, with a small per-CLI table for the strings a tool genuinely owns (Claude Code's subscription limits are its own concept, for example). The hard part is negative matching: Claude renders 'Approaching session limit · resets 3pm' from the same component as the real banner at around 80% usage, and matching that would stand your fleet down hours early, every session." } },
+    { "@type": "Question", "name": "Should a rate-limit hold apply to one agent or all of them?", "acceptedAnswer": { "@type": "Answer", "text": "The account. A usage limit belongs to a subscription, so every agent running that CLI is already behind the same wall the moment one of them hits it — they just haven't spoken yet. Holding only the agent that printed the banner lets the others walk into it one at a time, losing a message each. Over-holding costs a wait; under-holding costs instructions." } },
+    { "@type": "Question", "name": "Why not just retry when a message fails to send?", "acceptedAnswer": { "@type": "Answer", "text": "Because it doesn't fail. The write succeeds — the bytes reach the pseudo-terminal, and the TUI throws them away at the other end. There is no failure to retry against, which is why the fix has to be a gate in front of the send rather than a retry behind it." } }
+    
+  ]
+}
+</script>
+
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<nav id="nav">
+  <a class="brand" href="https://munderdiffl.in" aria-label="Munder Difflin home">
+    <img class="brand-logo" src="https://munderdiffl.in/logo.png" width="1318" height="840" alt="Munder Difflin, Inc. — Multi-Agent Harness" />
+  </a>
+  <span class="spacer"></span>
+  <div class="links">
+    <a href="/blog/">Latest</a>
+    <a href="/blog/topics/">Topics</a>
+    <a href="/blog/about/">About</a>
+    <a href="https://munderdiffl.in">↗ Product</a>
+  </div>
+  <div class="nav-actions">
+    <a class="btn sm" href="https://munderdiffl.in/blog/feed.xml" aria-label="RSS feed">⤵ RSS</a>
+    <a class="btn sm primary" href="https://munderdiffl.in/#install">⤓ Download</a>
+  </div>
+</nav>
+
+<main id="main">
+
+<article>
+  <header class="post-head wrap">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/blog/">Blog</a>
+      <span>/</span>
+      <a href="/blog/topics/internals/">Internals</a>
+    </nav>
+    <h1>When the CLI Stops Listening: Rate Limits Are Silent Data Loss</h1>
+    <p class="dek">A rate-limited coding CLI doesn&#39;t reject your input — it discards it. No error, no bounce, no record. Munder Difflin was typing into that void for months. Here&#39;s how we detect the wall, hold the whole account behind it, and drain the backlog on the other side.</p>
+    <div class="byline">
+      <span class="av" aria-hidden="true">CG</span>
+      <strong>Chaitanya Giri</strong>
+      <span class="dot" aria-hidden="true">·</span>
+      <time datetime="2026-08-11">Aug 11, 2026</time>
+      <span class="dot" aria-hidden="true">·</span>
+      <span>6 min read</span>
+      <span class="tag kind">Internals</span>
+    </div>
+  </header>
+
+  <div class="post-wrap wrap">
+    <div class="prose">
+      <p>There is a failure mode that is worse than an error, and most automated systems are built as
+though it doesn’t exist: the write that succeeds and does nothing.</p>
+<p>Munder Difflin drives coding CLIs — Claude Code, Codex, Grok, and half a dozen others — through
+real pseudo-terminals. It types into them the way a person would. And for months, whenever one of
+those CLIs hit its usage limit, the harness kept typing.</p>
+<p>The keystrokes landed. The pty accepted them. The TUI discarded them.</p>
+<p>No error. No bounce. No record that a message ever existed. The input area just cleared, and an
+instruction that someone had queued an hour earlier ceased to exist. The only symptom was noticing,
+much later, that an agent never did the thing it was asked.</p>
+<h2 id="why-this-is-not-a-retry-problem" tabindex="-1">Why this is not a retry problem <a class="anchor" href="#why-this-is-not-a-retry-problem" aria-hidden="true">#</a></h2>
+<p>The instinct is to add a retry. It doesn’t apply here, and the reason is worth sitting with.</p>
+<p>A retry needs a failure to hang off. Ours succeeded at every layer we could observe:</p>
+<pre><code>write(ptyFd, &quot;…&quot;)   →  ok, bytes written
+pty                 →  ok, delivered to the child
+TUI                 →  reads the input, sees it is rate limited, drops it
+</code></pre>
+<p>There is nothing to catch. By the time the message is lost, every call in the stack has already
+returned success. That pushes the fix upstream of the send: you cannot recover from this
+afterwards, so you have to not do it in the first place.</p>
+<h2 id="reading-the-wall" tabindex="-1">Reading the wall <a class="anchor" href="#reading-the-wall" aria-hidden="true">#</a></h2>
+<p>Because these are TUIs, the limit is a banner rather than a status code. So you read the terminal
+stream.</p>
+<p>The obvious design is a table of per-CLI strings — the shape we already use for slash commands,
+where <code>/compact</code> differs per tool. Reading the shipped artefacts of the installed fleet, that turns
+out to be the wrong shape, because <strong>the limit text is mostly written by the API, not the CLI</strong>.
+Five of the CLIs we drive contain no user-facing limit copy at all; they surface whatever the
+provider returned. What reaches the terminal is the provider’s phrasing, not the tool’s.</p>
+<p>So generic patterns carry the weight, and a small table covers the strings a CLI genuinely owns —
+Claude Code’s subscription limits, for instance, are its own concept, with a fixed label set
+(<code>session limit</code>, <code>weekly limit</code>, <code>Opus limit</code>, <code>Sonnet limit</code>).</p>
+<p>One nice piece of corroboration: pi.dev ships its own two classifier regexes, and the line it draws
+is the same line we drew independently — terminal quota conditions on one side, retryable transport
+errors on the other.</p>
+<h3 id="the-pattern-that-would-have-broken-everything" tabindex="-1">The pattern that would have broken everything <a class="anchor" href="#the-pattern-that-would-have-broken-everything" aria-hidden="true">#</a></h3>
+<p>Claude Code renders this at around 80% usage:</p>
+<pre><code>Approaching session limit · resets 3pm
+</code></pre>
+<p>From the same component as the real banner. Matching the reset clause alone would have stood the
+entire fleet down hours early, every single session — turning a feature that exists to prevent lost
+work into the largest source of lost time in the app.</p>
+<p>It is the first thing the negative filter rejects, and it has a test. The general lesson: when you
+add detection to a system, the false positive is not an edge case to handle later. It is the thing
+most likely to make the feature a net negative, and it deserves the first test you write.</p>
+<p>There is a second class of false positive specific to a harness like this: agents read source code
+and echo it to their terminals. A file containing <code>const RATE_LIMIT = 120;</code> scrolls past and looks,
+to a naive matcher, exactly like a rate limit. Code-shaped contexts are filtered, and lines over
+400 characters — a minified bundle going by — are ignored outright.</p>
+<h2 id="two-tiers-because-they-want-opposite-responses" tabindex="-1">Two tiers, because they want opposite responses <a class="anchor" href="#two-tiers-because-they-want-opposite-responses" aria-hidden="true">#</a></h2>
+<p>Conflating these would be the worst bug the feature could ship:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>what it is</th>
+<th>response</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>throttle</strong></td>
+<td>burst 429, “overloaded”, “temporarily limiting requests”</td>
+<td>seconds to minutes — <strong>off by default</strong>, the CLIs already retry these</td>
+</tr>
+<tr>
+<td><strong>quota</strong></td>
+<td>the plan’s allowance is spent</td>
+<td>hold until the stated reset</td>
+</tr>
+</tbody>
+</table>
+<p>Parking a whole floor for hours because of a transient 503 that cleared in four seconds is not a
+safety feature. It is an outage you caused yourself.</p>
+<h2 id="the-hold-belongs-to-the-account" tabindex="-1">The hold belongs to the account <a class="anchor" href="#the-hold-belongs-to-the-account" aria-hidden="true">#</a></h2>
+<p>A usage limit is a property of a subscription, not a process. Six workers running <code>claude</code> share
+one account, so the moment one of them hits the wall the other five are already behind it — they
+simply haven’t spoken yet.</p>
+<p>Holding only the agent that printed the banner would let the next five walk into the same wall one
+at a time, losing a message each on the way in. So the hold is scoped to the provider.</p>
+<p>That over-holds if you deliberately run two accounts across different agents, and that trade is
+made on purpose: <strong>over-holding costs a wait, under-holding costs instructions.</strong> Resume is one
+click, and every hold shows the line of terminal output that caused it, so a wrong hold is visible
+rather than mysterious.</p>
+<h2 id="telling-a-repaint-from-a-real-re-hit" tabindex="-1">Telling a repaint from a real re-hit <a class="anchor" href="#telling-a-repaint-from-a-real-re-hit" aria-hidden="true">#</a></h2>
+<p>TUIs redraw constantly, and the banner stays in the scrollback after the limit lifts. A naive
+detector re-arms on its own echo forever.</p>
+<p>Two mechanisms, and the second is the interesting one:</p>
+<ul>
+<li>the detector suppresses an identical evidence line within a short window;</li>
+<li>the gate refuses to re-arm from identical wording shortly after a release <strong>unless a message has
+actually been delivered since</strong>.</li>
+</ul>
+<p>That second condition is what separates an echo from a genuine second rejection. If we sent
+something and the wall is still there, that is new information. If we sent nothing, we are looking
+at pixels we already reacted to. There is a test that feeds thirty frames of the same banner at
+roughly 10fps and asserts exactly one hold.</p>
+<h2 id="what-is-gated-and-what-deliberately-is-not" tabindex="-1">What is gated, and what deliberately is not <a class="anchor" href="#what-is-gated-and-what-deliberately-is-not" aria-hidden="true">#</a></h2>
+<p><strong>Gated:</strong> the queue drain, the spawn seed — an agent seeded into a capped provider has its entire
+setup prompt discarded and then sits there looking like a hung spawn — and scheduled auto-compact,
+because <code>/compact</code> is a model call that spends a rejected attempt <em>and</em> parks a <code>/compact</code> ahead of
+your real backlog when the window reopens.</p>
+<p><strong>Not gated:</strong> writing a message into another agent’s inbox file. That is already a queue — the
+message waits on disk until the agent next runs — so gating it would convert “delayed” into “lost”,
+which is the exact bug we are fixing.</p>
+<p><strong>Bypassed:</strong> “send now” overrides a hold, exactly as it already overrides the floor-wide delivery
+pause. One override, one meaning. The operator may know something the detector doesn’t, and an
+override with no escape hatch is worse than a wrong guess.</p>
+<h2 id="two-bugs-found-while-building-it" tabindex="-1">Two bugs found while building it <a class="anchor" href="#two-bugs-found-while-building-it" aria-hidden="true">#</a></h2>
+<p>Both are the same species — a setting that describes the world rather than controlling it.</p>
+<p><strong><code>autoResume: off</code> did nothing.</strong> Expiry was a timestamp comparison, so holds lapsed on their own
+and the setting was decorative. A hold now ends when it is <em>swept</em>, and the sweep is what
+auto-resume controls.</p>
+<p><strong>Disabling the guard left the floor stopped.</strong> The drain reads the hold list, not the setting, so
+existing holds outlived the switch that was supposed to govern them. Turning it off now releases
+everything.</p>
+<p>If you take one thing from this post, take that pattern: a boolean that reads well in the UI and is
+never consulted on the path it claims to govern is indistinguishable from a working feature right up
+until someone needs it.</p>
+<h2 id="what-honest-verification-looks-like" tabindex="-1">What honest verification looks like <a class="anchor" href="#what-honest-verification-looks-like" aria-hidden="true">#</a></h2>
+<p>The detection tests are built from strings read out of the installed binaries — <code>strings</code> and
+<code>rg</code> over the shipped artefacts — not from a terminal that actually hit a wall. That is a real
+limitation and it is worth stating plainly rather than burying: the highest-value check before
+trusting this is forcing one live limit and watching a queue drain on the other side of it.</p>
+<p>Shipping detection heuristics with a switch to turn them off, evidence attached to every decision,
+and a one-click override is not a lack of confidence. It is what you owe people when your feature’s
+failure mode is “the fleet stopped and I don’t know why”.</p>
+<hr>
+<p><em>Munder Difflin v0.3.8 is out — usage-limit aware delivery, a Triggers hub, and a git history view
+that finally fits its panel. <a href="https://github.com/chaitanyagiri/munder-difflin/releases/latest">Download it</a>,
+or read the <a href="https://github.com/chaitanyagiri/munder-difflin/blob/main/CHANGELOG.md">changelog</a>.</em></p>
+
+
+      
+      <section class="faq" aria-label="Frequently asked questions">
+        <h2 id="faq">FAQ</h2>
+        
+        <div class="qa">
+          <p class="q">What happens if you type into a rate-limited Claude Code session?</p>
+          <p class="a">The TUI accepts the keystrokes and discards them. There is no error, no bounce, and no record that a message existed — the input area simply clears. Anything sent during the limit window is gone, and the only symptom is noticing later that the agent never did the thing you asked. This is why a rate limit is worse than an outage for an automated sender: an outage fails loudly, and this fails silently.</p>
+        </div>
+        
+        <div class="qa">
+          <p class="q">How do you detect a usage limit from a CLI&#39;s terminal output?</p>
+          <p class="a">You read the terminal stream, not the exit code — these are TUIs, and the limit is a banner rather than a status. Most CLIs relay the provider&#39;s own wording, so generic natural-language patterns carry most of the work, with a small per-CLI table for the strings a tool genuinely owns (Claude Code&#39;s subscription limits are its own concept, for example). The hard part is negative matching: Claude renders &#39;Approaching session limit · resets 3pm&#39; from the same component as the real banner at around 80% usage, and matching that would stand your fleet down hours early, every session.</p>
+        </div>
+        
+        <div class="qa">
+          <p class="q">Should a rate-limit hold apply to one agent or all of them?</p>
+          <p class="a">The account. A usage limit belongs to a subscription, so every agent running that CLI is already behind the same wall the moment one of them hits it — they just haven&#39;t spoken yet. Holding only the agent that printed the banner lets the others walk into it one at a time, losing a message each. Over-holding costs a wait; under-holding costs instructions.</p>
+        </div>
+        
+        <div class="qa">
+          <p class="q">Why not just retry when a message fails to send?</p>
+          <p class="a">Because it doesn&#39;t fail. The write succeeds — the bytes reach the pseudo-terminal, and the TUI throws them away at the other end. There is no failure to retry against, which is why the fix has to be a gate in front of the send rather than a retry behind it.</p>
+        </div>
+        
+      </section>
+      
+
+      
+      <hr />
+      <div class="share">
+        <span class="lbl">Tags</span>
+        <a class="tag" href="/blog/tags/internals/">Internals</a><a class="tag" href="/blog/tags/reliability/">Reliability</a><a class="tag" href="/blog/tags/agents/">Agents</a><a class="tag" href="/blog/tags/release/">Release</a><a class="tag" href="/blog/tags/open-source/">Open Source</a>
+      </div>
+      
+    </div>
+
+    
+    <aside class="toc-rail" aria-label="Table of contents">
+      <div class="tt">On this page</div>
+      <ol>
+        <li class="lvl-2"><a href="#why-this-is-not-a-retry-problem">Why this is not a retry problem</a></li><li class="lvl-2"><a href="#reading-the-wall">Reading the wall</a></li><li class="lvl-3"><a href="#the-pattern-that-would-have-broken-everything">The pattern that would have broken everything</a></li><li class="lvl-2"><a href="#two-tiers-because-they-want-opposite-responses">Two tiers, because they want opposite responses</a></li><li class="lvl-2"><a href="#the-hold-belongs-to-the-account">The hold belongs to the account</a></li><li class="lvl-2"><a href="#telling-a-repaint-from-a-real-re-hit">Telling a repaint from a real re-hit</a></li><li class="lvl-2"><a href="#what-is-gated-and-what-deliberately-is-not">What is gated, and what deliberately is not</a></li><li class="lvl-2"><a href="#two-bugs-found-while-building-it">Two bugs found while building it</a></li><li class="lvl-2"><a href="#what-honest-verification-looks-like">What honest verification looks like</a></li>
+      </ol>
+    </aside>
+    
+  </div>
+
+  <footer class="post-foot wrap"><div class="prevnext">
+      <a class="pn prev" href="/blog/whats-up-with-munder-difflin/"><span class="k">← Older</span><span class="t">What&#39;s Up With Munder Difflin: Six Weeks, Four Releases, and the Part of the Stack You Actually Own</span></a>
+      <span></span>
+    </div>
+    <section class="related">
+      <h2>Related in Internals</h2>
+      <div class="post-grid">
+        <article class="card">
+  <a class="thumb t-internals" href="/blog/why-our-auto-update-never-ran/" aria-hidden="true" tabindex="-1">
+    <span>INTERNALS</span>
+  </a>
+  <div class="body">
+    <div class="meta">
+      <time datetime="2026-08-08">Aug 8, 2026</time>
+      <span class="dot" aria-hidden="true"></span>
+      <span>5 min</span>
+    </div>
+    <h3><a href="/blog/why-our-auto-update-never-ran/">Our Auto-Update Never Ran Once: A CommonJS Export That Vanished Into an ESM Namespace</a></h3>
+    <p class="dek">Munder Difflin shipped auto-update in v0.3.4 and it silently never worked in a single packaged build. The cause was one destructuring assignment across the CommonJS/ESM boundary — and a catch block that threw the evidence away. Here&#39;s how we found it, and what v0.3.7 changes.</p>
+    <div class="foot">
+      <span class="tag kind">Internals</span>
+      <a class="more" href="/blog/why-our-auto-update-never-ran/" aria-label="Read: Our Auto-Update Never Ran Once: A CommonJS Export That Vanished Into an ESM Namespace">Read →</a>
+    </div>
+  </div>
+</article>
+<article class="card">
+  <a class="thumb t-internals" href="/blog/hire-manifest-untrusted-input/" aria-hidden="true" tabindex="-1">
+    <span>INTERNALS</span>
+  </a>
+  <div class="body">
+    <div class="meta">
+      <time datetime="2026-06-15">Jun 15, 2026</time>
+      <span class="dot" aria-hidden="true"></span>
+      <span>12 min</span>
+    </div>
+    <h3><a href="/blog/hire-manifest-untrusted-input/">Treating a Hire Manifest as Untrusted Input</a></h3>
+    <p class="dek">A shareable agent-config manifest is attacker input. How Munder Difflin&#39;s import pipeline stays inert: no auto-spawn, default-deny flags, and an SSRF-safe bounded fetch.</p>
+    <div class="foot">
+      <span class="tag kind">Internals</span>
+      <a class="more" href="/blog/hire-manifest-untrusted-input/" aria-label="Read: Treating a Hire Manifest as Untrusted Input">Read →</a>
+    </div>
+  </div>
+</article>
+<article class="card">
+  <a class="thumb t-internals" href="/blog/compressing-agent-memory/" aria-hidden="true" tabindex="-1">
+    <span>INTERNALS</span>
+  </a>
+  <div class="body">
+    <div class="meta">
+      <time datetime="2026-06-05">Jun 5, 2026</time>
+      <span class="dot" aria-hidden="true"></span>
+      <span>5 min</span>
+    </div>
+    <h3><a href="/blog/compressing-agent-memory/">Compressing Agent Memory Without Losing the Original</a></h3>
+    <p class="dek">How and why to compress an agent&#39;s long-term memory: the toolbox, the lossy trap, and keeping a lossless original beside a compact copy.</p>
+    <div class="foot">
+      <span class="tag kind">Internals</span>
+      <a class="more" href="/blog/compressing-agent-memory/" aria-label="Read: Compressing Agent Memory Without Losing the Original">Read →</a>
+    </div>
+  </div>
+</article>
+
+      </div>
+    </section>
+    
+  </footer>
+</article>
+
+</main>
+<footer>
+  <div class="wrap">
+    <div class="foot-top">
+      <a class="foot-brand brand" href="https://munderdiffl.in" aria-label="Munder Difflin home">
+        <img class="brand-logo" src="https://munderdiffl.in/logo.png" width="1318" height="840" alt="Munder Difflin, Inc. — Multi-Agent Harness" />
+      </a>
+      <div class="foot-links">
+        <a href="/blog/">Latest</a>
+        <a href="/blog/topics/">Topics</a>
+        <a href="/blog/about/">About</a>
+        <a href="https://munderdiffl.in/blog/feed.xml">RSS</a>
+        <a href="https://github.com/chaitanyagiri/munder-difflin">GitHub</a>
+        <a href="https://munderdiffl.in">munderdiffl.in ↗</a>
+      </div>
+    </div>
+    <div class="foot-meta">
+      © 2026 Munder Difflin · Local-first · MIT-licensed ·
+      Built on <a href="https://munderdiffl.in">Electron, React, Pixi.js, xterm.js &amp; node-pty</a>.
+      Run an office of agents while you sleep.
+    </div>
+  </div>
+</footer>
+
+<script>
+  // sticky-nav border on scroll
+  (function () {
+    var nav = document.getElementById('nav');
+    if (!nav) return;
+    var onScroll = function () { nav.classList.toggle('scrolled', window.scrollY > 8); };
+    onScroll(); window.addEventListener('scroll', onScroll, { passive: true });
+  })();
+</script>
+
+</body>
+</html>

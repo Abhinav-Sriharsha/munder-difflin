@@ -29,11 +29,11 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Munder Difflin",
-  "description": "Run a virtual office of AI agents on any computer. Munder Difflin is a highly capable local multi-agent harness that makes a multi-CLI agent cluster work 24/7 for you — Claude Code, Codex, Antigravity, Grok, and GitHub Copilot CLI with Slack and webhook integration. New in v0.3.5: voice orchestration with live floor context, markdown previews, git history & branch compare in the built-in IDE, and auto-update.",
+  "description": "Run a virtual office of AI agents on any computer. Munder Difflin is a highly capable local multi-agent harness that makes a multi-CLI agent cluster work 24/7 for you — Claude Code, Codex, Antigravity, Grok, and GitHub Copilot CLI with Slack and webhook integration. New in v0.3.8: usage-limit aware delivery that pauses and resumes agents by itself, a Triggers hub for schedules and webhooks, and a rebuilt git history view.",
   "url": "https://munderdiffl.in/",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS, Windows, Linux",
-  "softwareVersion": "0.3.5",
+  "softwareVersion": "0.3.8",
   "downloadUrl": "https://github.com/chaitanyagiri/munder-difflin/releases/latest",
   "softwareHelp": "https://github.com/chaitanyagiri/munder-difflin#readme",
   "license": "https://github.com/chaitanyagiri/munder-difflin/blob/main/LICENSE",
@@ -613,16 +613,16 @@
   <div class="wrap">
     <div class="chip-wrap reveal" id="verWrap">
       <button class="chip" id="verChip" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="verPop">
-        <span class="new">NEW</span> <b>v0.3.7</b> · Local agent harness
+        <span class="new">NEW</span> <b>v0.3.8</b> · Local agent harness
       </button>
-      <div class="ver-pop" id="verPop" role="dialog" aria-label="What's new in v0.3.7">
-        <h4>What's new in v0.3.7</h4>
+      <div class="ver-pop" id="verPop" role="dialog" aria-label="What's new in v0.3.8">
+        <h4>What's new in v0.3.8</h4>
         <ul>
-          <li><b>Auto-update actually works.</b> A CommonJS/ESM import bug meant it silently never ran in any packaged build. Fixed, with a regression test.</li>
-          <li><b>The version is now a button.</b> Top-left, next to the logo: it shows download progress and turns into "restart to update" when a release is staged.</li>
-          <li><b>Nothing fails silently.</b> Update errors now reach the UI and a log file instead of being swallowed.</li>
+          <li><b>Usage limits pause the floor instead of losing work.</b> A rate-limited CLI discards keystrokes silently. Agents on a capped provider are now held, queues keep filling, and delivery resumes by itself at the reset.</li>
+          <li><b>Triggers, in one place.</b> Schedules, webhooks, context rules and peer messaging share a home — with a history of what fired.</li>
+          <li><b>Memory condensation works.</b> It had never once succeeded: transcripts were read from a directory Claude Code stopped writing to months ago.</li>
         </ul>
-        <a class="more" href="/blog/whats-up-with-munder-difflin/">What's up with Munder Difflin →</a>
+        <a class="more" href="/blog/when-the-cli-stops-listening/">When the CLI stops listening →</a>
       </div>
     </div>
     <h1 class="hero-title reveal">Forever running cli agent cluster to do all your work</h1>
@@ -1099,7 +1099,7 @@
 <!-- ===================== FINAL CTA ===================== -->
 <div class="final-wrap">
   <section class="final" style="padding-top: 84px;">
-    <div class="eyebrow reveal">v0.3.7 · Free &amp; open source</div>
+    <div class="eyebrow reveal">v0.3.8 · Free &amp; open source</div>
     <h2 class="reveal">Your virtual office is <span class="hl">one download away.</span></h2>
     <p class="reveal">A full floor of AI agents — planning, building, and shipping around the clock, on your machine.
       Free, local, and MIT-licensed.</p>
