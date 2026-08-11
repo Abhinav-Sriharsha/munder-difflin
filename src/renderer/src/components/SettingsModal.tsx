@@ -17,12 +17,17 @@ import { OfficeThemePicker } from './OfficeThemePicker';
 import { McpDefaultsSettings } from './McpDefaultsSettings';
 import { IntegrationsRegistry } from './IntegrationsRegistry';
 import { AiEnginesSettings } from './AiEnginesSettings';
+import { REALTIME_MODEL } from '@shared/realtimePricing';
 import { RealtimeDevicePicker } from '@/realtime/DevicePicker';
 import { CostHud } from '@/realtime/CostHud';
 
 export interface SettingsModalProps {
   config: HarnessConfig;
   onClose: () => void;
+  /** Open straight to a section instead of General. Used by deep links from
+   *  elsewhere in the UI — "set it now" beside a disabled Talk button lands on
+   *  the tab that actually holds the field, rather than making the user hunt. */
+  initialSection?: Section;
 }
 
 /**
@@ -148,7 +153,7 @@ function clearLocalState(): void {
 // v0.3.4 redesign: six tabs, one topic each. 'AI Engines' folded into
 // Agents & Models; MCP + Slack + webhook + REST live together in Connections;
 // voice gets its own tab; Danger Zone became a red row at the bottom of General.
-type Section = 'General' | 'Agents & Models' | 'Autonomy & Budgets' | 'Connections' | 'Voice' | 'Memory & Knowledge';
+export type Section = 'General' | 'Agents & Models' | 'Autonomy & Budgets' | 'Connections' | 'Voice' | 'Memory & Knowledge';
 const NAV_SECTIONS: Section[] = ['General', 'Agents & Models', 'Autonomy & Budgets', 'Connections', 'Voice', 'Memory & Knowledge'];
 
 /** One labelled on/off row. The surrounding settings pane repeats this
@@ -183,10 +188,10 @@ function SettingRow({ title, blurb, on, onClick, disabled }: {
   );
 }
 
-export function SettingsModal({ config, onClose }: SettingsModalProps) {
+export function SettingsModal({ config, onClose, initialSection }: SettingsModalProps) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [activeSection, setActiveSection] = useState<Section>('General');
+  const [activeSection, setActiveSection] = useState<Section>(initialSection ?? 'General');
 
   // Change-home flow: null until the user picks a new folder, then the sub-modal
   // confirms move-vs-fresh. Pre-selects 'move' (recommended - keeps the data).
@@ -427,6 +432,26 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
   // Talk (Realtime Michael) is gated on the OpenAI key — read the live presence
   // boolean so the Realtime Michael section can show its enabled/disabled status.
   const hasOpenAiKey = useStore((s) => s.hasOpenAiKey);
+  // Voice-tab entry for the SAME broker slot Agents & Models writes (apikey:openai).
+  // Mirroring presence into the store on save is what makes the Talk button light up
+  // immediately instead of on next launch.
+  const setHasOpenAiKey = useStore((s) => s.setHasOpenAiKey);
+  const [openAiVoiceKey, setOpenAiVoiceKey] = useState('');
+  const [openAiVoiceNote, setOpenAiVoiceNote] = useState('');
+  const saveOpenAiVoiceKey = async (): Promise<void> => {
+    const key = openAiVoiceKey.trim();
+    if (!key) return;
+    try {
+      const r = await window.cth.providerKeySet({ backend: 'openai', key });
+      if (r.ok) {
+        setOpenAiVoiceKey('');
+        setHasOpenAiKey(true);
+        setOpenAiVoiceNote('Key saved — Talk is ready.');
+      } else setOpenAiVoiceNote(r.error ?? 'Could not save the key.');
+    } catch (e) {
+      setOpenAiVoiceNote(e instanceof Error ? e.message : String(e));
+    }
+  };
   // v0.3.4 fix: the config default is ON ('now on by default', 0.2.7) — seeding
   // with `?? false` displayed OFF while the feature was actually running.
   const [freeflowEnabled, setFreeflowEnabled] = useState(config.freeflowEnabled !== false);
@@ -1889,12 +1914,15 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                           </span>
                         </div>
 
-                        {/* OpenAI Realtime key — its own documented requirement. Talk mints an
-                            ephemeral token from your OpenAI key (the same OpenAI provider key
-                            under AI Engines), distinct from your Anthropic key. The status line
-                            reads the live presence boolean (key value never leaves main). */}
+                        {/* OpenAI Realtime key — settable HERE, not just described here.
+                            This is where someone looking for voice actually lands (the Talk
+                            button deep-links to it), so sending them to another tab to type
+                            the key was a dead end dressed up as documentation. Same broker
+                            slot as Agents & Models (apikey:openai) — one key, two doorways,
+                            and saving in either flips the same gate. The value never leaves
+                            main; only the presence boolean comes back. */}
                         <div style={{
-                          display: 'flex', flexDirection: 'column', gap: 6,
+                          display: 'flex', flexDirection: 'column', gap: 8,
                           padding: 10,
                           background: 'var(--cth-paper-100)',
                           boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
@@ -1903,28 +1931,51 @@ export function SettingsModal({ config, onClose }: SettingsModalProps) {
                             fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                             color: 'var(--cth-ink-500)', textTransform: 'uppercase'
                           }}>
-                            OpenAI Realtime key
+                            OpenAI API key · voice
                           </span>
                           <span style={{ fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
-                            Talk uses OpenAI&rsquo;s Realtime voice API, so it needs your <strong>OpenAI API key</strong> —
-                            the same key you set under <strong>AI Engines → OpenAI</strong>. It is a separate provider
-                            key from your Anthropic key. Main mints a short-lived token from it for each session; the
-                            key itself never leaves your machine. <strong>Without an OpenAI key the Talk button stays
-                            disabled.</strong>
+                            Talking to Michael runs on OpenAI&rsquo;s Realtime API — speech in, speech out, over a
+                            live connection to <strong style={{ fontFamily: 'var(--cth-font-mono)' }}>{REALTIME_MODEL}</strong>.
+                            That is a different service from the Claude subscription your agents run on, so it needs
+                            its own <strong>OpenAI API key</strong>.
                           </span>
+                          <span style={{ fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
+                            Paste it once below. It is encrypted on this machine and never shown again — each voice
+                            session mints its own short-lived token from it, and the key itself never leaves your
+                            computer. It is the same OpenAI key listed under <strong>Agents &amp; Models</strong>;
+                            setting it in either place is enough.
+                          </span>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <input
+                              type="password"
+                              value={openAiVoiceKey}
+                              onChange={(e) => setOpenAiVoiceKey(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') void saveOpenAiVoiceKey(); }}
+                              placeholder={hasOpenAiKey ? 'key saved — paste a new one to replace it' : 'sk-…'}
+                              style={{ ...slackInputStyle, flex: 1, fontFamily: 'var(--cth-font-mono)' }}
+                            />
+                            <PixelButton
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => void saveOpenAiVoiceKey()}
+                              disabled={!openAiVoiceKey.trim()}
+                            >
+                              Save
+                            </PixelButton>
+                          </div>
                           <span style={{
                             display: 'inline-flex', alignItems: 'center', gap: 6,
                             fontSize: 12, lineHeight: '16px',
-                            color: hasOpenAiKey ? 'var(--cth-ink-900)' : '#6E1423'
+                            color: hasOpenAiKey ? 'var(--cth-ink-900)' : 'var(--cth-ink-500)'
                           }}>
                             <span aria-hidden style={{
                               width: 8, height: 8, flexShrink: 0,
-                              background: hasOpenAiKey ? 'var(--cth-mint)' : 'var(--cth-lemon)',
+                              background: hasOpenAiKey ? 'var(--cth-mint)' : 'var(--cth-ink-300)',
                               boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
                             }} />
-                            {hasOpenAiKey
-                              ? 'OpenAI key detected — Talk is enabled.'
-                              : 'No OpenAI key set — Talk is disabled. Add it under AI Engines → OpenAI.'}
+                            {openAiVoiceNote || (hasOpenAiKey
+                              ? 'Key saved — Talk is ready. Start it from Michael’s card.'
+                              : 'No key yet — Talk stays disabled until one is saved.')}
                           </span>
                         </div>
 

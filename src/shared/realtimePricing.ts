@@ -14,6 +14,15 @@
  * raw token counts are surfaced alongside the dollar figure so it stays auditable.
  */
 
+/**
+ * The realtime voice model Talk connects to. Lives HERE, in shared, because it is
+ * named in user-facing Settings copy as well as used by the main-process mint —
+ * a model string duplicated across a process boundary is one that eventually
+ * disagrees with itself, and the half users read is the half nobody notices is
+ * stale. `src/main/realtime.ts` re-exports this as its own REALTIME_MODEL.
+ */
+export const REALTIME_MODEL = 'gpt-realtime-2.1';
+
 /** USD per 1,000,000 audio tokens (gpt-realtime-2). */
 export const REALTIME_AUDIO_INPUT_PER_MTOK = 32;
 export const REALTIME_AUDIO_OUTPUT_PER_MTOK = 64;

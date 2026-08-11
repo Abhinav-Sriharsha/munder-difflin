@@ -24,8 +24,11 @@ import { getSecret, hasSecret } from './integrations';
 const OPENAI_KEY_REF = 'apikey:openai';
 
 /** GA speech-to-speech model for the voice orchestrator (v0.3.4: bumped to the
- *  July 2026 gpt-realtime-2.1 — 25% p95 latency cut, better interruption handling). */
-export const REALTIME_MODEL = 'gpt-realtime-2.1';
+ *  July 2026 gpt-realtime-2.1 — 25% p95 latency cut, better interruption handling).
+ *  Defined in shared/ and re-exported here: Settings names this model in copy the
+ *  user reads, so main and the UI must not be able to disagree about it. */
+export { REALTIME_MODEL } from '../shared/realtimePricing';
+import { REALTIME_MODEL } from '../shared/realtimePricing';
 
 /** GA ephemeral-secret mint endpoint. If an account/tier still answers the legacy
  *  beta shape, we fall back to /v1/realtime/sessions on a 404 and normalize both
@@ -51,7 +54,7 @@ export function hasOpenAiKey(): boolean {
 export async function mintRealtimeToken(model: string = REALTIME_MODEL): Promise<MintResult> {
   const key = getSecret(OPENAI_KEY_REF);
   if (!key) {
-    return { ok: false, error: 'no OpenAI API key set — add one in Settings → AI Engines', code: 'no_key' };
+    return { ok: false, error: 'no OpenAI API key set — add one in Settings → Voice', code: 'no_key' };
   }
 
   const post = async (url: string, body: unknown) => {
