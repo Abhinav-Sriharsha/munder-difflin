@@ -2269,7 +2269,34 @@ function installAppMenu(): void {
         ? [newFloorItem, { type: 'separator' as const }, { role: 'close' as const }]
         : [newFloorItem, { type: 'separator' as const }, { role: 'quit' as const }]
     },
-    { role: 'editMenu' },
+    // The Edit menu is spelled out rather than `{ role: 'editMenu' }` for one
+    // reason: `registerAccelerator: false` on the clipboard items.
+    //
+    // A registered accelerator is claimed by the MENU, which then replays the
+    // action through `webContents.paste()` — an async hop that runs a beat after
+    // the keystroke. Dictation tools (Muesli, Wispr Flow, …) insert text by
+    // stashing the clipboard, writing the transcript, sending the paste key, and
+    // restoring the old clipboard immediately; the menu's late paste therefore
+    // read the RESTORED clipboard and typed the user's previous copy instead of
+    // what they had just said. It hit the terminal and the composer alike,
+    // because both were downstream of the same replay.
+    //
+    // With registerAccelerator false the item still shows its shortcut, but the
+    // key is left for the focused element to handle inline — xterm's own paste
+    // handler and the textarea's native paste event both read the clipboard
+    // synchronously, inside the keystroke, before any restore can land.
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' as const, registerAccelerator: false },
+        { role: 'redo' as const, registerAccelerator: false },
+        { type: 'separator' as const },
+        { role: 'cut' as const, registerAccelerator: false },
+        { role: 'copy' as const, registerAccelerator: false },
+        { role: 'paste' as const, registerAccelerator: false },
+        { role: 'selectAll' as const, registerAccelerator: false }
+      ]
+    },
     { role: 'viewMenu' },
     { role: 'windowMenu' }
   ];
@@ -2752,6 +2779,17 @@ ipcMain.handle('app:copyToClipboard', (_evt, text: unknown) => {
 });
 ipcMain.handle('app:readClipboard', () => {
   try { return clipboard.readText(); } catch { return ''; }
+});
+// Same read, SYNCHRONOUS, for the terminal's paste shortcut.
+//
+// Dictation tools (muesli.works, Wispr Flow, …) type by stashing the user's
+// clipboard, writing the transcript, sending the paste key, then restoring the
+// old clipboard immediately. An `invoke` read returns a tick or two later — by
+// which point the restore has already landed and we paste the PREVIOUS text.
+// A `sendSync` read completes inside the keydown handler, before the tool gets
+// a chance to put the old contents back.
+ipcMain.on('app:readClipboardSync', (evt) => {
+  try { evt.returnValue = clipboard.readText(); } catch { evt.returnValue = ''; }
 });
 // NOTE: the terminal theme is mirrored into each agent's per-session Claude
 // settings at spawn (hive.ensureAgent theme option) — deliberately NOT via
