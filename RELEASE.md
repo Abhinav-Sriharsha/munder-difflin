@@ -1,4 +1,4 @@
-# Munder Difflin v0.4.2
+# Munder Difflin v0.4.3
 
 **A local hive of Claude Code, Antigravity, Codex, Grok & Copilot agents that run themselves** — messaging,
 routing, and remembering, coordinated by your clone, Michael, who you talk to. Local-first and open source.
@@ -7,7 +7,33 @@ routing, and remembering, coordinated by your clone, Michael, who you talk to. L
 
 ---
 
-## What's new in 0.4.2 — *Anonymous usage stats, done in the open*
+## What's new in 0.4.3 — *Michael is the logo*
+
+**The mark is a face now.** Munder Difflin has always been an office you watch people work in,
+and the icon was a pair of script initials on a gradient. It's Michael — your clone — drawn in
+the app's own pixel art, on the brand yellow, looking straight back at you.
+
+- **One mark, everywhere.** The dock icon on macOS, Windows and Linux, the site favicon and
+  header, the in-app toolbar, and the README all render the same portrait. No variant is a
+  redrawing of another.
+- **The SVG is the source of truth.** The mark is authored as pure vector — every pixel of the
+  sprite is a rect, with no fonts, no gradients and no filters — and every raster in `build/`
+  and `docs/` is generated from it by [`tools/make-logo.cjs`](https://github.com/chaitanyagiri/munder-difflin/blob/main/tools/make-logo.cjs).
+  The old icon depended on the Lobster webfont being installed to render correctly.
+- **Icons are native at every size.** A real multi-resolution `.icns` (16→1024, with the macOS
+  drop shadow) and a `.ico` carrying six sizes, plus a 32px favicon and a 180px apple-touch-icon,
+  so nothing is a downscale of a 512px image any more.
+- **Brighter call-to-action buttons.** The download button took its fill from the same token as
+  accent *text*, which has to stay dark enough to read on a white page — so on the light theme
+  it came out brown. Fills now have their own token and start at what used to be the hover colour.
+
+> [!NOTE]
+> **Appearance only.** No functional change in this release: the update carries the new icon into
+> your dock, and nothing else moves.
+
+---
+
+## Still new in 0.4.2 — *Anonymous usage stats, done in the open*
 
 Munder Difflin now sends a **small set of anonymous usage events** (app opened, agent spawned,
 feature used) so we can tell whether features are actually used. It is built the way an
@@ -88,22 +114,22 @@ Apple Silicon and Intel.
 ### 🍎 macOS
 | Build | File |
 |---|---|
-| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.4.2-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.2-mac-universal.dmg) |
+| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.4.3-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.3-mac-universal.dmg) |
 
 ### 🪟 Windows
 | Build | File |
 |---|---|
-| Installer (x64) — *recommended* | [`Munder-Difflin-0.4.2-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.2-win-x64-setup.exe) |
-| Portable (x64, no install) | [`Munder-Difflin-0.4.2-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.2-win-x64-portable.exe) |
+| Installer (x64) — *recommended* | [`Munder-Difflin-0.4.3-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.3-win-x64-setup.exe) |
+| Portable (x64, no install) | [`Munder-Difflin-0.4.3-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.3-win-x64-portable.exe) |
 
 ### 🐧 Linux
 | Build | File |
 |---|---|
-| AppImage (x86_64) | [`Munder-Difflin-0.4.2-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.2-linux-x86_64.AppImage) |
+| AppImage (x86_64) | [`Munder-Difflin-0.4.3-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.3-linux-x86_64.AppImage) |
 
 ### 📦 Source
-[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.2.zip) ·
-[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.2.tar.gz)
+[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.3.zip) ·
+[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.3.tar.gz)
 
 > **Verify your download:** [`SHA256SUMS.txt`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/SHA256SUMS.txt) — then `shasum -a 256 -c SHA256SUMS.txt` (macOS/Linux) or `Get-FileHash` (Windows).
 

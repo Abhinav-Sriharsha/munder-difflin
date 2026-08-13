@@ -61,6 +61,18 @@ if (fs.existsSync(indexHtml)) {
   }
 }
 
+// — 4. llms.txt, which advertises the current version to crawlers and LLMs —
+//   Added in 0.4.3: this file sat at 0.4.1 for two releases while the checker
+//   stayed green, because nothing was watching it.
+const llms = path.join(root, 'docs/llms.txt');
+if (fs.existsSync(llms)) {
+  const m = /Current version:\s*(\d+\.\d+\.\d+)/.exec(fs.readFileSync(llms, 'utf8'));
+  if (!m) problems.push('docs/llms.txt no longer states "Current version: x.y.z" — did the line move?');
+  else if (m[1] !== version) {
+    problems.push(`docs/llms.txt says current version ${m[1]}, package.json says ${version}`);
+  }
+}
+
 async function checkLive() {
   const base = 'https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/';
   for (const name of [...assets, 'SHA256SUMS.txt']) {
@@ -85,7 +97,7 @@ async function checkLive() {
   if (problems.length) {
     console.error(`\n✗ release links are wrong (${problems.length}):`);
     for (const p of problems) console.error(`  - ${p}`);
-    console.error('\nFix RELEASE.md / docs/index.html to match package.json before releasing.');
+    console.error('\nFix RELEASE.md / docs/index.html / docs/llms.txt to match package.json before releasing.');
     process.exit(1);
   }
   console.log(`✓ release links consistent at v${version}`);

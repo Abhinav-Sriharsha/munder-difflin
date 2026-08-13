@@ -23,9 +23,12 @@ const W = 240, H = 240;
 const SW = art.SCENE_W, SH = art.SCENE_H;
 
 // ── palette ───────────────────────────────────────────────────────────────
-const GROUND   = [253, 244, 209];      // light tint of the brand yellow — flat,
-                                       // edge to edge. No disc, no vignette: any
-                                       // shape behind him competes with the face.
+const GROUND   = [241, 181, 61];       // #F1B53D — the brand yellow, sampled from
+                                       // the shipping app icon tile (build/icon.png),
+                                       // so the thumbnail matches the dock icon and
+                                       // the site mark. Flat, edge to edge: no disc,
+                                       // no vignette — any shape behind him competes
+                                       // with the face.
 
 // ── sprite geometry ───────────────────────────────────────────────────────
 const SCALE = 10;                      // 18x32 sprite pixel -> 10px block
