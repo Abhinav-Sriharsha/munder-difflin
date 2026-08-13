@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>The Founders' Wall — Munder Difflin</title>
-<meta name="description" content="The Founding Supporters who keep Munder Difflin free and open source for everyone. One brass plaque each, ₹8,800 (~$100), one time." />
+<meta name="description" content="The Founding Supporters who keep Munder Difflin free and open source for everyone. One brass plaque each, ₹1,800 (~$20), one time." />
 <link rel="canonical" href="https://munderdiffl.in/wall.html" />
 <link rel="icon" type="image/svg+xml" href="./logo.svg" />
 <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
@@ -318,20 +318,19 @@
   <div class="wrap">
     <div class="join-card">
       <h2>Put your name on the wall.</h2>
-      <span class="price">₹8,800 (~$100) · ONE TIME</span>
-      <p>A permanent engraved plaque on this wall, a ⭐ entry in the repo's
-      SUPPORTERS list, and early access to pre-release builds — a week before
-      everyone else. Munder Difflin stays free for everyone.</p>
+      <span class="price">₹1,800 (~$20) · ONE TIME</span>
+      <p>A permanent engraved plaque on this wall. Munder Difflin stays free
+      for everyone — this is what keeps it that way.</p>
       <div class="btn-row">
-        <!-- TODO(razorpay): replace both hrefs with the dedicated Razorpay
-             Payment Page URLs (with the "Name for the Founders' Wall" field)
-             once created in the dashboard. Interim: amount-prefilled patron links. -->
-        <a class="btn primary lg" data-support="founding" href="https://razorpay.me/@munderdifflinfund/8800" target="_blank" rel="noopener">Become a Founding Supporter</a>
+        <!-- TODO(razorpay): swap for the dedicated Payment Page URL once
+             created in the dashboard. Interim: amount-prefilled patron link. -->
+        <a class="btn primary lg" data-support="wall" href="https://razorpay.me/@munderdifflinfund/1800" target="_blank" rel="noopener">Get on the wall</a>
       </div>
-      <span class="fine">Just want to say thanks? <a data-support="supporter" href="https://razorpay.me/@munderdifflinfund/1800" target="_blank" rel="noopener">₹1,800 (~$20) — buy the team a coffee</a> and get listed in SUPPORTERS.md.</span>
+      <span class="fine">Type the name you want engraved into the <b>Message</b> box on the
+      Razorpay page — it appears here within 24 hours. Leave it blank to support anonymously.</span>
     </div>
-    <p class="legal">Founding Supporter is a one-time purchase of a recognition service —
-    a permanent listing on this page and early-access membership — not a donation.
+    <p class="legal">A wall listing is a one-time purchase of a recognition service —
+    a permanent listing on this page — not a donation.
     Payments are processed by Razorpay. Prices are in INR; the USD figure is approximate.
     Questions? <a href="mailto:girichaitanya11@gmail.com">girichaitanya11@gmail.com</a></p>
   </div>
@@ -378,9 +377,9 @@
     function openSlot(n) {
       var a = document.createElement('a');
       a.className = 'plaque open-slot';
-      a.href = 'https://razorpay.me/@munderdifflinfund/8800'; // TODO(razorpay): Payment Page URL
+      a.href = 'https://razorpay.me/@munderdifflinfund/1800'; // TODO(razorpay): Payment Page URL
       a.target = '_blank'; a.rel = 'noopener';
-      a.setAttribute('data-support', 'founding');
+      a.setAttribute('data-support', 'wall');
       var no = document.createElement('span'); no.className = 'no';
       no.textContent = 'PLAQUE Nº ' + pad3(n) + ' · OPEN';
       var nm = document.createElement('span'); nm.className = 'nm';
