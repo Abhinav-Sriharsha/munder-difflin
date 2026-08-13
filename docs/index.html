@@ -271,6 +271,11 @@
     transition: border-color 120ms ease, background 120ms ease;
   }
   .theme-toggle:hover { border-color: var(--accent-line); background: var(--accent-soft); }
+  /* SVG sun/moon (never emoji — mobile renders the ☀ glyph as the color emoji).
+     CSS picks the icon from data-theme; sun is the no-attribute fallback. */
+  .theme-toggle svg { width: 17px; height: 17px; display: none; }
+  html:not([data-theme="dark"]) .theme-toggle .ic-sun { display: block; }
+  html[data-theme="dark"] .theme-toggle .ic-moon { display: block; }
   .star-count:empty { display: none; }
   .star-count::before { content: "· "; }
   @media (max-width: 800px) {
@@ -867,7 +872,7 @@
       <a class="btn ghost sm" data-gh-stars href="https://github.com/chaitanyagiri/munder-difflin" target="_blank" rel="noopener">
         <span class="ic">★</span><span class="nav-gh-label">Star</span><span class="star-count"></span>
       </a>
-      <button class="theme-toggle" id="themeToggle" aria-label="Toggle day / night theme">☀</button>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle day / night theme"><svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.6"/><path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/></svg><svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 14.8A8.8 8.8 0 0 1 9.2 3.4a8.8 8.8 0 1 0 11.4 11.4Z"/></svg></button>
       <a class="btn primary sm" data-download data-align="right" href="https://github.com/chaitanyagiri/munder-difflin/releases/latest"><span class="ic">⤓</span> Download</a>
     </div>
   </div>
@@ -969,9 +974,9 @@
         <div class="dex-ctrl">
           <span class="dpad" aria-hidden="true"></span>
           <div class="st-btns" role="group" aria-label="Pick a time of day on the floor" id="stBtns">
-            <button class="st-btn on" data-fstate="0">☀ 9AM · ALL IN</button>
-            <button class="st-btn" data-fstate="1">⛅ 2PM · SOME AWAY</button>
-            <button class="st-btn" data-fstate="2">🌙 3AM · CLONES SHIP</button>
+            <button class="st-btn on" data-fstate="0">9AM · ALL IN</button>
+            <button class="st-btn" data-fstate="1">2PM · SOME AWAY</button>
+            <button class="st-btn" data-fstate="2">3AM · CLONES SHIP</button>
           </div>
           <span class="dex-read" id="dexRead">4/4 HUMANS · 4 CLONES ON</span>
           <span class="dex-spk" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
@@ -2506,20 +2511,14 @@
     upd();
   })();
 
-  // theme toggle
+  // theme toggle — icon swap is pure CSS off data-theme (see .theme-toggle svg)
   (function () {
     var btn = document.getElementById('themeToggle');
-    function paint() {
-      var t = document.documentElement.getAttribute('data-theme');
-      btn.textContent = t === 'dark' ? '☾' : '☀';
-    }
     btn.addEventListener('click', function () {
       var t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', t);
       try { localStorage.setItem('mdf_theme', t); } catch (e) {}
-      paint();
     });
-    paint();
   })();
 
   // reveal on scroll — progressive: hidden state only exists under html.js,
