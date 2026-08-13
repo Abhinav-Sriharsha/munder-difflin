@@ -197,10 +197,11 @@
   .btn.sm { font-size: 0.87rem; padding: 8px 14px; }
   .btn .ic { font-size: 1.02em; }
   .btn-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
-  /* Featured-on badges (TAAFT + Product Hunt) under the hero CTAs. Height-normalized
-     so the two differently-sized source images sit on one tidy row. */
-  .featured-badges { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-top: 20px; }
-  .featured-badges img { height: 48px; width: auto; display: block; border-radius: 8px; }
+  /* Featured-on badges (TAAFT + Product Hunt) — sit where the old status pill
+     was, above the hero h1, height-matched to that pill (~30px, slightly
+     taller) so the hero rhythm is unchanged. */
+  .featured-badges { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 26px; }
+  .featured-badges img { height: 34px; width: auto; display: block; border-radius: 6px; }
 
   /* download dropdown */
   .dl { position: relative; display: inline-block; }
@@ -817,8 +818,8 @@
     .badge .dot { display: inline-block; margin-right: 7px; }
     .trust span { display: inline; }
     .dex { padding-left: 6px; padding-right: 6px; }
-    .featured-badges { gap: 8px; }
-    .featured-badges img { height: 38px; border-radius: 6px; }
+    .featured-badges { gap: 8px; margin-bottom: 20px; }
+    .featured-badges img { height: 30px; border-radius: 5px; }
     /* CLI provider grid: auto-fit lands on 3 uneven columns at phone widths —
        force 5 across (10 engines = two even rows) and shrink to fit. */
     .cli-logos { grid-template-columns: repeat(5, 1fr); gap: 6px; }
@@ -863,7 +864,10 @@
 <header class="hero">
   <div class="wrap hero-grid">
     <div>
-      <span class="badge"><span class="dot"></span> OPEN SOURCE · LOCAL-FIRST · WORKS 24/7</span>
+      <div class="featured-badges">
+        <a href="https://theresanaiforthat.com/ai/munder-difflin/?ref=featured&v=11668376" target="_blank" rel="nofollow"><img width="300" src="https://media.theresanaiforthat.com/featured-on-taaft.png?width=600" alt="Featured on There's An AI For That"></a>
+        <a href="https://www.producthunt.com/products/munder-difflin?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-munder-difflin" target="_blank" rel="noopener noreferrer"><img alt="Munder Difflin - Make clones with Claude Code and Codex to do your work | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1221363&amp;theme=light&amp;t=1786616639629"></a>
+      </div>
       <h1><span class="u">Clones for</span> you and your team</h1>
       <p class="lead">
          <strong>Free, open source and performant</strong> multi-agent harness that acts as your digital clone. No setup required, uses your existing subscription.
@@ -872,10 +876,6 @@
       <div class="btn-row">
         <a class="btn primary lg" data-download href="https://github.com/chaitanyagiri/munder-difflin/releases/latest"><span class="ic">⤓</span> Download Free</a>
         <a class="btn ghost lg" href="#how">See how it works ↓</a>
-      </div>
-      <div class="featured-badges">
-        <a href="https://theresanaiforthat.com/ai/munder-difflin/?ref=featured&v=11668376" target="_blank" rel="nofollow"><img width="300" src="https://media.theresanaiforthat.com/featured-on-taaft.png?width=600" alt="Featured on There's An AI For That"></a>
-        <a href="https://www.producthunt.com/products/munder-difflin?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-munder-difflin" target="_blank" rel="noopener noreferrer"><img alt="Munder Difflin - Make clones with Claude Code and Codex to do your work | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1221363&amp;theme=light&amp;t=1786616639629"></a>
       </div>
     </div>
         <div class="cli-bar rv">
