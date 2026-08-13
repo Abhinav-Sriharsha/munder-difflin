@@ -22,7 +22,7 @@ visualized as avatars at work on a shared office floor.
 
 <p>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
-  <a href="./CHANGELOG.md"><img alt="Version: 0.4.0" src="https://img.shields.io/badge/version-0.4.0-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
+  <a href="./CHANGELOG.md"><img alt="Version: 0.4.3" src="https://img.shields.io/badge/version-0.4.3-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
   <img alt="Status: prototype" src="https://img.shields.io/badge/status-working%20prototype-F4F1EA.svg?style=flat-square&labelColor=6E1423">
   <img alt="Platform: macOS | Windows | Linux" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-F4F1EA.svg?style=flat-square&labelColor=6E1423">
   <a href="./CONTRIBUTING.md"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
@@ -144,9 +144,10 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 - **Auto-update** — new releases download in the background; you click restart.
 
 > [!NOTE]
-> **Status: v0.4.0 — the brand grew up.** New app icon on every platform, a landing page that
-> shows the product instead of describing it, and Settings → General now names the version you're
-> running, says whether it's the latest, and gives you one button that states what it does.
+> **Status: v0.4.3 — Michael is the logo.** The mark is now the character the product is about,
+> drawn in the app's own pixel art and generated from one vector source, so the dock icon, the
+> site and this README can no longer drift apart. Earlier: anonymous opt-out usage stats
+> documented in the open (0.4.2), and the app's wording brought in line with the site (0.4.1).
 > **If you're on 0.3.8, update:** that build's usage-limit guard never released the agents it held,
 > and it has been removed entirely.
 > macOS (signed & notarized), Windows, and Linux builds are on the
@@ -281,7 +282,7 @@ chrome. The 15 avatars are the cast of *The Office*, differentiated by hair/skin
 
 ## Roadmap
 
-Shipped through **v0.4.0** — ten agent engines with BYOK keys and local LLMs, voice orchestration,
+Shipped through **v0.4.3** — ten agent engines with BYOK keys and local LLMs, voice orchestration,
 the hive (memory · mailboxes · blackboard · event log), Command Center with kanban and schedules,
 a built-in Monaco IDE with git rails, integrations registry + secret broker, Slack-spawned workers,
 shareable hires and the Agent Gallery, observability and the circuit breaker, durable persistence,

@@ -6,8 +6,10 @@
 <title>Munder Difflin — Clones for you and your team, working 24/7</title>
 <meta name="description" content="Free, open-source multi-agent harness and orchestrator — an entire Vibing OS. It wraps the CLI agents you already use (Claude Code, Codex, Copilot + 7 more), makes a clone of you that works 24/7, and with the Teams plan your team's clones collaborate over an end-to-end encrypted network with dedicated cloud sandboxes." />
 <link rel="canonical" href="https://munderdiffl.in/" />
-<link rel="icon" type="image/png" href="./logo.png" />
-<link rel="apple-touch-icon" href="./logo.png" />
+<link rel="icon" type="image/svg+xml" href="./logo.svg" />
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="./logo.png" />
+<link rel="apple-touch-icon" href="./apple-touch-icon.png" />
 <meta property="og:title" content="Munder Difflin — Clones for you and your team, working 24/7" />
 <meta property="og:description" content="Free, open-source multi-agent harness — a clone of you built from the CLI agent you already use, working 24/7. Teams: private cloud sandboxes for every clone + an end-to-end encrypted clone-to-clone network." />
 <meta property="og:image" content="https://munderdiffl.in/media/og.png" />
@@ -33,7 +35,7 @@
   "url": "https://munderdiffl.in/",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS, Windows, Linux",
-  "softwareVersion": "0.4.2",
+  "softwareVersion": "0.4.3",
   "downloadUrl": "https://github.com/chaitanyagiri/munder-difflin/releases/latest",
   "softwareHelp": "https://github.com/chaitanyagiri/munder-difflin#readme",
   "license": "https://github.com/chaitanyagiri/munder-difflin/blob/main/LICENSE",
@@ -100,6 +102,12 @@
     --accent-ink:  #17150E;
     --accent-soft: rgba(255,202,84,0.10);
     --accent-line: rgba(255,202,84,0.38);
+    /* Solid-fill accent, kept separate from --accent on purpose: --accent also
+       colours text and hairlines, where it has to stay dark enough to read.
+       A CTA is a filled block behind near-black ink, so it can and should run
+       brighter than the text accent. */
+    --accent-fill:       #FFD165;
+    --accent-fill-hover: #FFE08F;
     --green: #4ADE80;
     --dot: rgba(233,237,245,0.045);
     --halo: rgba(255,202,84,0.10);
@@ -129,6 +137,11 @@
     --accent-ink:  #17150E;
     --accent-soft: rgba(229,160,13,0.12);
     --accent-line: rgba(212,148,16,0.45);
+    /* The light theme is the one people land on, and #E5A00D — sized right for
+       accent TEXT on a white page — made the download button read as brown.
+       The fill now starts at what used to be the hover colour. */
+    --accent-fill:       #FFC94F;
+    --accent-fill-hover: #FFDC8A;
     --green: #16A34A;
     --dot: rgba(19,23,34,0.05);
     --halo: rgba(229,160,13,0.10);
@@ -187,10 +200,10 @@
   .btn:hover { transform: translateY(-1px); border-color: var(--accent-line); }
   .btn:active { transform: translateY(0); }
   .btn.primary {
-    background: var(--accent); color: var(--accent-ink); border-color: transparent;
+    background: var(--accent-fill); color: var(--accent-ink); border-color: transparent;
     box-shadow: var(--glow);
   }
-  .btn.primary:hover { background: var(--accent-2); box-shadow: var(--glow), 0 2px 8px rgba(0,0,0,0.25); }
+  .btn.primary:hover { background: var(--accent-fill-hover); box-shadow: var(--glow), 0 2px 8px rgba(0,0,0,0.25); }
   .btn.ghost { background: transparent; }
   .btn.ghost:hover { background: var(--accent-soft); }
   .btn.lg { font-size: 1.04rem; padding: 14px 26px; }
@@ -598,7 +611,7 @@
   .plan .flag {
     position: absolute; top: -12px; right: 14px;
     font-family: var(--font-mono); font-weight: 700; font-size: 0.66rem; letter-spacing: 0.1em;
-    background: var(--accent); color: var(--accent-ink);
+    background: var(--accent-fill); color: var(--accent-ink);
     border-radius: 6px; padding: 4px 9px;
   }
   .plan-name { font-family: var(--font-mono); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.14em; color: var(--faint); }
@@ -2528,7 +2541,7 @@
   // download picker — pick macOS / Windows / Linux, click starts the download
   (function () {
     var REPO = 'chaitanyagiri/munder-difflin';
-    var REL = '0.4.2'; // fallback version; live links are resolved from the GitHub API below
+    var REL = '0.4.3'; // fallback version; live links are resolved from the GitHub API below
     var BASE = 'https://github.com/' + REPO + '/releases/latest/download/';
     var PLATFORMS = [
       { key: 'mac',   icon: '🍎', os: 'macOS',   sub: 'Universal · Apple Silicon + Intel', match: 'mac-universal.dmg',     file: 'Munder-Difflin-' + REL + '-mac-universal.dmg' },

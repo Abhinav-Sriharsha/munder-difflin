@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] — 2026-08-13
+
+**A new brand mark: Michael's portrait replaces the "MD" tile.**
+The logo is now the character the product is about, drawn in the app's own pixel art on the brand
+yellow. It is authored as pure vector (`docs/logo.svg`) and every raster is generated from that
+one source by `tools/make-logo.cjs`, so the site, the app and all three platform icons can no
+longer drift apart. Appearance only — no functional change.
+
+### Changed
+- **Logo replaced everywhere** — `build/icon.{svg,png,ico,icns}`, `docs/logo.svg`,
+  `docs/logo.png`, `docs/logo-light.png`, the site header and favicon, the in-app toolbar and
+  window icon, and the README header.
+- **App icons are natively multi-resolution** — `.icns` spans 16→1024 with the macOS drop shadow;
+  `.ico` carries 16/32/48/64/128/256. Previously both were built around a single 1024px raster.
+- **Site CTA buttons are brighter by default.** `.btn.primary` drew its fill from `--accent`,
+  which also colours accent *text* and so must stay dark enough to read on a white page — the
+  light theme's `#E5A00D` made the download button read brown. Fills now use dedicated
+  `--accent-fill` / `--accent-fill-hover` tokens, starting at the old hover colour.
+- **The Product Hunt thumbnail** (`docs/media/ph-thumbnail-240.gif`) sits on the brand yellow
+  instead of a pale tint, matching the new mark.
+
+### Added
+- `tools/make-logo.cjs` — generates the SVG plus every PNG, the `.ico` and the `.icns` from the
+  sprite in `src/renderer/src/scene/office/portraitArt.ts`. No external image tooling.
+- `docs/favicon-32.png` and `docs/apple-touch-icon.png` — native-size icons, so browsers stop
+  downsampling a 512px portrait.
+
+### Fixed
+- `docs/llms.txt` advertised 0.4.1 two releases after the fact. `tools/check-release-links.cjs`
+  now checks it, so it cannot silently drift again.
+- README version badge and status note had been stuck at 0.4.0 since two releases ago.
+
 ## [0.4.2] — 2026-08-13
 
 **Anonymous usage stats — documented, opt-out, and off in forks.**
