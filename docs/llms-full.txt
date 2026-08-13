@@ -15,7 +15,7 @@ pi.dev — and turns them into a coordinated, forever-running team on your own m
 - **Real terminals.** Every agent is a genuine CLI process (node-pty + xterm.js) in its own
   terminal and its own isolated git worktree. Nothing is a log abstraction; you can watch
   and type into any agent's session.
-- **A GOD orchestrator ("Michael")** routes work, spawns hires, and escalates to a human
+- **Your clone, Michael** routes work, spawns hires, and escalates to a human
   for spend, scope changes, and destructive operations.
 - **Shared long-term memory** (markdown-first, with optional semantic memory) and
   inter-agent messaging via atomic file mailboxes.

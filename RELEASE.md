@@ -1,13 +1,33 @@
-# Munder Difflin v0.4.0
+# Munder Difflin v0.4.1
 
 **A local hive of Claude Code, Antigravity, Codex, Grok & Copilot agents that run themselves** — messaging,
-routing, and remembering, coordinated by a GOD orchestrator you talk to. Local-first and open source.
+routing, and remembering, coordinated by your clone, Michael, who you talk to. Local-first and open source.
 
 ### → [**munderdiffl.in**](https://munderdiffl.in/) — see it in action, then grab a build below
 
 ---
 
-## What's new in 0.4.0 — *The brand grew up*
+## What's new in 0.4.1 — *The app says what the site says*
+
+**Michael is your clone.** The website has been describing Munder Difflin as a clone of you that
+works around the clock — the app still called it a "GOD agent." Now they match.
+
+- **Your clone, not the GOD agent.** Michael is described as your clone throughout onboarding,
+  and his card on the floor carries a **BOSS** tag — he's the boss of the agents, you're still
+  the boss of him.
+- **Onboarding was rewritten.** It opens on what you actually get ("a clone of you, working
+  24/7") instead of a feature list, and the engine card no longer advertises three engines when
+  ten ship — Claude Code, Codex, Grok, Kimi, Antigravity, Qwen, OpenCode, Crush, pi and Copilot
+  are all named.
+
+> [!NOTE]
+> **This release changes wording only.** The `god` agent id, the hive folder layout, and message
+> routing are untouched, so existing hives, memory, and running agents carry over exactly as they
+> are. Nothing to migrate.
+
+---
+
+## Still new in 0.4.0 — *The brand grew up*
 
 **Munder Difflin looks like one product now.** The dock icon, the in-app logo, the site favicon,
 and munderdiffl.in all carry the same yellow "MD" mark — and the landing page was rebuilt to show
@@ -80,22 +100,22 @@ Apple Silicon and Intel.
 ### 🍎 macOS
 | Build | File |
 |---|---|
-| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.4.0-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.0-mac-universal.dmg) |
+| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.4.1-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.1-mac-universal.dmg) |
 
 ### 🪟 Windows
 | Build | File |
 |---|---|
-| Installer (x64) — *recommended* | [`Munder-Difflin-0.4.0-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.0-win-x64-setup.exe) |
-| Portable (x64, no install) | [`Munder-Difflin-0.4.0-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.0-win-x64-portable.exe) |
+| Installer (x64) — *recommended* | [`Munder-Difflin-0.4.1-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.1-win-x64-setup.exe) |
+| Portable (x64, no install) | [`Munder-Difflin-0.4.1-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.1-win-x64-portable.exe) |
 
 ### 🐧 Linux
 | Build | File |
 |---|---|
-| AppImage (x86_64) | [`Munder-Difflin-0.4.0-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.0-linux-x86_64.AppImage) |
+| AppImage (x86_64) | [`Munder-Difflin-0.4.1-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.1-linux-x86_64.AppImage) |
 
 ### 📦 Source
-[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.0.zip) ·
-[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.0.tar.gz)
+[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.1.zip) ·
+[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.1.tar.gz)
 
 > **Verify your download:** [`SHA256SUMS.txt`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/SHA256SUMS.txt) — then `shasum -a 256 -c SHA256SUMS.txt` (macOS/Linux) or `Get-FileHash` (Windows).
 

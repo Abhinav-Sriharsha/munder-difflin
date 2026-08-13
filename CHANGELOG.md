@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-08-13
+
+**The app says what the site says.**
+munderdiffl.in describes Munder Difflin as a clone of you that works around the clock; the app
+still called it a "GOD agent." This release closes that gap. Wording only — no behaviour changes.
+
+### Changed
+- **Michael is your clone.** Onboarding refers to him as your clone throughout, and his card on
+  the floor now carries a **BOSS** tag instead of **GOD** — he's the boss of the agents, you're
+  still the boss of him.
+- **Onboarding leads with the product, not the feature list.** The first screen opens on "a clone
+  of you, working 24/7"; step 2 is "your clone's engine."
+- **The engine card names all ten engines.** It had advertised three (Claude Code, Antigravity,
+  Codex) since before seven more shipped — Grok, Kimi, Qwen, OpenCode, Crush, pi and Copilot are
+  now named too.
+- **Site copy fixes.** A misspelled "requrired" in the hero, `cli` → `CLI`, a pricing FAQ that
+  named plans ("Basic"/"Pro") the pricing table doesn't sell, and an interactive demo card that
+  claimed a clone ran on Cursor — which is not one of the supported engines.
+- **README back in sync.** It listed nine engines (Qwen was missing in four places) and still
+  reported v0.3.8.
+
+### Note
+The `god` agent id, the hive folder layout, and message routing are **unchanged**. Existing hives,
+memory, and running agents carry over as-is; there is nothing to migrate.
+
 ## [0.4.0] — 2026-08-12
 
 **The brand grew up — and the landing page with it.**
