@@ -1607,18 +1607,17 @@
         </div>
       </div>
     </div>
-    <!-- The name reaches the wall through the Razorpay checkout's Message box —
-         no server. Interim amount-prefilled patron link until a dedicated
-         Payment Page exists. -->
+    <!-- The name reaches the wall through the Razorpay Payment Page's
+         "Name (as you want it engraved)" field — no server. -->
     <div class="support-strip rv" id="support">
       <div>
         <span class="ss-label">FOR THE PROJECT <small>keep it free for everyone</small></span>
         <h3>Founding Supporter — your name on the Wall</h3>
-        <p>₹1,800 (~$20), one time. A permanent brass plaque on the
+        <p>$20, one time. A permanent brass plaque on the
         <a href="/wall.html">Founders' Wall</a>. Munder Difflin stays free for everyone.</p>
       </div>
       <div class="ss-cta">
-        <a class="btn primary" data-support="wall" href="https://razorpay.me/@munderdifflinfund/1800" target="_blank" rel="noopener">Claim your plaque</a>
+        <a class="btn primary" data-support="wall" href="https://rzp.io/rzp/2t5uD380" target="_blank" rel="noopener">Claim your plaque</a>
         <a class="btn ghost" href="/wall.html">See the Wall →</a>
       </div>
     </div>
@@ -1718,12 +1717,12 @@
     <div class="sm-step on" data-step="ask">
       <span class="sm-kicker">BEFORE YOU DOWNLOAD</span>
       <h3 id="smTitle">Munder Difflin is free. The wall keeps it that way.</h3>
-      <p>A one-time ₹1,800 (~$20) puts your name on a brass plaque on the
+      <p>A one-time $20 puts your name on a brass plaque on the
       <a href="/wall.html" target="_blank">Founders' Wall</a> — and keeps MD free
       for everyone, forever.</p>
       <div class="sm-plaque" aria-hidden="true"><span class="no">FOUNDING SUPPORTER</span><span class="nm">Your name</span></div>
       <div class="sm-actions">
-        <button class="btn primary" id="smWall">Get on the wall — ₹1,800 (~$20)</button>
+        <button class="btn primary" id="smWall">Get on the wall — $20</button>
         <button class="sm-skip" id="smFree">download without paying ↓</button>
       </div>
     </div>
@@ -1733,8 +1732,9 @@
       <h3>What should it say?</h3>
       <div class="sm-plaque"><span class="no">FOUNDING SUPPORTER</span><span class="nm" id="smPreview">Your name</span></div>
       <div class="sm-name"><input id="smName" type="text" maxlength="40" placeholder="Your name" autocomplete="name" /></div>
-      <span class="sm-note">Razorpay opens next. <b>Paste your name into the “Message” box</b> there —
-      that's how it reaches the wall. No accounts, no servers.</span>
+      <span class="sm-note">Razorpay opens next. <b>Paste your name into the
+      “Name (as you want it engraved)” field</b> there — that's exactly what the
+      plaque will say. No accounts, no servers.</span>
       <div class="sm-actions">
         <button class="btn primary" id="smPay">Copy name &amp; pay on Razorpay</button>
         <button class="sm-skip" id="smAnon">support anonymously instead</button>
@@ -1744,8 +1744,8 @@
     <div class="sm-step" data-step="pay">
       <span class="sm-kicker">ONE LAST STEP</span>
       <h3>Finish up in the Razorpay tab.</h3>
-      <p>Paste your name into the <b>Message</b> box before you pay — then come
-      back here.</p>
+      <p>Paste your name into the <b>“Name (as you want it engraved)”</b> field
+      before you pay — then come back here.</p>
       <div class="sm-actions">
         <button class="btn primary" id="smPaid">I've paid 🎉</button>
         <button class="sm-skip" id="smSkipToFree">just take me to the download</button>
@@ -1766,7 +1766,7 @@
       <h3>Pick your platform.</h3>
       <div class="sm-dl" id="smDlFree"></div>
       <div class="sm-actions">
-        <button class="sm-skip" id="smBackToWall">…or get on the wall for ₹1,800 (~$20)</button>
+        <button class="sm-skip" id="smBackToWall">…or get on the wall for $20</button>
       </div>
     </div>
   </div>
@@ -2725,8 +2725,7 @@
     var REPO = 'chaitanyagiri/munder-difflin';
     var REL = '0.4.3'; // fallback version; live links are resolved from the GitHub API below
     var BASE = 'https://github.com/' + REPO + '/releases/latest/download/';
-    // TODO(razorpay): swap for the dedicated Payment Page URL once created.
-    var PAY_URL = 'https://razorpay.me/@munderdifflinfund/1800';
+    var PAY_URL = 'https://rzp.io/rzp/2t5uD380'; // Razorpay Payment Page — Munder Difflin: Founders' Wall
     var PLATFORMS = [
       { key: 'mac',   icon: '\ud83c\udf4e', os: 'macOS',   sub: 'Universal \u00b7 Apple Silicon + Intel', match: 'mac-universal.dmg',     file: 'Munder-Difflin-' + REL + '-mac-universal.dmg' },
       { key: 'win',   icon: '\ud83e\ude9f', os: 'Windows', sub: '64-bit installer (.exe)',           match: 'win-x64-setup.exe',     file: 'Munder-Difflin-' + REL + '-win-x64-setup.exe' },
