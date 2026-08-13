@@ -4,12 +4,17 @@
 
 # Munder Difflin
 
-**Local multi-agent harness for the terminal coding CLIs you already run** —
-[Claude Code](https://claude.com/claude-code), Antigravity (Gemini), OpenAI Codex, **xAI Grok**,
-**Kimi Code**, **Qwen**, **OpenCode**, **Crush**, **pi.dev**, and **GitHub Copilot CLI** —
-with bring-your-own keys and local LLMs.
-Autonomous agents that message, route, and remember — coordinated by a **GOD** orchestrator
-you talk to, and visualized as avatars at work on a shared office floor.
+### Clones for you and your team, working 24/7
+
+**Free, open source and local-first.** Munder Difflin turns the terminal coding CLI you already
+run into a clone of you — one that keeps working while you're away, and coordinates a whole
+office of agents on your machine.
+
+Wraps [Claude Code](https://claude.com/claude-code), Antigravity (Gemini), OpenAI Codex,
+**xAI Grok**, **Kimi Code**, **Qwen**, **OpenCode**, **Crush**, **pi.dev**, and
+**GitHub Copilot CLI** — with bring-your-own keys and local LLMs.
+Agents that message, route, and remember, coordinated by **your clone** (Michael) and
+visualized as avatars at work on a shared office floor.
 
 <p>
   <em>Electron · React · TypeScript · Pixi.js · xterm.js · node-pty</em>
@@ -43,7 +48,8 @@ you talk to, and visualized as avatars at work on a shared office floor.
 > Munder Difflin takes the terminal-agent CLIs you already run — `claude`, `agy`, `codex`, `grok`,
 > `kimi`, `qwen`, `opencode`, `crush`, `pi`, and `copilot` — and turns them
 > into a self-coordinating team: each agent gets long-term memory, a mailbox, and a desk on a 2D
-> office floor — and a **GOD orchestrator agent** routes work between them while you watch.
+> office floor — and **your clone** (Michael) routes work between them while you watch. He's the
+> boss of the floor; you're still the boss of him.
 
 ## Contents
 
@@ -62,8 +68,8 @@ you talk to, and visualized as avatars at work on a shared office floor.
 ## What it is
 
 Munder Difflin is a desktop app that wraps **real terminal-agent CLIs** as fully-capable agents,
-wires them into a **hive mind**, and puts a **GOD orchestration agent** in charge — the one agent
-*you* talk to in order to get things done. Under the hood it runs the **fastest memory layer in the
+wires them into a **hive mind**, and puts **your clone** in charge — Michael, the one agent *you*
+talk to in order to get things done. Under the hood it runs the **fastest memory layer in the
 world** so every agent remembers what it learns and recalls it instantly.
 
 - **Every terminal is an agent.** Each `claude`, `agy`, `codex`, `grok`, `kimi`, `qwen`, `opencode`, `crush`, `pi`, `copilot`, or custom session runs as a real
