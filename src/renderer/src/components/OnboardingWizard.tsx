@@ -28,16 +28,16 @@ interface Feature {
 const FEATURES: Feature[] = [
   {
     icon: 'mcp',
-    label: 'MULTI-PROVIDER HIVE',
-    desc: 'Claude Code, Antigravity & Codex run as live agents in one shared office.',
-    descPlain: 'Use different AI assistants (Claude, Gemini, Codex) side by side in one shared office.',
+    label: 'TEN ENGINES, ONE OFFICE',
+    desc: 'Claude Code, Codex, Grok, Kimi, Antigravity, Qwen, OpenCode, Crush, pi & Copilot — live agents on one floor.',
+    descPlain: 'Ten AI assistants — Claude, Codex, Gemini, Grok and more — working side by side in one shared office.',
     tint: 'var(--cth-lilac-light)', edge: 'var(--cth-lilac)'
   },
   {
     icon: 'gear',
-    label: 'MICHAEL ORCHESTRATES',
-    desc: 'An always-on GOD agent triages requests, routes tasks, and escalates only what needs you.',
-    descPlain: 'A manager agent, Michael, takes your requests, hands work to the right agent, and only interrupts you when it matters.',
+    label: 'MICHAEL IS YOUR CLONE',
+    desc: 'Your clone runs the floor — triages requests, routes tasks, and escalates only what needs you.',
+    descPlain: 'Your clone, Michael, takes your requests, hands work to the right agent, and only interrupts you when it matters.',
     tint: 'var(--cth-sky-light)', edge: 'var(--cth-sky)'
   },
   {
@@ -188,7 +188,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
             step === 'persona' ? 'WELCOME TO MUNDER DIFFLIN'
             : step === 'welcome' ? 'MEET YOUR OFFICE'
             : step === 'home' ? (plain ? 'STEP 1 OF 4 · A HOME FOR THE APP' : 'STEP 1 OF 4 · HARNESS HOME')
-            : step === 'orchestrator' ? (plain ? 'STEP 2 OF 4 · YOUR MANAGER AGENT' : "STEP 2 OF 4 · MICHAEL'S ENGINE")
+            : step === 'orchestrator' ? (plain ? "STEP 2 OF 4 · YOUR CLONE" : "STEP 2 OF 4 · YOUR CLONE'S ENGINE")
             : step === 'repos' ? (plain ? 'STEP 3 OF 4 · YOUR PROJECTS' : 'STEP 3 OF 4 · YOUR REPOS')
             : step === 'permissions' ? 'STEP 4 OF 4 · PERMISSIONS & RELIABILITY'
             : 'ALL SET'
@@ -210,14 +210,14 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                   </div>
                   <div>
                     <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: 12, lineHeight: '18px' }}>
-                      RUN AN OFFICE OF AI AGENTS
+                      A CLONE OF YOU, WORKING 24/7
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--cth-ink-700)', lineHeight: '19px' }}>
-                      Munder Difflin lets you run an office of long-running, highly capable AI
-                      agents that can take on almost any task. It uses the CLI agents you already
-                      have and manages everything around them — their context, memory, tasks,
+                      Munder Difflin turns the CLI agent you already use into a clone of you —
+                      one that runs an office of long-running agents and keeps working while
+                      you're away. It manages everything around them: context, memory, tasks,
                       triggers, environment, files, and integrations.
-                      <span style={{ color: 'var(--cth-ink-500)' }}> (We call this harnessing your agents.)</span>
+                      <span style={{ color: 'var(--cth-ink-500)' }}> Everything runs on this machine.</span>
                     </div>
                   </div>
                 </div>
@@ -259,11 +259,11 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     <div style={{
                       fontFamily: 'var(--cth-font-display)',
                       fontSize: 12, lineHeight: '18px'
-                    }}>A CONTROL ROOM FOR A TEAM OF AGENTS</div>
+                    }}>YOUR CLONE AND THE FLOOR IT RUNS</div>
                     <div style={{ fontSize: 12, color: 'var(--cth-ink-700)', lineHeight: '18px' }}>
                       {plain
-                        ? "Think of it as a small office of AI workers you manage from one screen. Here's what's inside:"
-                        : "You run a hive of AI coding agents — coordinated, persistent, and watchable. Here's what's inside:"}
+                        ? "Your clone runs a small office of AI workers, and you watch it all from one screen. Here's what's inside:"
+                        : "Your clone coordinates a hive of AI coding agents — persistent, watchable, all local. Here's what's inside:"}
                     </div>
                   </div>
                 </div>
@@ -346,18 +346,18 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
               <>
                 <p style={{ margin: 0, lineHeight: '22px' }}>
                   {plain ? (
-                    <><strong>Michael</strong> is the manager of your office — he reads your
-                    requests, breaks them into tasks, and hands them to the right agent. Choose
-                    which AI engine powers him.</>
+                    <><strong>Michael is your clone</strong> — he reads your requests, breaks
+                    them into tasks, and hands them to the right agent. He's the boss of the
+                    floor; you're still the boss of him. Choose which AI engine powers him.</>
                   ) : (
-                    <><strong>Michael</strong>, the orchestrator you just met, coordinates the
-                    whole floor — he triages your requests, assigns tasks, and manages the team.
-                    Pick the engine and model that power him; give him a longer-context,
-                    higher-capability model.</>
+                    <><strong>Michael is your clone</strong> — the boss of the floor you just
+                    met. He triages your requests, assigns tasks, and manages the team, while
+                    escalating anything that genuinely needs you. Pick the engine and model that
+                    power him; give him a longer-context, higher-capability model.</>
                   )}
                 </p>
 
-                {/* What is a CLI agent / GOD agent — item 3 */}
+                {/* What is a CLI agent / your clone — item 3 */}
                 <div style={{
                   display: 'flex', gap: 8, alignItems: 'flex-start', padding: 10,
                   background: 'var(--cth-lemon-light)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
@@ -368,13 +368,13 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     {plain ? (
                       <>A <strong>CLI agent</strong> is an AI coding assistant that runs on your
                       computer — popular ones are Claude Code (Anthropic), Codex (OpenAI) and
-                      Antigravity (Google Gemini). The <strong>GOD agent</strong> is the always-on
-                      manager that runs your whole office. We recommend Claude Code on Opus 4.8 (1M).
+                      Antigravity (Google Gemini). <strong>Your clone</strong> is the always-on
+                      one that runs your whole office. We recommend Claude Code on Opus 4.8 (1M).
                       You can add or switch the others later.</>
                     ) : (
                       <>Each option is a <strong>CLI engine</strong> you have installed (Claude Code,
-                      Codex, Antigravity/Gemini, or a local proxy like Qwen). The
-                      <strong> GOD agent</strong> (Michael) is the orchestrator engine for the whole
+                      Codex, Antigravity/Gemini, or a local proxy like Qwen).
+                      <strong> Your clone</strong> (Michael) is the engine that orchestrates the whole
                       hive. Recommended: Claude Code · Opus 4.8 · 1M — other providers can be wired
                       per agent later.</>
                     )}

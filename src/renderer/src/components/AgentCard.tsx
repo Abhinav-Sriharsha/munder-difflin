@@ -26,7 +26,8 @@ export interface AgentCardProps {
   /** Context-window limit (tokens) assumed for the agent's model. */
   contextLimit?: number;
   selected?: boolean;
-  /** The orchestrator — gets a persistent accent frame + GOD tag so it stands out. */
+  /** Your clone — gets a persistent accent frame + BOSS tag so it stands out.
+   *  (`isGod` / the `god` agent id stay as-is internally; this is display only.) */
   isGod?: boolean;
   onClick?: () => void;
   /** Number of ledger tasks this agent is actively DOING — rendered as a blue
@@ -137,7 +138,7 @@ export function AgentCard({
           </div>
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-            {/* Identity row: name (+ GOD tag) + status. */}
+            {/* Identity row: name (+ BOSS tag) + status. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between', minWidth: 0 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
                 <span style={{
@@ -152,7 +153,7 @@ export function AgentCard({
                     fontFamily: 'var(--cth-font-display)', fontSize: 7, lineHeight: '11px',
                     background: `var(--cth-${accent})`, color: 'var(--cth-ink-900)',
                     padding: '1px 4px 0', flexShrink: 0
-                  }}>GOD</span>
+                  }}>BOSS</span>
                 )}
               </span>
               <PixelBadge status={typing ? 'typing' : status} />

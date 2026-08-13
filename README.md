@@ -5,8 +5,9 @@
 # Munder Difflin
 
 **Local multi-agent harness for the terminal coding CLIs you already run** —
-[Claude Code](https://claude.com/claude-code), Antigravity (Gemini), OpenAI Codex,
-**OpenCode**, **Crush**, **pi.dev**, and **GitHub Copilot CLI** — with bring-your-own keys and local LLMs.
+[Claude Code](https://claude.com/claude-code), Antigravity (Gemini), OpenAI Codex, **xAI Grok**,
+**Kimi Code**, **Qwen**, **OpenCode**, **Crush**, **pi.dev**, and **GitHub Copilot CLI** —
+with bring-your-own keys and local LLMs.
 Autonomous agents that message, route, and remember — coordinated by a **GOD** orchestrator
 you talk to, and visualized as avatars at work on a shared office floor.
 
@@ -16,7 +17,7 @@ you talk to, and visualized as avatars at work on a shared office floor.
 
 <p>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
-  <a href="./CHANGELOG.md"><img alt="Version: 0.3.8" src="https://img.shields.io/badge/version-0.3.8-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
+  <a href="./CHANGELOG.md"><img alt="Version: 0.4.0" src="https://img.shields.io/badge/version-0.4.0-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
   <img alt="Status: prototype" src="https://img.shields.io/badge/status-working%20prototype-F4F1EA.svg?style=flat-square&labelColor=6E1423">
   <img alt="Platform: macOS | Windows | Linux" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-F4F1EA.svg?style=flat-square&labelColor=6E1423">
   <a href="./CONTRIBUTING.md"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
@@ -39,8 +40,8 @@ you talk to, and visualized as avatars at work on a shared office floor.
 
 > [!NOTE]
 > **The world's best agents. The world's worst paper company.**
-> Munder Difflin takes the terminal-agent CLIs you already run — `claude`, `agy`, `codex`, `opencode`,
-> `crush`, `pi`, and `copilot` — and turns them
+> Munder Difflin takes the terminal-agent CLIs you already run — `claude`, `agy`, `codex`, `grok`,
+> `kimi`, `qwen`, `opencode`, `crush`, `pi`, and `copilot` — and turns them
 > into a self-coordinating team: each agent gets long-term memory, a mailbox, and a desk on a 2D
 > office floor — and a **GOD orchestrator agent** routes work between them while you watch.
 
@@ -65,7 +66,7 @@ wires them into a **hive mind**, and puts a **GOD orchestration agent** in charg
 *you* talk to in order to get things done. Under the hood it runs the **fastest memory layer in the
 world** so every agent remembers what it learns and recalls it instantly.
 
-- **Every terminal is an agent.** Each `claude`, `agy`, `codex`, `opencode`, `crush`, `pi`, `copilot`, or custom session runs as a real
+- **Every terminal is an agent.** Each `claude`, `agy`, `codex`, `grok`, `kimi`, `qwen`, `opencode`, `crush`, `pi`, `copilot`, or custom session runs as a real
   process in a pseudo-terminal (`node-pty`), byte-for-byte authentic, rendered with xterm.js.
 - **Every agent is an avatar.** Sessions appear as characters on a Pixi.js office floor — they walk
   to stations as they work, and envelopes fly desk-to-desk when they message each other.
@@ -110,7 +111,7 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 ## Features
 
 **The floor**
-- **Every terminal is a real agent.** Claude Code, Antigravity (Gemini), OpenAI Codex, xAI Grok, Kimi Code, OpenCode, Crush, pi.dev, GitHub Copilot CLI, or a custom command — each in its own `node-pty` PTY, rendered with xterm.js.
+- **Every terminal is a real agent.** Claude Code, Antigravity (Gemini), OpenAI Codex, xAI Grok, Kimi Code, Qwen, OpenCode, Crush, pi.dev, GitHub Copilot CLI, or a custom command — each in its own `node-pty` PTY, rendered with xterm.js.
 - **Every agent is an avatar.** A Pixi.js office floor where agents walk to stations, envelopes fly desk to desk, and avatar state reflects real work.
 - **A GOD orchestrator you talk to.** It routes tasks, adjudicates traffic, and escalates only what needs a human. Or press **Talk** and run the floor by voice.
 - **Per-agent git worktrees.** Optional isolation so parallel agents never collide on branches.
@@ -136,12 +137,11 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 - **Auto-update** — new releases download in the background; you click restart.
 
 > [!NOTE]
-> **Status: v0.3.9 — ask the app whether it's up to date.** Settings → General now names the
-> version you're running, says whether it's the latest, and gives you one button that states what
-> it does. **If you're on 0.3.8, update:** that build's usage-limit guard never released the agents
-> it held, and it has been removed entirely. 0.3.8 also brought memory condensation that works for
-> the first time, a Triggers hub, one compaction schedule instead of two, and a readable commit
-> history — all of that stays.
+> **Status: v0.4.0 — the brand grew up.** New app icon on every platform, a landing page that
+> shows the product instead of describing it, and Settings → General now names the version you're
+> running, says whether it's the latest, and gives you one button that states what it does.
+> **If you're on 0.3.8, update:** that build's usage-limit guard never released the agents it held,
+> and it has been removed entirely.
 > macOS (signed & notarized), Windows, and Linux builds are on the
 > [releases page](https://github.com/chaitanyagiri/munder-difflin/releases/latest).
 
@@ -159,8 +159,8 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
   ```
 - At least one supported agent CLI on your `PATH` — **[Claude Code](https://claude.com/claude-code)**
   (`claude`, the default), **Antigravity** (`agy`), **OpenAI Codex** (`codex`), **xAI Grok** (`grok`),
-  **Kimi Code** (`kimi`), **OpenCode** (`opencode`), **Crush** (`crush`), **pi.dev** (`pi`), or
-  **GitHub Copilot** (`copilot`). Most missing CLIs self-heal: the harness runs the installer in the
+  **Kimi Code** (`kimi`), **Qwen** (`qwen`), **OpenCode** (`opencode`), **Crush** (`crush`),
+  **pi.dev** (`pi`), or **GitHub Copilot** (`copilot`). Most missing CLIs self-heal: the harness runs the installer in the
   terminal and continues into the new binary.
 - *Optional:* **your own API keys and local LLMs** in **Settings → AI Engines** (Ollama / LM Studio / vLLM).
 - *Optional:* the semantic memory index for instant cross-session recall — markdown memory works without it.
@@ -274,7 +274,7 @@ chrome. The 15 avatars are the cast of *The Office*, differentiated by hair/skin
 
 ## Roadmap
 
-Shipped through **v0.3.8** — nine agent engines with BYOK keys and local LLMs, voice orchestration,
+Shipped through **v0.4.0** — ten agent engines with BYOK keys and local LLMs, voice orchestration,
 the hive (memory · mailboxes · blackboard · event log), Command Center with kanban and schedules,
 a built-in Monaco IDE with git rails, integrations registry + secret broker, Slack-spawned workers,
 shareable hires and the Agent Gallery, observability and the circuit breaker, durable persistence,
