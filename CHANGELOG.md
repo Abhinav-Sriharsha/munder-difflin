@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] — 2026-08-13
+
+**Anonymous usage stats — documented, opt-out, and off in forks.**
+The project previously had zero insight into whether anyone launches the app or which features
+get used. This release adds a minimal, anonymous product-analytics layer (PostHog), governed by
+a public contract: [TELEMETRY.md](TELEMETRY.md) lists every event and property, and the code
+enforces that list as a hard allowlist.
+
+### Added
+- **Anonymous usage events** (`src/main/analytics.ts`): `first_run`, `app_launched`,
+  `agent_spawned` (engine name only), `feature_used` (fixed enum, once per session), and
+  `session_ended` (coarse duration bucket). Common properties are app version, OS, and CPU
+  arch — nothing else. No prompts, transcripts, file paths, repo names, or identifiers of any
+  kind; events are PostHog *anonymous events* (`$process_person_profile: false`), keyed by a
+  random install UUID that lives in the app's user-data dir.
+- **Consent surfaces**: a "Share anonymous usage stats" toggle on the final onboarding step and
+  in Settings → General (`telemetryEnabled`, default on = opt-out). The standard `DO_NOT_TRACK`
+  env var is respected unconditionally.
+- **[TELEMETRY.md](TELEMETRY.md)** — the complete public contract, linked from the README.
+
+### Note
+The PostHog key is injected only in release CI (`POSTHOG_KEY` secret). **Building from source or
+forking the repo produces a build with no key, and the entire analytics module is a no-op** — a
+fork never sends events anywhere.
+
 ## [0.4.1] — 2026-08-13
 
 **The app says what the site says.**

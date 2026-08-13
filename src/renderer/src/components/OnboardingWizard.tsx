@@ -89,6 +89,9 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [home, setHome] = useState<string>('');
   const [repos, setRepos] = useState<string[]>([]);
   const [autoMode, setAutoMode] = useState<boolean>(true);
+  // Anonymous usage stats (TELEMETRY.md). Default ON (opt-out); persisted by
+  // finish() so unchecking before finishing means nothing is ever sent.
+  const [shareStats, setShareStats] = useState<boolean>(true);
   const [godProvider, setGodProvider] = useState<AgentProvider>('claude');
   const [godModel, setGodModel] = useState<string | undefined>(
     providerPreset('claude').recommendedOrchestratorModel
@@ -165,7 +168,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
       registeredRepos: repos,
       autoMode,
       godProvider,
-      godModel
+      godModel,
+      telemetryEnabled: shareStats
     });
     setBusy(false);
     onComplete(next);
@@ -591,6 +595,16 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                   tint="var(--cth-sky-light)"
                   edge="var(--cth-sky)"
                   onChange={toggleOpenAtLogin}
+                />
+
+                <ToggleRow
+                  icon="info"
+                  label="SHARE ANONYMOUS USAGE STATS"
+                  desc="A handful of anonymous events (app opened, agent spawned, feature used) that help improve Munder Difflin — never prompts, code, file paths, or agent output. Full list in TELEMETRY.md; change anytime in Settings."
+                  on={shareStats}
+                  tint="var(--cth-lemon-light)"
+                  edge="var(--cth-lemon)"
+                  onChange={() => setShareStats(!shareStats)}
                 />
 
                 {/* LEVER 4 — instruction-only: macOS won't let the app flip Energy, so we deep-link the pane. */}

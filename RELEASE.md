@@ -1,4 +1,4 @@
-# Munder Difflin v0.4.1
+# Munder Difflin v0.4.2
 
 **A local hive of Claude Code, Antigravity, Codex, Grok & Copilot agents that run themselves** — messaging,
 routing, and remembering, coordinated by your clone, Michael, who you talk to. Local-first and open source.
@@ -7,7 +7,25 @@ routing, and remembering, coordinated by your clone, Michael, who you talk to. L
 
 ---
 
-## What's new in 0.4.1 — *The app says what the site says*
+## What's new in 0.4.2 — *Anonymous usage stats, done in the open*
+
+Munder Difflin now sends a **small set of anonymous usage events** (app opened, agent spawned,
+feature used) so we can tell whether features are actually used. It is built the way an
+open-source project should build it:
+
+- **[TELEMETRY.md](https://github.com/chaitanyagiri/munder-difflin/blob/main/TELEMETRY.md) is the
+  complete contract.** Every event and property is listed there, and the code enforces that list
+  as a hard allowlist — anything not in the table cannot be sent. No prompts, no transcripts, no
+  file paths, no repo names, no identifiers. Events are PostHog *anonymous events* (no person
+  profile, no identity), keyed by a random UUID you can delete.
+- **Opt-out, three ways.** Uncheck it during onboarding, flip **Settings → General → Anonymous
+  usage stats**, or set the standard `DO_NOT_TRACK` env var.
+- **Forks send nothing.** The analytics key is injected only in release CI — building from
+  source produces a build where the analytics module is a complete no-op.
+
+---
+
+## Still new in 0.4.1 — *The app says what the site says*
 
 **Michael is your clone.** The website has been describing Munder Difflin as a clone of you that
 works around the clock — the app still called it a "GOD agent." Now they match.
@@ -27,43 +45,8 @@ works around the clock — the app still called it a "GOD agent." Now they match
 
 ---
 
-## Still new in 0.4.0 — *The brand grew up*
-
-**Munder Difflin looks like one product now.** The dock icon, the in-app logo, the site favicon,
-and munderdiffl.in all carry the same yellow "MD" mark — and the landing page was rebuilt to show
-the real app instead of describing it.
-
-- **New app icon on every platform.** macOS gets a proper margined-and-shadowed `.icns`, Windows a
-  full-bleed `.ico`, Linux a 1024px `.png` — all cut from the same yellow tile as the in-app logo.
-- **The landing page shows the product.** A looping screen recording in the hero, real screenshots
-  of the Add Agent dialog, the memory panel, and Autonomy & Budgets, and a live pixel-floor sim in
-  a yellow Pokédex shell.
-- **Bright by default.** The site now opens in light mode; dark is one click away and remembered.
-- **Pricing, reframed.** Two services carry the Teams story: **Private Cloud** (a dedicated
-  sandbox VM per clone, 24/7) and **Private Network** (E2E-encrypted clone-to-clone wire).
-
----
-
-## Still new in 0.3.9 — *Ask the app whether it's up to date*
-
-**Settings → General now answers the question directly.** It names the version you're running,
-tells you whether that's the latest, and gives you one button that says what pressing it does:
-**Check for updates** → **Download v0.4.0** → **Restart to update**. The toolbar chip beside the
-logo has always carried this, but it goes blank when everything is fine — which is not somewhere
-you go to *ask*.
-
-- **The avatars in the fullscreen roster are bigger.** They were drawn at 1× — an 18-pixel figure,
-  too small to tell two hires apart at a glance, which is the tile's whole job.
-
-> [!IMPORTANT]
-> **If you are on 0.3.8, update.** That build shipped a usage-limit guard that never let go: agents
-> held behind a limit stayed held, the reset never landed, and **resume now** dropped them straight
-> back into the hold. The guard is removed entirely — 0.3.9 delivers messages the way 0.3.7 did.
-
----
-
 > [!NOTE]
-> **Auto-update carries you here from v0.3.7 or v0.3.8.** If you are still on v0.3.5 or v0.3.6,
+> **Auto-update carries you here from v0.3.7 or later.** If you are still on v0.3.5 or v0.3.6,
 > those builds shipped the broken updater and need one manual install — grab the download below,
 > once.
 
@@ -71,6 +54,11 @@ you go to *ask*.
 
 ## Previously
 
+- **0.4.0** — *the brand grew up*: one yellow "MD" mark across the dock icon, in-app logo, site
+  favicon, and munderdiffl.in; the landing page rebuilt around real screenshots and a live
+  pixel-floor sim; pricing reframed around **Private Cloud** and **Private Network**.
+- **0.3.9** — Settings → General answers "am I up to date?" directly, and removes 0.3.8's
+  usage-limit guard that never released held agents.
 - **0.3.8** — memory condensation works for the first time; a Triggers hub; one compaction
   schedule instead of two; a readable commit history.
 - **0.3.7** — auto-update actually runs: a CommonJS/ESM import bug meant the native updater never
@@ -100,22 +88,22 @@ Apple Silicon and Intel.
 ### 🍎 macOS
 | Build | File |
 |---|---|
-| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.4.1-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.1-mac-universal.dmg) |
+| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.4.2-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.2-mac-universal.dmg) |
 
 ### 🪟 Windows
 | Build | File |
 |---|---|
-| Installer (x64) — *recommended* | [`Munder-Difflin-0.4.1-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.1-win-x64-setup.exe) |
-| Portable (x64, no install) | [`Munder-Difflin-0.4.1-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.1-win-x64-portable.exe) |
+| Installer (x64) — *recommended* | [`Munder-Difflin-0.4.2-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.2-win-x64-setup.exe) |
+| Portable (x64, no install) | [`Munder-Difflin-0.4.2-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.2-win-x64-portable.exe) |
 
 ### 🐧 Linux
 | Build | File |
 |---|---|
-| AppImage (x86_64) | [`Munder-Difflin-0.4.1-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.1-linux-x86_64.AppImage) |
+| AppImage (x86_64) | [`Munder-Difflin-0.4.2-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.2-linux-x86_64.AppImage) |
 
 ### 📦 Source
-[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.1.zip) ·
-[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.1.tar.gz)
+[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.2.zip) ·
+[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.2.tar.gz)
 
 > **Verify your download:** [`SHA256SUMS.txt`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/SHA256SUMS.txt) — then `shasum -a 256 -c SHA256SUMS.txt` (macOS/Linux) or `Get-FileHash` (Windows).
 

@@ -33,7 +33,7 @@
   "url": "https://munderdiffl.in/",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS, Windows, Linux",
-  "softwareVersion": "0.4.1",
+  "softwareVersion": "0.4.2",
   "downloadUrl": "https://github.com/chaitanyagiri/munder-difflin/releases/latest",
   "softwareHelp": "https://github.com/chaitanyagiri/munder-difflin#readme",
   "license": "https://github.com/chaitanyagiri/munder-difflin/blob/main/LICENSE",
@@ -2512,7 +2512,7 @@
   // download picker — pick macOS / Windows / Linux, click starts the download
   (function () {
     var REPO = 'chaitanyagiri/munder-difflin';
-    var REL = '0.4.1'; // fallback version; live links are resolved from the GitHub API below
+    var REL = '0.4.2'; // fallback version; live links are resolved from the GitHub API below
     var BASE = 'https://github.com/' + REPO + '/releases/latest/download/';
     var PLATFORMS = [
       { key: 'mac',   icon: '🍎', os: 'macOS',   sub: 'Universal · Apple Silicon + Intel', match: 'mac-universal.dmg',     file: 'Munder-Difflin-' + REL + '-mac-universal.dmg' },
@@ -2644,5 +2644,38 @@
   })();
 </script>
 
+<script>
+  // ── Anonymous site analytics (PostHog) ─────────────────────────────────────
+  // PH_KEY is the PUBLIC write-only project token (safe to commit; it cannot
+  // read data). '' keeps this entire block inert. Anonymous-only posture, same
+  // contract as the app's TELEMETRY.md: person_profiles 'never' (no identity),
+  // no autocapture, no session recording, DNT respected. Two events only:
+  // $pageview and download_clicked (which file a visitor grabbed).
+  (function () {
+    var PH_KEY = '';
+    if (!PH_KEY || navigator.doNotTrack === '1') return;
+    var s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://us-assets.i.posthog.com/static/array.js';
+    s.onload = function () {
+      if (!window.posthog) return;
+      window.posthog.init(PH_KEY, {
+        api_host: 'https://us.i.posthog.com',
+        person_profiles: 'never',
+        autocapture: false,
+        disable_session_recording: true,
+        respect_dnt: true
+      });
+      document.addEventListener('click', function (ev) {
+        var a = ev.target && ev.target.closest ? ev.target.closest('a[data-download], a[download]') : null;
+        if (!a) return;
+        var href = a.getAttribute('href') || '';
+        var file = href.split('/').pop() || 'releases-latest';
+        window.posthog.capture('download_clicked', { file: file });
+      }, true);
+    };
+    document.head.appendChild(s);
+  })();
+</script>
 </body>
 </html>

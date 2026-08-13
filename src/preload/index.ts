@@ -276,6 +276,9 @@ export interface HarnessConfig {
   strongKeepalive?: boolean;
   /** Auto-update from GitHub releases (default ON; Settings → General). */
   autoUpdate?: boolean;
+  /** Anonymous product analytics (default ON, opt-out; see TELEMETRY.md).
+   *  Mirrors main + renderer HarnessConfig. */
+  telemetryEnabled?: boolean;
   slackEnabled?: boolean;
   slackSigningSecret?: string;
   slackBotToken?: string;

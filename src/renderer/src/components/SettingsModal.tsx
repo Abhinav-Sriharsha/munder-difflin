@@ -380,6 +380,15 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
     catch { setAutoUpdateOn(!next); }
   };
 
+  // ─── Anonymous usage stats (default ON = opt-out; contract in TELEMETRY.md) ─
+  const [telemetryOn, setTelemetryOn] = useState<boolean>(config.telemetryEnabled !== false);
+  const toggleTelemetry = async () => {
+    const next = !telemetryOn;
+    setTelemetryOn(next);
+    try { await window.cth.updateConfig({ telemetryEnabled: next }); }
+    catch { setTelemetryOn(!next); }
+  };
+
   // --- Free Flow (voice dictation → message queue) ---
   const setFreeflowEnabledStore = useStore((s) => s.setFreeflowEnabled);
   const setHasGroqKeyStore = useStore((s) => s.setHasGroqKey);
@@ -994,6 +1003,25 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             onClick={toggleAutoUpdate}
                           >
                             {autoUpdateOn ? 'on' : 'off'}
+                          </PixelButton>
+                        </div>
+                        <div style={{ height: 10 }} />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                              Anonymous usage stats
+                            </span>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              A handful of anonymous events (app opened, agent spawned, feature used) —
+                              never prompts, code, paths, or agent output. Full list in TELEMETRY.md.
+                            </span>
+                          </div>
+                          <PixelButton
+                            variant={telemetryOn ? 'primary' : 'secondary'}
+                            size="sm"
+                            onClick={toggleTelemetry}
+                          >
+                            {telemetryOn ? 'on' : 'off'}
                           </PixelButton>
                         </div>
                       </div>

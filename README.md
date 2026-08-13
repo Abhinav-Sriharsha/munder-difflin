@@ -62,6 +62,7 @@ visualized as avatars at work on a shared office floor.
 - [Design system](#design-system)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
+- [Telemetry](#telemetry)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
 
@@ -302,6 +303,14 @@ Contributions are welcome — this is an early prototype with a lot of surface a
 [`CONTRIBUTING.md`](./CONTRIBUTING.md). The short version: fork, `npm install && npm run dev`, keep
 `npm run typecheck` green, and **derive any new UI from [`DESIGN.md`](./DESIGN.md) tokens**. Good
 first areas: wiring real hook events, the add-agent flow, the config drawer, and cross-platform work.
+
+## Telemetry
+
+Official builds send a **small set of anonymous usage events** (app opened, agent spawned, feature
+used) — never prompts, code, file paths, or agent output. The complete event list, the anonymity
+guarantees, and the three ways to opt out (Settings toggle, `DO_NOT_TRACK`, or building from
+source — forks compile with no key and send nothing) are documented in
+[`TELEMETRY.md`](./TELEMETRY.md).
 
 ## License
 

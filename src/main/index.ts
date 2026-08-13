@@ -52,6 +52,7 @@ import { registerRealtimeActionIpc } from './realtimeActions';
 import { initCompletionWatcher } from './realtimeCompletionWatcher';
 import type { TaskCard, InboxMessage } from './realtimeCompletionWatcher';
 import { TelemetryCollector } from './telemetry';
+import { analytics } from './analytics';
 import { IntegrationBroker } from './integrationBroker';
 import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
@@ -1522,6 +1523,7 @@ async function startSlackServer(): Promise<{ ok: boolean; url?: string; error?: 
   // Begin watching the kanban for Slack-origin tasks that reach 'done', to post
   // their one summary reply in-thread. OUTBOUND-only; never touches ingestion.
   startSlackDoneObserver();
+  analytics.trackFeature('slack_trigger');
   return res;
 }
 
@@ -1899,6 +1901,7 @@ async function startWebhookServer(): Promise<{ ok: boolean; url?: string; error?
   // "bound fine, tunnel unavailable" (the security boundary is live and must stay
   // reachable/stoppable — dropping it there would leak an unstoppable listener).
   if (!res.ok && !server.listening()) { webhookServer = null; return res; }
+  analytics.trackFeature('webhook_trigger');
   if (res.url) lastWebhookUrl = res.url;
   startWebhookDoneObserver();
   return res;
@@ -2018,6 +2021,7 @@ async function handleHireLink(link: string): Promise<void> {
     return;
   }
   deliverHire(res.manifest);
+  analytics.trackFeature('hire_install');
 }
 
 // Register the protocol. In dev (electron .) Windows needs the explicit
@@ -2705,6 +2709,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     await enableCodexRemoteForSpawn(opts, opts.hive.id);
   }
   const res = ptyManager.spawn(opts, owner);
+  if (res.ok) analytics.track('agent_spawned', { provider });
   syncKeepAwake(); // arm the power-save blocker while ≥1 agent PTY is alive (#18)
   // Hand the resolved worktree path back to the renderer so it can persist it on
   // the agent (only set when isolation actually provisioned a worktree above).
@@ -2851,7 +2856,12 @@ ipcMain.handle('integrations:test', async (_evt, payload: unknown) => {
 
 // ─── IPC: config ────────────────────────────────────────────────────────────
 ipcMain.handle('config:get', (): HarnessConfig => readConfig());
-ipcMain.handle('config:update', (_evt, patch: Partial<HarnessConfig>) => writeConfig(patch));
+ipcMain.handle('config:update', (_evt, patch: Partial<HarnessConfig>) => {
+  const next = writeConfig(patch);
+  // Live opt-in/out from Settings → Privacy (TELEMETRY.md).
+  if (typeof patch?.telemetryEnabled === 'boolean') analytics.setEnabled(patch.telemetryEnabled);
+  return next;
+});
 ipcMain.handle('config:ensureHome', (_evt, path: unknown) => {
   if (typeof path !== 'string' || path.length === 0) return { ok: false, error: 'invalid path' };
   return ensureHarnessHome(path);
@@ -3811,7 +3821,7 @@ ipcMain.handle('freeflow:transcribe', async (_evt, arg: unknown) => {
   if (!(a.audio instanceof ArrayBuffer) && !(a.audio instanceof Uint8Array)) {
     return { ok: false, error: 'no audio' };
   }
-  return transcribeWithGroq({
+  const out = await transcribeWithGroq({
     apiKey: cfg.groqApiKey,
     audio: a.audio,
     mimeType: typeof a.mimeType === 'string' ? a.mimeType : undefined,
@@ -3819,6 +3829,8 @@ ipcMain.handle('freeflow:transcribe', async (_evt, arg: unknown) => {
     model: cfg.freeflowModel || DEFAULT_GROQ_MODEL,
     language: typeof a.language === 'string' && a.language ? a.language : undefined
   });
+  if (out.ok) analytics.trackFeature('voice_dictation');
+  return out;
 });
 
 // ─── IPC: Realtime Michael (voice orchestrator — ephemeral token mint, rt-1) ──
@@ -4515,6 +4527,15 @@ app.whenReady().then(() => {
   // setMicGate(true)); macOS TCC stays a second gate regardless.
   if (readConfig().realtimeVoiceEnabled) writeConfig({ realtimeVoiceEnabled: false });
 
+  // Anonymous product analytics (PostHog) — the full contract lives in
+  // TELEMETRY.md. No-op unless a build-time key was injected (official releases
+  // only), and gated on DO_NOT_TRACK + the telemetryEnabled config (opt-out).
+  analytics.init({
+    stateDir: app.getPath('userData'),
+    appVersion: app.getVersion(),
+    enabled: readConfig().telemetryEnabled !== false
+  });
+
   // A cold-start deep link (Windows/Linux) rides in on OUR argv.
   const startupHireLink = process.argv.find((a) => a.startsWith('munderdifflin://'));
   if (startupHireLink) void handleHireLink(startupHireLink);
@@ -4590,4 +4611,19 @@ app.on('window-all-closed', () => {
     ptyManager.killAll();
     app.quit();
   }
+});
+
+// Final analytics flush (session_ended + drain the send queue), bounded so a
+// hung network can never wedge quit: preventDefault ONCE, race the flush
+// against a short timeout, then re-enter quit with the latch set.
+let analyticsFlushed = false;
+app.on('will-quit', (e) => {
+  if (analyticsFlushed) return;
+  analyticsFlushed = true;
+  e.preventDefault();
+  const finish = (): void => app.quit();
+  Promise.race([
+    analytics.endSession(),
+    new Promise<void>((r) => setTimeout(r, 1200))
+  ]).then(finish, finish);
 });
