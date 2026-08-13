@@ -197,6 +197,10 @@
   .btn.sm { font-size: 0.87rem; padding: 8px 14px; }
   .btn .ic { font-size: 1.02em; }
   .btn-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  /* Featured-on badges (TAAFT + Product Hunt) under the hero CTAs. Height-normalized
+     so the two differently-sized source images sit on one tidy row. */
+  .featured-badges { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-top: 20px; }
+  .featured-badges img { height: 48px; width: auto; display: block; border-radius: 8px; }
 
   /* download dropdown */
   .dl { position: relative; display: inline-block; }
@@ -813,6 +817,14 @@
     .badge .dot { display: inline-block; margin-right: 7px; }
     .trust span { display: inline; }
     .dex { padding-left: 6px; padding-right: 6px; }
+    .featured-badges { gap: 8px; }
+    .featured-badges img { height: 38px; border-radius: 6px; }
+    /* CLI provider grid: auto-fit lands on 3 uneven columns at phone widths —
+       force 5 across (10 engines = two even rows) and shrink to fit. */
+    .cli-logos { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .clp { padding: 10px 3px 8px; gap: 6px; border-radius: 8px; }
+    .clp svg { width: 18px; height: 18px; }
+    .clp span { font-size: 0.5rem; letter-spacing: 0.02em; }
   }
 
   /* reveal on scroll — only when JS is live (html.js); no-JS renders everything */
@@ -860,6 +872,10 @@
       <div class="btn-row">
         <a class="btn primary lg" data-download href="https://github.com/chaitanyagiri/munder-difflin/releases/latest"><span class="ic">⤓</span> Download Free</a>
         <a class="btn ghost lg" href="#how">See how it works ↓</a>
+      </div>
+      <div class="featured-badges">
+        <a href="https://theresanaiforthat.com/ai/munder-difflin/?ref=featured&v=11668376" target="_blank" rel="nofollow"><img width="300" src="https://media.theresanaiforthat.com/featured-on-taaft.png?width=600" alt="Featured on There's An AI For That"></a>
+        <a href="https://www.producthunt.com/products/munder-difflin?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-munder-difflin" target="_blank" rel="noopener noreferrer"><img alt="Munder Difflin - Make clones with Claude Code and Codex to do your work | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1221363&amp;theme=light&amp;t=1786616639629"></a>
       </div>
     </div>
         <div class="cli-bar rv">
