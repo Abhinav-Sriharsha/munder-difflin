@@ -246,7 +246,9 @@
     display: block; margin-bottom: 10px;
   }
   .smodal h3 { font-size: 1.22rem; margin-bottom: 8px; }
-  .smodal p { color: var(--muted); font-size: 0.9rem; max-width: 380px; margin: 0 auto; }
+  /* the ask headline stays on ONE line at every width */
+  .smodal h3#smTitle { font-size: clamp(0.95rem, 4vw, 1.22rem); white-space: nowrap; }
+  .smodal p { color: var(--muted); font-size: 0.9rem; max-width: 420px; margin: 0 auto; }
   .smodal p a { color: var(--ink); }
   .sm-step { display: none; }
   .sm-step.on { display: block; }
@@ -1716,13 +1718,13 @@
 
     <div class="sm-step on" data-step="ask">
       <span class="sm-kicker">BEFORE YOU DOWNLOAD</span>
-      <h3 id="smTitle">Munder Difflin is free. The wall keeps it that way.</h3>
+      <h3 id="smTitle">The wall keeps Munder Difflin free.</h3>
       <p>A one-time $20 puts your name on a brass plaque on the
-      <a href="/wall.html" target="_blank">Founders' Wall</a> — and keeps MD free
-      for everyone, forever.</p>
+      <a href="/wall.html" target="_blank">Founders' Wall</a>.
+      Want to stay anonymous? That's fine too.</p>
       <div class="sm-plaque" aria-hidden="true"><span class="no">FOUNDING SUPPORTER</span><span class="nm">Your name</span></div>
       <div class="sm-actions">
-        <button class="btn primary" id="smWall">Get on the wall — $20</button>
+        <button class="btn primary" id="smWall">Get on the wall for $20</button>
         <button class="sm-skip" id="smFree">download without paying ↓</button>
       </div>
     </div>
@@ -1733,7 +1735,7 @@
       <div class="sm-plaque"><span class="no">FOUNDING SUPPORTER</span><span class="nm" id="smPreview">Your name</span></div>
       <div class="sm-name"><input id="smName" type="text" maxlength="40" placeholder="Your name" autocomplete="name" /></div>
       <span class="sm-note">Razorpay opens next. <b>Paste your name into the
-      “Name (as you want it engraved)” field</b> there — that's exactly what the
+      “Name (as you want it engraved)” field</b> there. That's exactly what the
       plaque will say. No accounts, no servers.</span>
       <div class="sm-actions">
         <button class="btn primary" id="smPay">Copy name &amp; pay on Razorpay</button>
@@ -1745,7 +1747,7 @@
       <span class="sm-kicker">ONE LAST STEP</span>
       <h3>Finish up in the Razorpay tab.</h3>
       <p>Paste your name into the <b>“Name (as you want it engraved)”</b> field
-      before you pay — then come back here.</p>
+      before you pay, then come back here.</p>
       <div class="sm-actions">
         <button class="btn primary" id="smPaid">I've paid 🎉</button>
         <button class="sm-skip" id="smSkipToFree">just take me to the download</button>
@@ -1755,7 +1757,7 @@
     <div class="sm-step" data-step="done">
       <span class="sm-kicker">WELCOME TO THE WALL</span>
       <h3 id="smDoneTitle">You kept the lights on.</h3>
-      <p>Your plaque is being engraved — it appears on the
+      <p>Your plaque is being engraved. It appears on the
       <a href="/wall.html" target="_blank">Founders' Wall</a> within 24 hours.</p>
       <div class="sm-plaque"><span class="no">FOUNDING SUPPORTER</span><span class="nm" id="smPreviewDone">Anonymous</span></div>
       <div class="sm-dl" id="smDlDone"></div>
