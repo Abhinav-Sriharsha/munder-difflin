@@ -569,6 +569,47 @@
   @media (max-width: 1000px) { .pgroups { grid-template-columns: 1fr; } }
   @media (max-width: 620px)  { .plans2 { grid-template-columns: 1fr; } }
 
+  /* ------- FOR THE PROJECT — Founding Supporter strip ------- */
+  .support-strip {
+    margin-top: 22px; text-align: left;
+    border: 1px dashed var(--accent-line); border-radius: var(--radius);
+    background: var(--accent-soft);
+    padding: 20px 22px;
+    display: flex; align-items: center; justify-content: space-between; gap: 22px;
+  }
+  .support-strip .ss-label {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px;
+    flex-wrap: wrap; white-space: nowrap;
+    font-family: var(--font-mono); font-weight: 600; font-size: 0.7rem;
+    letter-spacing: 0.16em; color: var(--accent);
+  }
+  .support-strip .ss-label small { white-space: normal; }
+  .support-strip .ss-label small { font-family: var(--font-body); font-weight: 400; font-size: 0.82rem; letter-spacing: 0; color: var(--faint); }
+  .support-strip h3 { margin-bottom: 4px; }
+  .support-strip p { color: var(--muted); font-size: 0.93rem; max-width: 560px; }
+  .support-strip p a { color: var(--ink); }
+  .support-strip .fine { display: block; margin-top: 8px; font-family: var(--font-mono); font-size: 0.78rem; color: var(--faint); }
+  .support-strip .fine a { color: var(--muted); }
+  .support-strip .ss-cta { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+  .support-strip .ss-cta .btn { justify-content: center; }
+  @media (max-width: 760px) {
+    .support-strip { flex-direction: column; align-items: stretch; }
+    .support-strip .ss-cta { flex-direction: row; flex-wrap: wrap; }
+  }
+
+  /* quiet card revealed under a Download button after the click (post-value ask) */
+  .post-dl-card {
+    margin-top: 12px;
+    border: 1px dashed var(--accent-line); border-radius: var(--radius-sm);
+    background: var(--accent-soft);
+    padding: 10px 14px;
+    font-size: 0.86rem; color: var(--muted);
+    max-width: 480px;
+    animation: pdc-in 320ms ease;
+  }
+  .post-dl-card a { color: var(--ink); font-weight: 600; }
+  @keyframes pdc-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
   /* ------- security ------- */
   .sec-dark { background: var(--bg-2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   .sec-dark .lead { color: var(--muted); }
@@ -1510,6 +1551,23 @@
         </div>
       </div>
     </div>
+    <!-- TODO(razorpay): swap both data-support hrefs for the dedicated Razorpay
+         Payment Page URLs (with the "Name for the Founders' Wall" field) once
+         created in the dashboard. Interim: amount-prefilled patron links. -->
+    <div class="support-strip rv" id="support">
+      <div>
+        <span class="ss-label">FOR THE PROJECT <small>keep it free for everyone</small></span>
+        <h3>Founding Supporter — your name on the Wall</h3>
+        <p>₹8,800 (~$100), one time. A permanent brass plaque on the
+        <a href="/wall.html">Founders' Wall</a>, a ⭐ in the repo, and early access
+        to pre-release builds. Munder Difflin stays free for everyone.</p>
+        <span class="fine">or ₹1,800 (~$20) — <a data-support="supporter" href="https://razorpay.me/@munderdifflinfund/1800" target="_blank" rel="noopener">buy the team a coffee</a></span>
+      </div>
+      <div class="ss-cta">
+        <a class="btn primary" data-support="founding" href="https://razorpay.me/@munderdifflinfund/8800" target="_blank" rel="noopener">Claim your plaque</a>
+        <a class="btn ghost" href="/wall.html">See the Wall →</a>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -1583,6 +1641,7 @@
       <a href="https://github.com/chaitanyagiri/munder-difflin" target="_blank" rel="noopener">GitHub</a>
       <a href="/blog/">Blog</a>
       <a href="#pricing">Pricing</a>
+      <a href="/wall.html">Founders' Wall</a>
       <a href="mailto:girichaitanya11@gmail.com">Contact</a>
       <a href="https://github.com/chaitanyagiri/munder-difflin/releases/latest">Download</a>
       <a href="https://github.com/chaitanyagiri/munder-difflin/blob/main/SECURITY.md" target="_blank" rel="noopener">Security</a>
@@ -2592,9 +2651,42 @@
         if (!isOpen) { wrap.classList.add('open'); t.setAttribute('aria-expanded', 'true'); }
       });
       menu.addEventListener('click', function (e) {
-        if (e.target.closest('a')) { wrap.classList.remove('open'); t.setAttribute('aria-expanded', 'false'); }
+        if (e.target.closest('a')) {
+          wrap.classList.remove('open'); t.setAttribute('aria-expanded', 'false');
+          showSupportCard(wrap);
+        }
       });
     });
+
+    // post-value ask: once a download actually starts, a quiet card appears
+    // under that button — never before the click, never blocking anything.
+    var supportCardShown = false;
+    function showSupportCard(dlWrap) {
+      if (supportCardShown) return;
+      supportCardShown = true;
+      var card = document.createElement('div');
+      card.className = 'post-dl-card';
+      var lead = document.createElement('span');
+      lead.textContent = 'MD is free forever. ';
+      var mid = document.createElement('span');
+      mid.textContent = 'Founding supporters fund it ';
+      var link = document.createElement('a');
+      link.href = '/wall.html';
+      link.setAttribute('data-support', 'wall');
+      link.textContent = '→ see the Founders’ Wall';
+      card.appendChild(lead); card.appendChild(mid); card.appendChild(link);
+      var anchor = dlWrap.closest('.btn-row') || dlWrap;
+      anchor.parentNode.insertBefore(card, anchor.nextSibling);
+      // honest count: only claim a number if the wall actually has names
+      fetch('/wall-data.json', { cache: 'no-cache' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (Array.isArray(d) && d.length > 0) {
+            mid.textContent = d.length + (d.length === 1 ? ' founding supporter funds it ' : ' founding supporters fund it ');
+          }
+        })
+        .catch(function () {});
+    }
 
     document.addEventListener('click', function (e) {
       if (!e.target.closest('.dl')) {
@@ -2703,6 +2795,30 @@
         var file = href.split('/').pop() || 'releases-latest';
         window.posthog.capture('download_clicked', { file: file });
       }, true);
+      // support funnel: support_viewed once (strip scrolls into view),
+      // support_clicked per tier — measured against download_clicked above.
+      document.addEventListener('click', function (ev) {
+        var a = ev.target && ev.target.closest ? ev.target.closest('a[data-support]') : null;
+        if (!a) return;
+        window.posthog.capture('support_clicked', {
+          tier: a.getAttribute('data-support'),
+          surface: 'landing'
+        });
+      }, true);
+      var strip = document.getElementById('support');
+      if (strip && 'IntersectionObserver' in window) {
+        var seen = false;
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (en.isIntersecting && !seen) {
+              seen = true;
+              window.posthog.capture('support_viewed', { surface: 'pricing_strip' });
+              io.disconnect();
+            }
+          });
+        }, { threshold: 0.4 });
+        io.observe(strip);
+      }
     };
     document.head.appendChild(s);
   })();
