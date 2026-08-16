@@ -67,7 +67,10 @@ export class HookServer {
     private control?: ControlRegistry,
     /** Circuit breaker (Lane A #6.6b) — fed the hook-derived signals (session id,
      *  repeated identical tool calls). Optional so the server still runs without it. */
-    private breaker?: CircuitBreaker
+    private breaker?: CircuitBreaker,
+    /** Standing goal text for an agent (from the durable roster). Optional so
+     *  tests can omit it; when set, injected on SessionStart / UserPromptSubmit. */
+    private getStandingGoal?: (agentId: string) => string | null
   ) {}
 
   start(): void {
@@ -258,12 +261,22 @@ export class HookServer {
       && !!agentId && this.hive.isGod(agentId);
     const roster = wantsRoster ? this.hive.rosterContext() : null;
 
-    if (steer || roster) {
+    // Standing goal (hire Briefing) — durable roster field, re-read every cycle so
+    // an Edit Agent save is picked up on the next SessionStart / UserPromptSubmit
+    // without restarting the worker. Kept out of --append-system-prompt (volatile-
+    // free cache invariant); lives on the live hook channel instead.
+    const wantsGoal = (event === 'SessionStart' || event === 'UserPromptSubmit') && !!agentId;
+    const goalRaw = wantsGoal ? (this.getStandingGoal?.(agentId) ?? null) : null;
+    const goal = goalRaw
+      ? `<goal>\n${goalRaw}\n</goal>`
+      : null;
+
+    if (steer || roster || goal) {
       this.emit(agentId, event, p);
       return {
         hookSpecificOutput: {
           hookEventName: event,
-          additionalContext: [roster, steer].filter(Boolean).join('\n\n')
+          additionalContext: [roster, goal, steer].filter(Boolean).join('\n\n')
         }
       };
     }
