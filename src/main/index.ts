@@ -387,6 +387,12 @@ const preservedWorktrees = new Map<string, PreservedWorktree>();
  * error can never crash the caller (an IPC handler or node-pty's onExit).
  */
 function teardownPty(id: string): void {
+  // Main cards an ephemeral worker on the floor when it spawns, so main has to
+  // un-card it too — otherwise a released worker leaves a ghost the renderer's
+  // nudge/drain loops keep polling. Read the flag before the branches below
+  // clear it. Renderer-owned agents are deliberately untouched: the renderer
+  // owns those cards and keeps a dead one so the user can Restart & Continue.
+  const wasWorker = liveWorkers.has(id);
   // 0) Revoke this id's broker capability (if any). Idempotent + harmless for a
   //    non-worker PTY; ensures a dead worker's token can never reach an integration.
   try { integrationBroker.revoke(id); } catch { /* best-effort */ }
@@ -426,6 +432,9 @@ function teardownPty(id: string): void {
   // A worker whose isolation failed (non-repo cwd) has no worktree to gate above —
   // still clear its tracking entry so the controller stops watching a dead PTY.
   if (liveWorkers.has(id)) liveWorkers.delete(id);
+  if (wasWorker) {
+    try { liveWebContents()?.send('hive:agentArchived', { id }); } catch { /* window gone */ }
+  }
   syncKeepAwake();
 }
 
@@ -4134,7 +4143,7 @@ async function processSpawnRequest(filePath: string): Promise<void> {
     hive: meta, isolate, provider: raw.provider, env: brokerEnv
   };
 
-  let res: { ok: boolean; error?: string };
+  let res: { ok: boolean; error?: string; worktreePath?: string };
   try {
     // Output routes to the primary window (no renderer evt here). Workers are
     // headless-by-design — they reply to Slack + report to god, not a watching human.
@@ -4143,6 +4152,28 @@ async function processSpawnRequest(filePath: string): Promise<void> {
     res = { ok: false, error: String(e) };
   }
   if (!res.ok) { integrationBroker.revoke(workerId); fail(`spawn failed — ${res.error ?? 'unknown error'}`); return; }
+
+  // Card the worker on the floor. The renderer's roster is renderer-owned and is
+  // only mutated by renderer-initiated hires, so without this broadcast a worker
+  // spawned from a spawn-request is invisible in the GUI — and, far worse, it is
+  // invisible to the renderer loops that actually DRIVE an agent. The objective
+  // below is dispatched through the inbox, and the loop that turns inbox mail
+  // into a terminal nudge (useHive #3) plus the queue drain that types it in
+  // (#4) both iterate the renderer's agent list. An uncarded worker therefore
+  // sat at its prompt with its objective unread — the whole feature was inert.
+  // Same descriptor as the voice-hire path; the renderer's handler is idempotent
+  // and bails on a duplicate id, so this can never double-card an agent.
+  try {
+    liveWebContents()?.send('hive:agentSpawned', {
+      id: workerId,
+      name: meta.name,
+      provider: spawnOpts.provider ?? meta.provider ?? 'claude',
+      cwd: res.worktreePath ?? cwd,
+      command,
+      role: meta.role,
+      worktreePath: res.worktreePath
+    });
+  } catch { /* window torn down — the worker still runs headless */ }
 
   // Register for done-scan / idle-reap / token-cap / safe teardown (pty id == workerId).
   // tokenCap is optional plumbing (default unlimited) — only a positive finite cap is kept.
