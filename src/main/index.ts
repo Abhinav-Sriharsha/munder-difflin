@@ -236,7 +236,10 @@ const control = new ControlRegistry();
 // lets the transcript fallback find an agent's cwd from the hive registry.
 const telemetry = new TelemetryCollector({
   emit: (channel, payload) => { try { liveWebContents()?.send(channel, payload); } catch { /* window tore down */ } },
-  resolveCwd: (agentId) => hive.registry().agents[agentId]?.cwd ?? null
+  resolveCwd: (agentId) => hive.registry().agents[agentId]?.cwd ?? null,
+  // D11: scopes the transcript fallback to this agent's own session instead of
+  // summing every transcript in a (routinely shared) cwd.
+  resolveSessionId: (agentId) => hive.lastSession(agentId)
 });
 // Usage provider (Seam 1) — the INTEGRATION swap: Oscar's telemetry collector (#7)
 // IS the provider, replacing Lane A's interim StubUsageProvider. Same
