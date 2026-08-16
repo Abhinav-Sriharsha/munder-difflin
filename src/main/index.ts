@@ -4288,8 +4288,21 @@ async function ephemeralWorkerTick(): Promise<void> {
     const defaultTokenCap = typeof cfg.defaultWorkerTokenCap === 'number' && cfg.defaultWorkerTokenCap > 0
       ? cfg.defaultWorkerTokenCap : 0;
 
-    // (1) Finish or reap. ptyManager.kill → teardownPty → gated worktree + archive
-    //     + liveWorkers.delete. `releasing` guards the gap before onExit fires.
+    // (1) Finish or reap. `releasing` guards the gap before teardown lands.
+    // ptyManager.kill(workerId) alone is NOT enough here (D10): kill() deletes
+    // its PTY session from the manager's map SYNCHRONOUSLY, but the process's
+    // real exit — and node-pty's onExit, which is what fires the exitHandler
+    // that calls teardownPty — only arrives ASYNCHRONOUSLY afterward. By the
+    // time it does, the map lookup that onExit uses to detect "was this id
+    // reclaimed by a respawn" already reads empty, so its stale-exit guard
+    // misfires and the exitHandler is skipped every time. Confirmed live: a
+    // reaped worker's process was gone (`ps` had nothing) while registry.json
+    // still read `archived: false` and fleet.json still listed it — which
+    // means the LIVE ROSTER god's own prompt is built from (rosterContext(),
+    // fed by fleet.json) kept instructing "route work to" a dead process,
+    // forever, after every reap. teardownPty is idempotent (guarded on map
+    // presence), so calling it explicitly here is safe even on the rare tick
+    // where the async path does still land.
     for (const [workerId, rec] of [...liveWorkers]) {
       if (rec.releasing) continue;
       if (workerSignaledDone(workerId, rec.spawnedAt)) {
@@ -4297,6 +4310,7 @@ async function ephemeralWorkerTick(): Promise<void> {
         rec.releasing = true;
         console.log(`[worker] ${workerId} signaled done — releasing`);
         ptyManager.kill(workerId);
+        teardownPty(workerId);
         continue;
       }
       // Token-cap reap (default-off plumbing). An effective cap > 0 → reap when the
@@ -4313,6 +4327,7 @@ async function ephemeralWorkerTick(): Promise<void> {
             rec.slack
           );
           ptyManager.kill(workerId);
+          teardownPty(workerId);
           continue;
         }
       }
@@ -4327,6 +4342,7 @@ async function ephemeralWorkerTick(): Promise<void> {
           rec.slack
         );
         ptyManager.kill(workerId);
+        teardownPty(workerId);
       }
     }
 
@@ -4421,8 +4437,13 @@ ipcMain.handle('workers:list', (): { live: WorkerSnapshot[]; preserved: Preserve
 });
 
 /** Manually stop a live ephemeral worker. Mirrors the done-release path: mark
- *  releasing, then kill → teardownPty runs the SAFETY-GATED worktree teardown
- *  (committed work is preserved, never force-discarded). Idempotent. */
+ *  releasing, then kill + teardownPty runs the SAFETY-GATED worktree teardown
+ *  (committed work is preserved, never force-discarded). Idempotent. teardownPty
+ *  is called explicitly (D10) rather than left to the PTY's natural exit: kill()
+ *  frees the manager's id slot synchronously, so by the time the process's real
+ *  exit arrives the exit-handler's stale-id guard already misreads it as a
+ *  reclaimed id and skips teardown — the worker would stay "live" in registry.json
+ *  and fleet.json forever after this call. */
 ipcMain.handle('workers:stop', (_evt, workerId: string): { ok: boolean; error?: string } => {
   if (typeof workerId !== 'string' || !workerId) return { ok: false, error: 'invalid worker id' };
   const rec = liveWorkers.get(workerId);
@@ -4431,6 +4452,7 @@ ipcMain.handle('workers:stop', (_evt, workerId: string): { ok: boolean; error?: 
   rec.releasing = true;
   console.log(`[worker] manual stop requested for ${workerId}`);
   try { ptyManager.kill(workerId); } catch (e) { return { ok: false, error: String(e) }; }
+  teardownPty(workerId);
   return { ok: true };
 });
 
