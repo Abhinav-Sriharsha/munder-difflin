@@ -62,6 +62,7 @@ import { fetchHireManifest, readHireManifestFile } from './hire';
 import { parseHireDeepLink, type HireManifest } from '../shared/hire';
 import { ClosingTimeController } from './closingTime';
 import {
+  argsWithAutoModeFlag,
   inferAgentProvider,
   isClaudeProvider,
   nonInteractiveEnvForProvider,
@@ -2538,7 +2539,20 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // in the command string the renderer already built.
   if (opts.hive && claudeProvider) {
     const cfg = readConfig();
-    const args = opts.args ?? [];
+    // Permission posture (D9): only a GUI hire (Add Agent) builds its command
+    // through buildSpawnCommand, which bakes autoMode's bypass flag into the
+    // command STRING before this function ever sees it. A main-only spawn (the
+    // ephemeral-worker watcher, a voice hire) skips that step entirely, so it
+    // previously reached here with neither the flag nor any equivalent — every
+    // other Claude spawn path got the user's autoMode posture and this one
+    // didn't. argsWithAutoModeFlag is idempotent (a GUI spawn's args already has
+    // the flag, so this is a no-op for it) and is the SAME check spawnAgentCore
+    // already applies for opencode/crush et al a few lines below via
+    // HIVE_AUTO_APPROVE — one global toggle, one posture, every spawn path.
+    // Confirmed live: a worker spawned without this flag deadlocked — a
+    // cross-session message to it came back "held for the recipient user's
+    // approval" with no surface for anyone to ever grant that approval.
+    const args = argsWithAutoModeFlag(opts.args ?? [], cfg.autoMode, provider);
     // Model precedence: an explicit per-agent --model (from the renderer) wins;
     // else the user's global defaultModel; else the role-based default tier. The
     // GOD is special-cased: it has its own engine config (godProvider/godModel), so
