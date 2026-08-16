@@ -3099,7 +3099,11 @@ ipcMain.handle('hive:setArchived', (_evt, id: unknown, archived: unknown) => {
 });
 
 // ─── IPC: semantic memory (MemPalace CLI) ───────────────────────────────────
-ipcMain.handle('hive:memoryStatus', () => { memory.resetBinCache(); return memory.status(); });
+// refresh() = resetBinCache + an idempotent start(). The poll is the one thing
+// that reliably notices mempalace being installed after boot, so it is what arms
+// the mine loop that boot's start() had to skip — otherwise the pill reads
+// "getting ready" until the app is restarted.
+ipcMain.handle('hive:memoryStatus', () => memory.refresh());
 ipcMain.handle('hive:searchMemory', (_evt, query: unknown, wing: unknown) => {
   if (typeof query !== 'string' || !query.trim()) return { ok: false, output: '', error: 'empty query' };
   return memory.search(query, { wing: typeof wing === 'string' ? wing : undefined });
