@@ -339,6 +339,21 @@ export class PtyManager {
           COLORTERM: 'truecolor',
           // Help apps that look for a real interactive shell
           FORCE_COLOR: '1',
+          // A Finder/Dock-launched Electron app inherits NO locale from launchd
+          // (`launchctl getenv LANG` is empty), so without this every child runs in
+          // the C/POSIX locale — where macOS's CoreFoundation default text encoding
+          // is Mac OS Roman (__CF_USER_TEXT_ENCODING=<uid>:0:0). Any locale-sensitive
+          // tool an agent runs then decodes UTF-8 as MacRoman and paints mojibake
+          // into the grid ("—" → "‚Äî"), which copy faithfully reproduces. This
+          // terminal IS UTF-8 (xterm.js + Unicode11), so say so.
+          //
+          // LC_CTYPE only, deliberately: it is the character-encoding category. Using
+          // LC_ALL would also override collation and date formatting for every user
+          // who never exported a locale. A locale the user really did export wins.
+          ...(process.platform === 'win32'
+            ? {}
+            : { LANG: process.env.LANG ?? 'en_US.UTF-8',
+                LC_CTYPE: process.env.LC_ALL ?? process.env.LC_CTYPE ?? process.env.LANG ?? 'en_US.UTF-8' }),
           // Per-agent hive identity (AGENT_ID, HIVE_ROOT, …) when provided.
           ...(opts.env ?? {})
         } as Record<string, string>
