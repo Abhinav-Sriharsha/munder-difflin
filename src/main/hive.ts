@@ -94,6 +94,7 @@ export interface HumanQA {
   a?: string;
   askedAt?: string;
   answeredAt?: string;
+  dismissedAt?: string;
 }
 
 export interface HiveTask {
@@ -1323,6 +1324,40 @@ export class HiveManager {
     this.writeJson(join(root, 'tasks.json'), { tasks });
     this.appendLog({ kind: 'tasks', count: tasks.length });
     this.commit(`hive: tasks (${tasks.length})`);
+  }
+
+  /** Append one card against the latest on-disk ledger. Renderer callers must
+   *  use this instead of re-writing a collection they read before another
+   *  source (webhook, Slack, god, voice) added work. Idempotent by task id. */
+  addTask(task: HiveTask): boolean {
+    const ledger = this.tasks() as { tasks?: HiveTask[] };
+    const tasks = Array.isArray(ledger?.tasks) ? ledger.tasks : [];
+    if (tasks.some((current) => current?.id === task.id)) return false;
+    this.writeTasks([...tasks, task]);
+    return true;
+  }
+
+  /** Patch one card against the latest on-disk ledger, preserving unrelated
+   *  cards and fields (notably webhook.tokenHash and Slack thread metadata). */
+  patchTask(id: string, patch: Partial<Omit<HiveTask, 'id'>>): boolean {
+    const ledger = this.tasks() as { tasks?: HiveTask[] };
+    const tasks = Array.isArray(ledger?.tasks) ? ledger.tasks : [];
+    const index = tasks.findIndex((task) => task?.id === id);
+    if (index < 0) return false;
+    const next = tasks.slice();
+    next[index] = { ...tasks[index], ...patch, id };
+    this.writeTasks(next);
+    return true;
+  }
+
+  /** Delete only the named card from the latest on-disk ledger. */
+  deleteTask(id: string): boolean {
+    const ledger = this.tasks() as { tasks?: HiveTask[] };
+    const tasks = Array.isArray(ledger?.tasks) ? ledger.tasks : [];
+    const next = tasks.filter((task) => task?.id !== id);
+    if (next.length === tasks.length) return false;
+    this.writeTasks(next);
+    return true;
   }
   memory(id: string): string {
     const p = join(this.agentDir(id), 'memory.md');

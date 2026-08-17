@@ -763,7 +763,7 @@ export function useHive(config: HarnessConfig | null): void {
     // reply in-thread once the card later reaches 'done'. ADDITIVE + idempotent +
     // best-effort: a failure here never affects the dispatch that already happened,
     // and only dispatched work items land here (slash commands/acks never do).
-    type SlackTaskCard = Parameters<typeof window.cth.hiveWriteTasks>[0][number];
+    type SlackTaskCard = Parameters<typeof window.cth.hiveAddTask>[0];
     const ensureSlackCard = async (m: QueuedMessage): Promise<void> => {
       const slack = m.slack;
       if (!slack) return;
@@ -786,7 +786,7 @@ export function useHive(config: HarnessConfig | null): void {
           createdAt: new Date().toISOString(),
           slack
         };
-        await window.cth.hiveWriteTasks([...existing, card]);
+        await window.cth.hiveAddTask(card);
       } catch { /* best-effort: card promotion must never sink dispatch */ }
     };
 
