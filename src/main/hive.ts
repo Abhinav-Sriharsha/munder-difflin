@@ -36,6 +36,7 @@ import {
   type AgentProvider
 } from '../shared/agentProvider';
 import { MCP_CATALOG } from '../shared/mcpCatalog';
+import { selectBroadcastTargets } from '../shared/broadcast';
 import { expandTilde } from './fs';
 
 /** The subset of HarnessConfig the hive consumes for the default-MCP merge.
@@ -1142,15 +1143,11 @@ export class HiveManager {
     const resolveTo = (to: string): string => (to === 'human' || to === 'god' ? godId : to);
     const targets = msg.to === 'broadcast'
       // The roster for fan-out is the ACTIVE registry: skip the send-only prep
-      // assistant, any archived agent (closed tab), and providers that can't
-      // expose safe-idle lifecycle state (hookless custom commands), so mail never
-      // piles into a dead inbox. Claude, Codex and Antigravity are included; their
-      // hooks let the renderer wake them only after a safe idle boundary.
-      ? Object.keys(reg.agents).filter((a) =>
-          a !== msg.from
-          && !reg.agents[a]?.isAssistant
-          && !reg.agents[a]?.archived
-          && canReceiveInbox(reg.agents[a]?.provider))
+      // assistant and any archived agent (closed tab). Hookless providers are
+      // NOT skipped — the per-target path below already serves them a terminal
+      // work order, so excluding them here only made a broadcast invisible to an
+      // agent that direct mail reaches fine. See selectBroadcastTargets.
+      ? selectBroadcastTargets(reg.agents, msg.from)
       // Never deliver to self — guards a god → "human" message looping back to god.
       : [resolveTo(msg.to)].filter((t) => t !== msg.from);
     for (const t of targets) {
