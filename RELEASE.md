@@ -7,6 +7,21 @@ routing, and remembering, coordinated by your clone, Michael, who you talk to. L
 
 ---
 
+> [!IMPORTANT]
+> **If you are reading this on a `-rc` pre-release page, download from the *Assets* list at the
+> bottom of THIS page — not from the table further down.** Those table links point at
+> `releases/latest`, and GitHub deliberately excludes pre-releases from that, so they would hand
+> you the previous stable build instead. The same exclusion is why installing an rc does not put
+> the rest of the world on it: the in-app updater reads the same endpoint.
+>
+> **This pre-release exists to verify Windows.** Agent-to-agent messaging on Windows is fixed here,
+> but the fix was written and unit-tested on macOS and has never been executed on a Windows
+> machine. If you are testing it: spawn an npm-installed engine (OpenCode), ask the agent where its
+> inbox and outbox are, and have two agents message each other. Please report anything that
+> misbehaves on the issue tracker.
+
+---
+
 ## What's new in 0.4.4 — *Windows agents can finally talk to each other*
 
 **On Windows, agents were never told they could message each other.** They started, rendered,
