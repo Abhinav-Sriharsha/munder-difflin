@@ -135,14 +135,18 @@ function fallbackCheck(reason: string | undefined, force = false): void {
         res.on('data', (d) => { body += d; if (body.length > 262_144) req.destroy(); });
         res.on('end', () => {
           try {
-            const rel = JSON.parse(body) as { tag_name?: string; html_url?: string };
+            const rel = JSON.parse(body) as { tag_name?: string; html_url?: string; body?: string };
             const tag = rel.tag_name ?? '';
             if (tag && isNewer(tag, app.getVersion())) {
               emit({
                 state: 'available-manual',
                 version: tag.replace(/^v/, ''),
                 url: rel.html_url ?? `https://github.com/${REPO}/releases/latest`,
-                reason
+                reason,
+                // Already in the response we just parsed — carrying it costs
+                // nothing and lets the notify-only toast show "What's new" too.
+                // NOT a new request: see TELEMETRY.md, this app never adds one.
+                notes: typeof rel.body === 'string' ? rel.body : undefined
               });
             }
           } catch { /* malformed body — try again next interval */ }
