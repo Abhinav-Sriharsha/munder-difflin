@@ -58,6 +58,7 @@ import { IntegrationBroker } from './integrationBroker';
 import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
 import { RosterStore } from './roster';
+import { buildWorkerLaunch } from './workerLaunch';
 import { ControlRegistry } from './control';
 import { fetchHireManifest, readHireManifestFile } from './hire';
 import { parseHireDeepLink, type HireManifest } from '../shared/hire';
@@ -386,9 +387,13 @@ const preservedWorktrees = new Map<string, PreservedWorktree>();
  * per dead PTY.
  *
  * Idempotent: guarded on map presence and the already-idempotent
- * `hive.setArchived`, so the second call (kill() also makes node-pty fire
- * onExit) is a harmless no-op. Best-effort — every step is wrapped so a teardown
- * error can never crash the caller (an IPC handler or node-pty's onExit).
+ * `hive.setArchived`, so a double call is a harmless no-op. NOTE: an explicit
+ * `ptyManager.kill()` does NOT reach here via onExit — kill() deletes the
+ * session synchronously, so node-pty's later async exit callback fails the
+ * session-identity guard and is swallowed. Every kill site must therefore call
+ * teardownPty itself right after the kill (all of them do). Best-effort — every
+ * step is wrapped so a teardown error can never crash the caller (an IPC
+ * handler or node-pty's onExit).
  */
 function teardownPty(id: string): void {
   // 0) Revoke this id's broker capability (if any). Idempotent + harmless for a
@@ -4298,8 +4303,18 @@ async function processSpawnRequest(filePath: string): Promise<void> {
   const cwd = typeof raw.cwd === 'string' && raw.cwd.trim() ? expandTilde(raw.cwd) : '';
   if (!cwd || !existsSync(cwd)) { fail(`"cwd" missing or not found (${cwd || 'unset'})`); return; }
 
-  const command = typeof raw.command === 'string' && raw.command.trim() ? raw.command.trim() : (readConfig().defaultCommand ?? 'claude');
-  const bin = command.split(/\s+/)[0] || command;
+  // Request line → executable + argv (auto-mode inheritance, tokenization,
+  // model-flag dedupe). Pure and unit-tested — see workerLaunch.ts for why this
+  // translation earned a test.
+  const cfgSpawn = readConfig();
+  const launch = buildWorkerLaunch({
+    requestCommand: raw.command,
+    requestProvider: raw.provider,
+    requestModel: raw.model,
+    defaultCommand: cfgSpawn.defaultCommand,
+    autoMode: !!cfgSpawn.autoMode
+  });
+  const bin = launch.bin;
   // Missing-CLI → FAIL FAST. A headless worker has no human to watch an installer,
   // so we never run the cc49e1e install banner here — we reject and tell god.
   if (!ptyManager.isCommandAvailable(bin)) { fail(`engine CLI "${bin}" is not installed`); return; }
@@ -4328,8 +4343,8 @@ async function processSpawnRequest(filePath: string): Promise<void> {
     brokerEnv.MD_BROKER_TOKEN = token;
   }
   const spawnOpts: AgentSpawnOptions = {
-    id: workerId, cwd, command, cols: 120, rows: 32,
-    args: raw.model ? ['--model', raw.model] : [],
+    id: workerId, cwd, command: bin, cols: 120, rows: 32,
+    args: launch.args,
     hive: meta, isolate, provider: raw.provider, env: brokerEnv
   };
 
@@ -4438,8 +4453,14 @@ async function ephemeralWorkerTick(): Promise<void> {
     const defaultTokenCap = typeof cfg.defaultWorkerTokenCap === 'number' && cfg.defaultWorkerTokenCap > 0
       ? cfg.defaultWorkerTokenCap : 0;
 
-    // (1) Finish or reap. ptyManager.kill → teardownPty → gated worktree + archive
-    //     + liveWorkers.delete. `releasing` guards the gap before onExit fires.
+    // (1) Finish or reap. Each release calls teardownPty EXPLICITLY after the
+    //     kill, like every other kill site: ptyManager.kill() deletes the session
+    //     synchronously, so when node-pty's async onExit later fires it fails the
+    //     session-identity guard and the global exit handler (→ teardownPty)
+    //     never runs. Relying on onExit here left released workers un-torn-down:
+    //     no hive archive, no hive:agentArchived, frozen floor cards, and god
+    //     kept mailing dead agents (seen live 2026-08-16 with worker-business/
+    //     worker-qa/worker-bizreview). A double teardown is a harmless no-op.
     for (const [workerId, rec] of [...liveWorkers]) {
       if (rec.releasing) continue;
       if (workerSignaledDone(workerId, rec.spawnedAt)) {
@@ -4447,6 +4468,7 @@ async function ephemeralWorkerTick(): Promise<void> {
         rec.releasing = true;
         console.log(`[worker] ${workerId} signaled done — releasing`);
         ptyManager.kill(workerId);
+        teardownPty(workerId);
         continue;
       }
       // Token-cap reap (default-off plumbing). An effective cap > 0 → reap when the
@@ -4463,6 +4485,7 @@ async function ephemeralWorkerTick(): Promise<void> {
             rec.slack
           );
           ptyManager.kill(workerId);
+          teardownPty(workerId);
           continue;
         }
       }
@@ -4477,6 +4500,7 @@ async function ephemeralWorkerTick(): Promise<void> {
           rec.slack
         );
         ptyManager.kill(workerId);
+        teardownPty(workerId);
       }
     }
 
@@ -4571,8 +4595,12 @@ ipcMain.handle('workers:list', (): { live: WorkerSnapshot[]; preserved: Preserve
 });
 
 /** Manually stop a live ephemeral worker. Mirrors the done-release path: mark
- *  releasing, then kill → teardownPty runs the SAFETY-GATED worktree teardown
- *  (committed work is preserved, never force-discarded). Idempotent. */
+ *  releasing, then kill + EXPLICIT teardownPty — kill() deletes the session
+ *  synchronously, so node-pty's later onExit fails the identity guard and the
+ *  global exit handler never runs; relying on it here left manually-stopped
+ *  workers un-torn-down exactly like the release/reap paths. teardownPty runs
+ *  the SAFETY-GATED worktree teardown (committed work is preserved, never
+ *  force-discarded). Idempotent. */
 ipcMain.handle('workers:stop', (_evt, workerId: string): { ok: boolean; error?: string } => {
   if (typeof workerId !== 'string' || !workerId) return { ok: false, error: 'invalid worker id' };
   const rec = liveWorkers.get(workerId);
@@ -4581,6 +4609,7 @@ ipcMain.handle('workers:stop', (_evt, workerId: string): { ok: boolean; error?: 
   rec.releasing = true;
   console.log(`[worker] manual stop requested for ${workerId}`);
   try { ptyManager.kill(workerId); } catch (e) { return { ok: false, error: String(e) }; }
+  teardownPty(workerId);
   return { ok: true };
 });
 
