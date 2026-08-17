@@ -2876,7 +2876,9 @@ ipcMain.handle('config:changeHome', async (_evt, payload: unknown) => {
   const p = (payload ?? {}) as { newHome?: unknown; mode?: unknown };
   if (typeof p.newHome !== 'string' || !p.newHome) return { ok: false, error: 'invalid newHome' };
   const mode: 'move' | 'fresh' = p.mode === 'fresh' ? 'fresh' : 'move';
-  const newHome = resolve(p.newHome);
+  // A typed path may carry `~` (issue #140); bare resolve() would anchor it to
+  // the process cwd as a literal directory named `~`.
+  const newHome = resolve(expandTilde(p.newHome));
   const oldRaw = readConfig().harnessHome;
   const oldHome = oldRaw ? resolve(oldRaw) : null;
 

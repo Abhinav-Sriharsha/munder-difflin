@@ -600,12 +600,19 @@ export function writeConfig(patch: Partial<HarnessConfig>): HarnessConfig {
       .map((r) => expandTilde(r))
       .filter((r) => r && !seen.has(r) && (seen.add(r), true));
   }
-  // Track recently-opened hive homes so the launch picker can list them. Any write
-  // that SETS harnessHome (onboarding finish, changeHome) promotes it to the front,
-  // deduped and capped. Skips empty/null so a clear doesn't pollute the list.
+  // Home INGESTION — same rule as registeredRepos above: onboarding lets the
+  // user TYPE this path ("~/HarnessAgents"), and every derived path (hive root,
+  // palace, roster) joins on the persisted value, so a literal `~` breaks them
+  // all (issue #140: onboarding finish died on `ENOENT: mkdir '~/HarnessAgents'`).
   if (typeof patch.harnessHome === 'string' && patch.harnessHome) {
+    const home = expandTilde(patch.harnessHome);
+    next.harnessHome = home;
+    // Track recently-opened hive homes so the launch picker can list them. Any
+    // write that SETS harnessHome (onboarding finish, changeHome) promotes it to
+    // the front, deduped and capped. Skips empty/null so a clear doesn't pollute
+    // the list.
     const prior = current.recentHives ?? [];
-    next.recentHives = [patch.harnessHome, ...prior.filter((h) => h !== patch.harnessHome)].slice(0, 8);
+    next.recentHives = [home, ...prior.filter((h) => h !== home)].slice(0, 8);
   }
   return persistConfig(next);
 }
@@ -671,10 +678,12 @@ export function commandForAutoMode(
   return flag ? `${base} ${flag}` : base;
 }
 
-/** Ensure harnessHome exists on disk. */
+/** Ensure harnessHome exists on disk. Expands `~` first — the onboarding wizard
+ *  lets the user type the path, and mkdir treats a literal `~` as a plain
+ *  directory name (issue #140's `ENOENT: mkdir '~/HarnessAgents'`). */
 export function ensureHarnessHome(path: string): { ok: boolean; error?: string } {
   try {
-    mkdirSync(path, { recursive: true });
+    mkdirSync(expandTilde(path), { recursive: true });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
