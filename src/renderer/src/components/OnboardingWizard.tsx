@@ -199,7 +199,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           }
           noPadding
         >
-          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '86vh', overflowY: 'auto' }}>
 
             {step === 'persona' && (
               <>
@@ -650,7 +650,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 background: 'var(--cth-coral-light)',
                 boxShadow: 'inset 0 0 0 1px var(--cth-coral)',
                 fontSize: 13,
-                color: 'var(--cth-ink-900)'
+                color: 'var(--cth-ink-900)',
+                overflowWrap: 'anywhere'
               }}>{error}</div>
             )}
 
