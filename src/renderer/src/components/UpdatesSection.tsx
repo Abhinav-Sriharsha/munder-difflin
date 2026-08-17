@@ -11,7 +11,8 @@
  * differs (`describeUpdateSettings` vs `describeUpdate`), so the two can never
  * disagree about what is installed.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { summarizeReleaseNotes } from '@shared/releaseNotes';
 import { describeUpdateSettings, reduceStatus, type UpdateStatus } from '@shared/updateState';
 import { PixelButton } from './PixelButton';
 
@@ -32,6 +33,15 @@ export function UpdatesSection() {
   }, []);
 
   const view = describeUpdateSettings(status, __APP_VERSION__);
+
+  // Same digest the update toast renders (src/shared/releaseNotes.ts), for the
+  // same reason: the release body is already in hand, and "what would I get?"
+  // is the second question anyone asks after "is there a new version?". Only
+  // the states that carry notes have any — the rest render nothing extra.
+  const notes = useMemo(
+    () => summarizeReleaseNotes(status && 'notes' in status ? status.notes : undefined),
+    [status]
+  );
 
   const onClick = useCallback(async () => {
     if (view.action === 'none' || busy) return;
@@ -80,6 +90,22 @@ export function UpdatesSection() {
           </PixelButton>
         )}
       </div>
+      {notes.length > 0 && (
+        <ul style={{
+          listStyle: 'none', margin: '8px 0 0', padding: 0,
+          display: 'flex', flexDirection: 'column', gap: 4
+        }}>
+          {notes.map((line, i) => (
+            <li key={i} style={{
+              display: 'flex', gap: 6,
+              fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)'
+            }}>
+              <span aria-hidden style={{ color: 'var(--cth-ink-300)' }}>•</span>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
