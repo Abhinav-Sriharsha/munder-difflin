@@ -1,4 +1,4 @@
-# Munder Difflin v0.4.3
+# Munder Difflin v0.4.4
 
 **A local hive of Claude Code, Antigravity, Codex, Grok & Copilot agents that run themselves** — messaging,
 routing, and remembering, coordinated by your clone, Michael, who you talk to. Local-first and open source.
@@ -7,7 +7,40 @@ routing, and remembering, coordinated by your clone, Michael, who you talk to. L
 
 ---
 
-## What's new in 0.4.3 — *Michael is the logo*
+## What's new in 0.4.4 — *Windows agents can finally talk to each other*
+
+**On Windows, agents were never told they could message each other.** They started, rendered,
+and looked perfectly healthy — but a multi-line prompt handed to a CLI through `cmd.exe` is cut
+off at its first newline, and the part that got cut was the protocol block naming an agent's
+inbox and outbox. So no agent ever wrote mail, and none ever arrived.
+
+- **Agent-to-agent messaging works on Windows.** Prompt-carrying spawns now run the CLI's real
+  interpreter directly instead of routing through `cmd.exe`, so the whole protocol survives.
+  Anything we can't decode falls back to exactly today's behaviour.
+- **Setup can finish again.** Accepting the suggested `~/HarnessAgents` folder wrote a literal
+  `~`, and the wizard then died on `ENOENT: mkdir '~/HarnessAgents'` with the interface pushed
+  off-screen — on the very first thing a new user does.
+- **Copying from a terminal is clean.** The Edit menu was intercepting ⌘C before the terminal
+  saw it, so copies came back with the wrong text *and* with `—` mangled into `‚Äî`.
+- **Agent terminals are UTF-8.** They ran with no locale at all, so tools inside them fell back
+  to a 1980s character set and miscounted any non-English text.
+- **Screenshots are visible.** Images open in the IDE instead of "binary file (not displayable)",
+  and agent-written markdown reports finally render the screenshots they embed.
+- **The IDE says whose workspace you're in**, and points out the search shortcuts (⌘F, F1) that
+  were already there.
+- **This notice tells you what changed.** Updates used to announce only a version number.
+- Task cards no longer vanish when two things edit the board at once; idle agents stop being
+  asked to compact every hour; "Restart & Continue" works on an agent that already died; an
+  unusual message id no longer silences an agent's mail permanently; the office floor stops
+  rendering while you're in a fullscreen terminal; Grok 4.6 is selectable.
+
+> [!NOTE]
+> **Windows users:** this is the release that makes multi-agent work on Windows at all. If you
+> tried it before and your agents sat there ignoring each other, that was this bug.
+
+---
+
+## Still new in 0.4.3 — *Michael is the logo*
 
 **The mark is a face now.** Munder Difflin has always been an office you watch people work in,
 and the icon was a pair of script initials on a gradient. It's Michael — your clone — drawn in
@@ -114,22 +147,22 @@ Apple Silicon and Intel.
 ### 🍎 macOS
 | Build | File |
 |---|---|
-| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.4.3-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.3-mac-universal.dmg) |
+| Universal (Apple Silicon + Intel) | [`Munder-Difflin-0.4.4-mac-universal.dmg`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.4-mac-universal.dmg) |
 
 ### 🪟 Windows
 | Build | File |
 |---|---|
-| Installer (x64) — *recommended* | [`Munder-Difflin-0.4.3-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.3-win-x64-setup.exe) |
-| Portable (x64, no install) | [`Munder-Difflin-0.4.3-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.3-win-x64-portable.exe) |
+| Installer (x64) — *recommended* | [`Munder-Difflin-0.4.4-win-x64-setup.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.4-win-x64-setup.exe) |
+| Portable (x64, no install) | [`Munder-Difflin-0.4.4-win-x64-portable.exe`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.4-win-x64-portable.exe) |
 
 ### 🐧 Linux
 | Build | File |
 |---|---|
-| AppImage (x86_64) | [`Munder-Difflin-0.4.3-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.3-linux-x86_64.AppImage) |
+| AppImage (x86_64) | [`Munder-Difflin-0.4.4-linux-x86_64.AppImage`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/Munder-Difflin-0.4.4-linux-x86_64.AppImage) |
 
 ### 📦 Source
-[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.3.zip) ·
-[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.3.tar.gz)
+[Source code (zip)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.4.zip) ·
+[Source code (tar.gz)](https://github.com/chaitanyagiri/munder-difflin/archive/refs/tags/v0.4.4.tar.gz)
 
 > **Verify your download:** [`SHA256SUMS.txt`](https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/SHA256SUMS.txt) — then `shasum -a 256 -c SHA256SUMS.txt` (macOS/Linux) or `Get-FileHash` (Windows).
 

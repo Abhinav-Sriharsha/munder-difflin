@@ -4,6 +4,68 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] — 2026-08-17
+
+**Windows agents can finally talk to each other.**
+The headline is a bug that made the core product silently not work on the platform that accounts for
+roughly half of all downloads. Behind it: the first-run setup blocker, a terminal copy that returned
+mangled text, and the update notification learning to say what actually changed.
+
+### Fixed
+- **Agent-to-agent messaging was completely broken on Windows.** The hive protocol reaches an agent
+  as a command-line argument, and on Windows any CLI that isn't a `.exe` — which is every
+  npm-installed engine, including `claude.cmd` — was launched through `cmd.exe`. `cmd.exe` treats a
+  newline as a statement separator and `(`/`)` as block delimiters, so the ~6,100-character,
+  multi-line prompt was truncated at its first newline. The agent booted, rendered and looked
+  healthy, but never received the block naming its `inbox/` and `outbox/` — so it never wrote mail
+  and no agent ever heard from another. Prompt-carrying spawns now resolve the npm shim and launch
+  its real interpreter with an argument array, so the whole prompt survives; any shim shape we
+  cannot decode falls back to the previous behaviour rather than failing. Claude Code appeared to
+  work only because its native `claude.exe` bypassed `cmd.exe` entirely. Not the socket — the hive
+  has branched to named pipes since 0.1.9, and message routing is filesystem polling regardless.
+- **The setup wizard could not be finished** if you accepted the folder it suggested. `~/HarnessAgents`
+  was persisted with a literal `~`, and Node's `mkdir` has no concept of the shell's `~`, so Finish
+  died with `ENOENT: no such file or directory, mkdir '~/HarnessAgents'` and left the wizard wedged
+  with the interface pushed off-screen. Registered projects had been expanded for exactly this reason
+  since 0.3.6; the hive home sat directly below them and never was. ([#140](https://github.com/chaitanyagiri/munder-difflin/issues/140))
+- **Copying from a terminal returned the wrong text, mis-encoded.** The stock Edit menu owned the ⌘C
+  key equivalent, and macOS dispatches menu shortcuts before the page — so the terminal's own copy
+  never ran. Chromium's generic copy took the DOM selection (xterm's hidden accessibility textarea,
+  not the visible grid) and wrote a legacy pasteboard flavor holding UTF-8 bytes labelled as Mac OS
+  Roman, which is why an em dash pasted as `‚Äî`.
+- **Agent terminals ran with no locale.** A Finder-launched app inherits none, so every CLI an agent
+  spawned reported `charmap=US-ASCII` and any locale-aware tool mishandled non-English text.
+- **Windows agents were given instructions they could not run** — the protocol emitted POSIX
+  `$HIVE_NODE`/`$KG_CLI` shell variables and `/`-joined paths. Both are now absolute and native.
+- A task card could be wiped when two writers edited the board at once; idle agents were asked to
+  compact every hour forever; "Restart & Continue" failed on an agent that had already died; one
+  unusually-named message id could silence an agent's inbox nudge permanently; transcripts could be
+  seeded into the shared projects root; the OpenCode plugin was written to only one of two possible
+  directory names.
+
+### Added
+- **The update notification says what's new.** It previously announced a version number and nothing
+  else. It now shows a short digest parsed from the release notes it was already downloading, plus
+  links to read more and to star the project. No new network request and no new endpoint — the
+  release body was already being fetched, and the privacy contract in
+  [TELEMETRY.md](TELEMETRY.md) is unchanged. The star ask appears at most once, ever.
+- **Images open in the IDE.** A `.png` used to produce a tab reading "binary file (not displayable)".
+  Screenshots, design assets and SVGs now render, with fit/actual-size and a view-source toggle for
+  SVG. Markdown previews render embedded local screenshots too, so an agent's report finally shows
+  its evidence. Remote image URLs stay blocked.
+- **The IDE names the agent whose workspace is open**, not just the folder — and says so honestly
+  when it had to infer which agent that is.
+- **The IDE points at the shortcuts it already had** — ⌘F find, ⌘⌥F replace, F1 command palette,
+  ⌃G go to line, ⇧⌘O go to symbol. (Repository-wide search is not included: Monaco ships in-file
+  find only, and a workspace search is a separate build.)
+- Grok 4.6 in the model picker.
+
+### Changed
+- The office floor stops rendering while a fullscreen terminal or file is covering it, instead of
+  animating a scene nobody can see.
+- The hive's own git repo no longer versions the append-only cost ledger, which had grown a
+  multi-gigabyte history and could exhaust memory during `gc`.
+
 ## [0.4.3] — 2026-08-13
 
 **A new brand mark: Michael's portrait replaces the "MD" tile.**
