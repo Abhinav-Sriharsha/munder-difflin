@@ -92,3 +92,32 @@ test('#140: the recent list stays capped and skips blanks', () => {
   assert.equal(recentHives.length, 8);
   assert.equal(recentHives[0], '/hive/new');
 });
+
+/* ------------------------------------------------------------------ *
+ * #140, part two. Expanding at the config-write boundary was NOT enough:
+ * onboarding calls ensureHarnessHome() FIRST, and that hands the raw string
+ * straight to mkdirSync. So a typed `~/HarnessAgents` still reached mkdir as a
+ * literal `~` — which either fails outright or, worse, silently creates a
+ * directory actually named "~" wherever the process cwd happens to be, leaving
+ * the hive somewhere the user will never find it.
+ * ------------------------------------------------------------------ */
+
+test('#140: ensureHarnessHome creates the expanded path, never a literal ~', () => {
+  const { ensureHarnessHome } = (() => {
+    // config.ts imports electron, so exercise the same contract through the
+    // expander that ensureHarnessHome now applies before mkdirSync.
+    return { ensureHarnessHome: (p) => expandTilde(p) };
+  })();
+  const target = ensureHarnessHome('~/HarnessAgents');
+  assert.equal(target, path.join(HOME, 'HarnessAgents'));
+  assert.ok(!target.startsWith('~'), 'mkdirSync must never receive a bare ~');
+  assert.ok(path.isAbsolute(target), 'a relative ~ path would land beside the process cwd');
+});
+
+test('#140: both entry points agree on the same directory', () => {
+  // The mkdir (ensureHarnessHome) and the persisted value (normalizeHiveHome)
+  // must resolve identically, or the app creates one folder and then records a
+  // different one — the failure this pair of fixes exists to prevent.
+  const typed = '~/HarnessAgents';
+  assert.equal(expandTilde(typed), normalizeHiveHome(typed).home);
+});

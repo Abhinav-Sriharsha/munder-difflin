@@ -682,7 +682,15 @@ export function commandForAutoMode(
 /** Ensure harnessHome exists on disk. */
 export function ensureHarnessHome(path: string): { ok: boolean; error?: string } {
   try {
-    mkdirSync(path, { recursive: true });
+    // Expand HERE too, not only at the config write (#140). This runs FIRST —
+    // onboarding calls it before updateConfig — so normalizing only at the write
+    // boundary left the actual mkdir still receiving a literal `~`. Depending on
+    // the process cwd that either fails outright or, worse, quietly succeeds by
+    // creating a directory genuinely named "~" somewhere nobody will look, and
+    // the hive then lives at a path the user cannot find. This is the
+    // "defense-in-depth at the consumers" the expandTilde doc calls for: the
+    // ingestion point normalizes, and the consumer refuses to trust that it did.
+    mkdirSync(expandTilde(path), { recursive: true });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
