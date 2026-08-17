@@ -257,6 +257,10 @@ export function useHive(config: HarnessConfig | null): void {
   // last nudged about. Keyed by id (not count) so an oscillating count after a
   // drain doesn't re-nudge for the same message set.
   const nudged = useRef<Record<string, string>>({});
+  // Per-agent context size at the last auto-/compact queued. See the latch note
+  // in the context-trigger effect: an idle agent's token count is frozen, so
+  // without this the pressure gate re-fires on the identical number every cycle.
+  const lastCompactUsed = useRef<Record<string, number>>({});
   // Per-agent timestamp of the last queued-message we submitted. Guards against
   // re-sending the next message before the agent's hooks have flipped it to
   // 'working' (there's a short window where it still reads 'idle' right after we
@@ -957,6 +961,28 @@ export function useHive(config: HarnessConfig | null): void {
         const verb = command.trimStart().split(/\s+/)[0];
         const queued = messageQueues[a.id] ?? [];
         if (queued.some((m) => m.text.trimStart().startsWith(verb))) continue;
+        // The latch, compact only. `used` reaches this gate from Claude's status
+        // line, which only reports after an API call. A /compact on an agent that
+        // has done nothing since the last one makes no call at all — Claude refuses
+        // it locally with "Not enough messages to compact" — so the count stays
+        // byte-identical and the pressure gate passes on the same number the next
+        // cycle, and the next. Seen in the wild: /compact every hour for 15 straight
+        // hours at exactly 400958 tokens, then 11 more at exactly 221772, each a
+        // no-op the agent still had to read and answer. Higher thresholds make it
+        // rarer, not absent: any agent parked above its bar repeats forever.
+        //
+        // So remember the count at the last compact queued and skip while it is
+        // byte-identical. Deliberately equality and not "hasn't grown": the rule's
+        // thresholds own that decision, and an agent still above them deserves its
+        // /compact whether the count moved up or down. A frozen count is the one
+        // state those thresholds cannot reason about, because nothing they could do
+        // would ever change it. /clear needs no equivalent — the queue drain zeroes
+        // the store reading when it lands.
+        const used = a.contextTokens ?? 0;
+        if (action === 'compact') {
+          if (lastCompactUsed.current[a.id] === used) continue;
+          lastCompactUsed.current[a.id] = used;
+        }
         enqueueMessage(a.id, command);
       }
     };
