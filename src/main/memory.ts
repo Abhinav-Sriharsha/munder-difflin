@@ -56,6 +56,37 @@ export interface MemoryStatus {
 
 const MINE_INTERVAL_MS = 180_000; // re-mine changed memories every 3 min
 const MINE_TIMEOUT_MS = 10 * 60_000; // hard cap per mine (first run downloads the embedding model)
+/** mempalace's device "auto" picks the CoreML execution provider on Apple
+ *  Silicon, and CoreML runs the quantized embeddinggemma ONNX graph partially
+ *  (330/1647 nodes) with fp16 partitions that overflow → EVERY vector comes
+ *  back NaN and chroma rejects every upsert ("Embeddings must not contain NaN
+ *  or Infinity values"), so no memory ever gets indexed. Reproduced + verified
+ *  2026-08-16: same input is NaN under CoreMLExecutionProvider and clean under
+ *  CPU. Pin cpu for BOTH the mine loop and the agents' own `mempalace search`
+ *  (a query embedded to NaN breaks recall the same way).
+ *
+ *  Scope, deliberately macOS-WIDE rather than per-model: the pin costs the
+ *  other model nothing. minilm rides chromadb's ONNXMiniLM_L6_V2, whose model
+ *  build UNCONDITIONALLY removes CoreMLExecutionProvider ("not as well
+ *  optimized as CPU" — chromadb's words), so minilm never runs on CoreML with
+ *  or without this pin; embeddinggemma (mempalace's own ONNX class, no such
+ *  pruning) is the only path that would reach CoreML, and that path is the NaN
+ *  bug. Other platforms keep mempalace's own default ("auto").
+ *
+ *  A user's OWN device choice wins: if MEMPALACE_EMBEDDING_DEVICE is already
+ *  exported we emit nothing, so the inherited value flows through untouched —
+ *  which also leaves a one-command way to reproduce the NaN behaviour
+ *  (`MEMPALACE_EMBEDDING_DEVICE=coreml`). Exported as a function of
+ *  (platform, envOverride) so every branch is reachable from a test on any
+ *  platform — same trick as `buildMissingCliScript`. */
+export function mempalaceDevice(
+  platform: NodeJS.Platform,
+  envOverride: string | undefined
+): string | undefined {
+  if (envOverride) return undefined; // explicit user choice — never override
+  return platform === 'darwin' ? 'cpu' : undefined;
+}
+const MEMPALACE_DEVICE = mempalaceDevice(process.platform, process.env.MEMPALACE_EMBEDDING_DEVICE);
 
 export class MemoryManager {
   private binCache: string | null | undefined;
@@ -139,14 +170,19 @@ export class MemoryManager {
   env(): Record<string, string> {
     const palace = this.palacePath();
     if (!this.active() || !palace) return {};
-    return { MEMPALACE_PALACE_PATH: palace, MEMPALACE_EMBEDDING_MODEL: this.model() };
+    return {
+      MEMPALACE_PALACE_PATH: palace,
+      MEMPALACE_EMBEDDING_MODEL: this.model(),
+      ...(MEMPALACE_DEVICE ? { MEMPALACE_EMBEDDING_DEVICE: MEMPALACE_DEVICE } : {})
+    };
   }
 
   private childEnv(): NodeJS.ProcessEnv {
     return {
       ...process.env,
       MEMPALACE_PALACE_PATH: this.palacePath() ?? '',
-      MEMPALACE_EMBEDDING_MODEL: this.model()
+      MEMPALACE_EMBEDDING_MODEL: this.model(),
+      ...(MEMPALACE_DEVICE ? { MEMPALACE_EMBEDDING_DEVICE: MEMPALACE_DEVICE } : {})
     };
   }
 
