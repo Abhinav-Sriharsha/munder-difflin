@@ -13,7 +13,7 @@ const STATION_BY_TOOL: Record<ToolKind, StationKind> = {
 
 interface ToolSample {
   tool: ToolKind;
-  what: string;            // short — used as the action text and description
+  what: string;            // short — used as the action text
   lines: string[];         // terminal stream output
   thought: string;         // first-person assistant text, streamed in the sidebar
 }
@@ -94,7 +94,6 @@ function stepAgent(agent: Agent) {
     updateAgent(agent.id, {
       status: 'working',
       action: sample.what,
-      description: sample.what,
       carrying: tool,
       progress: Math.min(agent.progress + 1, 8),
       recentAssistantText: sample.thought,

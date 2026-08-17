@@ -5,8 +5,9 @@
  * process commits to (agents never call git — they just write files). See
  * HIVE.md for the full design. Responsibilities:
  *   - per-agent workspace (identity.md, memory.md, inbox/, outbox/, cursor.json)
- *   - a roster (registry.json), shared blackboard (board.md), task ledger,
- *     and an append-only event log (log.jsonl)
+ *   - hive identity (registry.json: id/role/cwd/session — what agents read),
+ *     separate from the UI floor roster (`<harnessHome>/roster.json`)
+ *   - shared blackboard (board.md), task ledger, and an append-only event log (log.jsonl)
  *   - a router that drains each agent's outbox into recipients' inboxes
  *
  * Human-in-the-loop is native to each agent's Claude Code session: permission
@@ -36,6 +37,7 @@ import {
   type AgentProvider
 } from '../shared/agentProvider';
 import { MCP_CATALOG } from '../shared/mcpCatalog';
+import { preferredAgentRole } from '../shared/agentRole';
 import { expandTilde } from './fs';
 
 /** The subset of HarnessConfig the hive consumes for the default-MCP merge.
@@ -548,6 +550,15 @@ export class HiveManager {
     mkdirSync(join(dir, 'inbox', '.done'), { recursive: true });
     mkdirSync(join(dir, 'outbox', '.sent'), { recursive: true });
 
+    // Resolve role BEFORE writing identity.md. A restart passes the floor
+    // roster's `description`, which can be a status caption ("on standby").
+    // identity.md and registry.role are the durable job from the hire.
+    const reg = this.registry();
+    const prev = reg.agents[meta.id];
+    if (meta.cwd) meta = { ...meta, cwd: expandTilde(meta.cwd) };
+    const role = preferredAgentRole(meta.role, prev?.role, !!meta.isGod);
+    meta = { ...meta, role };
+
     const identity = join(dir, 'identity.md');
     writeFileSync(identity, this.identityText(meta), 'utf8'); // refresh on each spawn
 
@@ -570,19 +581,16 @@ export class HiveManager {
     // ensureAgent (which runs before the resume lookup in the pty:spawn handler)
     // would wipe the recorded session id, so `lastSession()` returns undefined and
     // `--resume` is never attached — i.e. every restart starts a fresh thread.
-    const reg = this.registry();
-    const prev = reg.agents[meta.id];
     // Validate the working directory at the source so a bad value is visible on
     // the roster (cwdValid) rather than silently spawning into a nonexistent dir.
     // Store the EXPANDED cwd, never the raw `~/…` the user typed — the registry is
     // read by hooks, the roster and the worker watcher, none of which run a shell.
-    if (meta.cwd) meta = { ...meta, cwd: expandTilde(meta.cwd) };
     const cwd = this.cwdValidity(meta.cwd);
     reg.agents[meta.id] = {
       ...prev,
       ...meta,
-      capabilities: meta.capabilities ?? [],
-      role: meta.role ?? (meta.isGod ? 'orchestrator' : 'agent'),
+      capabilities: meta.capabilities ?? prev?.capabilities ?? [],
+      role,
       status: 'idle',
       cwdValid: cwd.valid,
       // A (re)spawn always means a live terminal — clear any prior archived flag.
@@ -768,6 +776,30 @@ export class HiveManager {
       args.push('--settings', settingsPath);
     }
     return { args, env };
+  }
+
+  /** Update the durable job string (hire role) without respawning. Refreshes
+   *  registry.json + identity.md so the floor editor and the hive stay aligned. */
+  patchAgentRole(id: string, role: string): { ok: boolean; error?: string } {
+    const root = this.root();
+    if (!root) return { ok: false, error: 'hive disabled' };
+    const next = role.trim();
+    if (!next) return { ok: false, error: 'empty role' };
+    try {
+      const reg = this.registry();
+      const agent = reg.agents[id];
+      if (!agent) return { ok: false, error: 'unknown agent' };
+      if (agent.role === next) return { ok: true };
+      agent.role = next;
+      agent.lastSeen = Date.now();
+      this.writeJson(join(root, 'registry.json'), reg);
+      writeFileSync(join(this.agentDir(id), 'identity.md'), this.identityText(agent), 'utf8');
+      this.appendLog({ kind: 'role', agentId: id, role: next });
+      this.commit(`hive: role ${id}`);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
   }
 
   /**

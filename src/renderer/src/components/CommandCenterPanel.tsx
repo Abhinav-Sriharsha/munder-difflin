@@ -16,6 +16,7 @@ import { Icon } from './Icon';
 import { MemoryGraphPanel } from './MemoryGraphPanel';
 import { useFleetTelemetry } from '@/hooks/useTelemetry';
 import { COMMAND_GROUPS } from '@shared/claudeCommands';
+import { roleForHiveSpawn } from '@shared/agentRole';
 import { useStore, triggerHistoryVisible, type Agent } from '@/store/store';
 import { usePtyParser } from '@/hooks/usePtyParser';
 import {
@@ -422,11 +423,15 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
       }
       const command = buildSpawnCommand(cfg, model, provider);
       const [exe, ...args] = tokenizeCommand(command.trim());
-      const hive = a.isGod
-        ? { id: a.id, name: a.name, cwd: a.cwd, provider, isGod: true, role: 'orchestrator (god)' }
-        : a.isAssistant
-        ? { id: a.id, name: a.name, cwd: a.cwd, provider, isAssistant: true, role: "Michael's prep assistant" }
-        : { id: a.id, name: a.name, cwd: a.cwd, provider, role: a.description };
+      const hive = {
+        id: a.id,
+        name: a.name,
+        cwd: a.cwd,
+        provider,
+        isGod: a.isGod,
+        isAssistant: a.isAssistant,
+        role: roleForHiveSpawn(a)
+      };
       const res = await window.cth.spawnPty({
         id: a.ptyId,
         cwd: a.cwd,

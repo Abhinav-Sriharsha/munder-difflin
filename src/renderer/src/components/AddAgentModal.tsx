@@ -118,7 +118,7 @@ const SECTIONS: { key: SectionKey; label: string; hint: string }[] = [
   { key: 'identity',  label: 'Identity',  hint: 'name · character · color' },
   { key: 'workspace', label: 'Workspace', hint: 'folder · isolation · resume' },
   { key: 'engine',    label: 'Engine',    hint: 'provider · model · command' },
-  { key: 'briefing',  label: 'Briefing',  hint: 'description · goal' }
+  { key: 'briefing',  label: 'Briefing',  hint: 'role · goal' }
 ];
 
 function basename(path: string): string {
@@ -930,11 +930,11 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                       </div>
                     </Row>
 
-                    <Row label="Description">
+                    <Row label="Role">
                       <input
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        placeholder="what is this agent for"
+                        placeholder="job — what this agent is for, not live status"
                         style={inputStyle}
                       />
                     </Row>
