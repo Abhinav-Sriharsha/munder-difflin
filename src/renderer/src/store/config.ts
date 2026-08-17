@@ -276,8 +276,8 @@ export const COPILOT_MODELS: ModelOption[] = [
   { id: 'gpt-5', label: 'GPT-5' }
 ];
 
-/** Models offered when an agent runs on Cursor Agent CLI (`agent`). Ids match
- *  `agent models` / `--model` (Cursor account catalog). Luna is the cheap,
+/** Models offered when an agent runs on Cursor Agent CLI (`cursor-agent`). Ids match
+ *  `cursor-agent models` / `--model` (Cursor account catalog). Luna is the cheap,
  *  high-context default for Michael; other entries are curated quick-picks —
  *  the command field stays editable for any live slug. */
 export const CURSOR_MODELS: ModelOption[] = [

@@ -467,16 +467,17 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     docsUrl: 'https://docs.github.com/copilot/concepts/agents/about-copilot-cli'
   },
   {
-    // Cursor Agent CLI (`agent`, https://cursor.com/docs/cli). Interactive TUI by
-    // default (no `-p`), so the session stays alive for hive mail via the renderer
-    // idle / work-order path — same class as Crush. Print mode (`agent -p`) is
+    // Cursor Agent CLI (`cursor-agent`, https://cursor.com/docs/cli). The official
+    // installer puts `cursor-agent` on PATH; `agent` is a shorter alias. Interactive
+    // TUI by default (no `-p`), so the session stays alive for hive mail via the
+    // renderer idle / work-order path — same class as Crush. Print mode (`-p`) is
     // available for scripts but exits per turn; this preset intentionally does
     // NOT use `-p` so Michael and workers remain god-eligible / inbox-capable.
     // Models (including cheap gpt-5.6-luna-*) bill against Cursor credits via the
     // logged-in CLI — there is no separate "plain OpenAI API" path for Luna.
     id: 'cursor',
     label: 'Cursor',
-    defaultCommand: 'agent',
+    defaultCommand: 'cursor-agent',
     commandGroups: [],
     // --force/--yolo: allow tool calls without confirmations. --trust: skip the
     // workspace trust prompt so unattended Mac Mini spawns do not stall. Gated by
@@ -489,7 +490,7 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     // No Cursor hook bridge yet — mail delivery uses the terminal work-order /
     // idle-nudge fallback (same honesty as Crush before its proxy is verified).
     canReceiveInbox: true,
-    // `agent` parses early argv as Cobra-style commands (login, models, mcp, …).
+    // `cursor-agent` parses early argv as Cobra-style commands (login, models, mcp, …).
     // A long hive protocol string must NOT ride as a positional — type it into
     // the TUI after boot instead (Crush pattern).
     initialPromptFlag: undefined,
@@ -580,8 +581,9 @@ export function inferAgentProvider(command: string | undefined, explicit?: unkno
   if (bin === 'crush') return 'crush';
   if (bin === 'pi') return 'pi';
   if (bin === 'copilot') return 'copilot';
-  // Cursor ships as `agent` (and sometimes `cursor-agent` on older installs).
-  if (bin === 'agent' || bin === 'cursor-agent') return 'cursor';
+  // Cursor ships as `cursor-agent`; `agent` is a shorter alias (generic name — check last).
+  if (bin === 'cursor-agent') return 'cursor';
+  if (bin === 'agent') return 'cursor';
   if (bin === 'claude' || !bin) return 'claude';
   return 'custom';
 }
