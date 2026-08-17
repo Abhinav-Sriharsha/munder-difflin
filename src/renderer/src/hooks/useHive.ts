@@ -253,10 +253,20 @@ function passesContextPressure(a: Agent, rule: ContextRule): boolean {
  *      doesn't stall while an agent sits at its prompt.
  */
 export function useHive(config: HarnessConfig | null): void {
-  // Per-agent dedup key for the inbox-wake nudge: the newest inbox message id we
-  // last nudged about. Keyed by id (not count) so an oscillating count after a
-  // drain doesn't re-nudge for the same message set.
-  const nudged = useRef<Record<string, string>>({});
+  // Per-agent dedup for the inbox-wake nudge: every inbox message id we have
+  // already nudged this agent about. A SET, not a high-water mark.
+  //
+  // This used to hold one string — the lexicographically largest id in the inbox,
+  // read as "the newest". Message ids are usually `<timestamp>-<rand>`, so that
+  // held, but an agent may set its own `id` in the outbox JSON and the hive keeps
+  // it verbatim (hive.ts normalize: `partial.id ?? ...`). One such id in god's
+  // inbox — `dev15-progress-canvas-v4` — sorts above EVERY `2026-*` timestamp and
+  // never drains, so the "newest" id was frozen on it: Michael was nudged once per
+  // app launch and then never again, however much real mail piled up behind it.
+  // Tracking the ids we have seen has no such ordering assumption, and it keeps
+  // the property the high-water mark was there for — a set that only shrinks as
+  // messages drain contains nothing new, so it does not re-nudge.
+  const nudged = useRef<Record<string, Set<string>>>({});
   // Per-agent context size at the last auto-/compact queued. See the latch note
   // in the context-trigger effect: an idle agent's token count is frozen, so
   // without this the pressure gate re-fires on the identical number every cycle.
@@ -607,19 +617,17 @@ export function useHive(config: HarnessConfig | null): void {
       for (const a of agents) {
         try {
           const inbox = await window.cth.hiveInbox(a.id);
-          // Dedup by the newest message id, not the count — a count can oscillate
-          // as messages drain and re-arrive, which would re-nudge for the same set.
-          const newest = inbox.length
-            ? inbox.map((m) => m.id).sort().slice(-1)[0]
-            : '';
-          if (newest && nudged.current[a.id] !== newest) {
+          // Nudge on any id we have not nudged for yet. Draining shrinks the set
+          // and introduces nothing new, so it stays quiet; a genuinely new message
+          // fires regardless of how its id happens to sort.
+          const seen = nudged.current[a.id] ?? (nudged.current[a.id] = new Set());
+          const fresh = inbox.filter((m) => m.id && !seen.has(m.id));
+          if (fresh.length) {
             useStore.getState().enqueueMessage(
               a.id,
               'You have new hive inbox message(s) — read your inbox, act on them now, and move handled ones to inbox/.done/. Act autonomously; only message god if you genuinely need a decision.'
             );
-            nudged.current[a.id] = newest;
-          } else if (!newest) {
-            nudged.current[a.id] = '';
+            for (const m of fresh) seen.add(m.id);
           }
         } catch { /* ignore */ }
       }
