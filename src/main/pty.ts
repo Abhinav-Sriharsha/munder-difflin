@@ -327,21 +327,40 @@ export class PtyManager {
           ? buildCmdCommandLine(resolved, opts.args ?? [])
           : (opts.args ?? []);
       }
+      const childEnv = {
+        ...process.env,
+        PATH: userPath,
+        TERM: 'xterm-256color',
+        COLORTERM: 'truecolor',
+        // Help apps that look for a real interactive shell
+        FORCE_COLOR: '1',
+        // Per-agent hive identity (AGENT_ID, HIVE_ROOT, …) when provided.
+        ...(opts.env ?? {})
+      } as Record<string, string>;
+      // The app itself is often launched from INSIDE a Claude Code session
+      // (`npm run dev` typed into a claude terminal), so that session's
+      // identity markers arrive via process.env and would flow into every
+      // agent CLI. CLAUDE_CODE_CHILD_SESSION makes the agent believe it is a
+      // child session and silently DISABLES transcript saving ("Transcript
+      // saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker"), which
+      // breaks --resume for every agent of that run: their sessions never
+      // reach disk (bit us live 2026-08-16/17 — no worker transcript ever
+      // existed). The session id / messaging socket+token likewise belong to
+      // the PARENT session, never to a fresh agent. Agents are top-level
+      // sessions regardless of how the app was launched.
+      for (const k of [
+        'CLAUDE_CODE_CHILD_SESSION',
+        'CLAUDE_CODE_SESSION_ID',
+        'CLAUDE_PID',
+        'CLAUDE_CODE_MESSAGING_SOCKET',
+        'CLAUDE_CODE_MESSAGING_TOKEN'
+      ]) delete childEnv[k];
       const proc = pty.spawn(file, spawnArgs, {
         name: 'xterm-256color',
         cols: opts.cols ?? 100,
         rows: opts.rows ?? 30,
         cwd: opts.cwd,
-        env: {
-          ...process.env,
-          PATH: userPath,
-          TERM: 'xterm-256color',
-          COLORTERM: 'truecolor',
-          // Help apps that look for a real interactive shell
-          FORCE_COLOR: '1',
-          // Per-agent hive identity (AGENT_ID, HIVE_ROOT, …) when provided.
-          ...(opts.env ?? {})
-        } as Record<string, string>
+        env: childEnv
       });
 
       // Capture THIS session object so the proc's callbacks can tell whether the
