@@ -264,8 +264,15 @@ export function useHive(config: HarnessConfig | null): void {
   // never drains, so the "newest" id was frozen on it: Michael was nudged once per
   // app launch and then never again, however much real mail piled up behind it.
   // Tracking the ids we have seen has no such ordering assumption, and it keeps
-  // the property the high-water mark was there for — a set that only shrinks as
-  // messages drain contains nothing new, so it does not re-nudge.
+  // the property the high-water mark was there for: draining removes ids from the
+  // INBOX without adding anything new, so a drain still produces no nudge.
+  //
+  // Note what this set does NOT do: it never shrinks. Ids accumulate for the life
+  // of the window (a restart clears it), because forgetting an id we have already
+  // nudged for would re-nudge the moment that message reappeared in a listing. The
+  // cost is a few tens of bytes per message, which for a 24/7 floor is real but
+  // negligible next to a stalled agent. Evicting ids that have left the inbox would
+  // bound it exactly; deliberately not done here to keep this fix minimal.
   const nudged = useRef<Record<string, Set<string>>>({});
   // Per-agent context size at the last auto-/compact queued. See the latch note
   // in the context-trigger effect: an idle agent's token count is frozen, so

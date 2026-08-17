@@ -49,3 +49,46 @@ test('the expanded path is what fs can actually stat — the original bug', () =
   assert.equal(path.isAbsolute(expanded), true);
   assert.equal(fs.existsSync(expanded), true);
 });
+
+/* ------------------------------------------------------------------ *
+ * #140 — the hive home was the one path that never got expanded.
+ * Onboarding suggests `~/HarnessAgents`; accepting that default persisted a
+ * literal `~`, and Finish then died on `mkdir '~/HarnessAgents'` (ENOENT),
+ * wedging the wizard on its last step with the UI pushed off-screen.
+ * ------------------------------------------------------------------ */
+
+const { normalizeHiveHome } = loadTs('src/main/fs.ts');
+
+test('#140: the suggested default is expanded, not persisted literally', () => {
+  const { home } = normalizeHiveHome('~/HarnessAgents');
+  assert.equal(home, path.join(HOME, 'HarnessAgents'));
+  assert.ok(!home.includes('~'), 'a literal ~ is what mkdir choked on');
+  assert.ok(path.isAbsolute(home), 'every downstream reader needs an absolute path');
+});
+
+test('#140: the new home leads the recent list exactly once', () => {
+  const { recentHives } = normalizeHiveHome('~/HarnessAgents', ['/other/hive']);
+  assert.deepEqual(recentHives, [path.join(HOME, 'HarnessAgents'), '/other/hive']);
+});
+
+test('#140: stale `~` entries already on disk are normalized too', () => {
+  // Without this the launch picker could hand a pre-fix `~/…` string straight
+  // back and reintroduce the identical mkdir failure.
+  const { recentHives } = normalizeHiveHome('/now/here', ['~/HarnessAgents']);
+  assert.deepEqual(recentHives, ['/now/here', path.join(HOME, 'HarnessAgents')]);
+});
+
+test('#140: the same home written twice does not duplicate', () => {
+  const { recentHives } = normalizeHiveHome('~/HarnessAgents', [
+    path.join(HOME, 'HarnessAgents'), // same place, already absolute
+    '~/HarnessAgents'                 // and again, unexpanded
+  ]);
+  assert.deepEqual(recentHives, [path.join(HOME, 'HarnessAgents')]);
+});
+
+test('#140: the recent list stays capped and skips blanks', () => {
+  const prior = Array.from({ length: 20 }, (_, i) => `/hive/${i}`);
+  const { recentHives } = normalizeHiveHome('/hive/new', ['', '   ', ...prior]);
+  assert.equal(recentHives.length, 8);
+  assert.equal(recentHives[0], '/hive/new');
+});
