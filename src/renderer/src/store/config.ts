@@ -320,16 +320,11 @@ export const KIMI_MODELS: ModelOption[] = [
   { id: 'kimi-code/kimi-for-coding-highspeed', label: 'Kimi K2.7 · HighSpeed' }
 ];
 
-/** Split a command string into argv, respecting double/single quotes so a model
- *  value with spaces (agy's `--model "Gemini 3.1 Pro (High)"`) stays one token.
- *  Quotes are stripped from the result. */
-export function tokenizeCommand(command: string): string[] {
-  const out: string[] = [];
-  const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(command)) !== null) out.push(m[1] ?? m[2] ?? m[3]);
-  return out;
-}
+// tokenizeCommand moved to src/shared/commandLine.ts so main's spawn-request
+// path splits command lines with the SAME rules as the renderer's spawn flows
+// (they used to carry byte-identical copies). Re-exported here so existing
+// importers keep their path.
+export { tokenizeCommand } from '@shared/commandLine';
 
 /** The model preset list for a given provider's picker. */
 export function modelsForProvider(provider: AgentProvider): ModelOption[] {
