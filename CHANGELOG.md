@@ -4,67 +4,85 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.4] — 2026-08-17
+## [0.4.4] — 2026-08-18
 
-**Windows agents can finally talk to each other.**
-The headline is a bug that made the core product silently not work on the platform that accounts for
-roughly half of all downloads. Behind it: the first-run setup blocker, a terminal copy that returned
-mangled text, and the update notification learning to say what actually changed.
+**Windows agents can finally talk to each other** — and the first run stops silently failing.
+Two bugs made the core product not work on the platform that accounts for roughly half of all
+downloads, and a third meant a brand-new install never started the services that carry messages
+between agents. Alongside them: a rebuilt dark mode, a Skills browser, a Prerequisites page, and
+release notes that can carry their own designed page.
 
 ### Fixed
-- **Agent-to-agent messaging was completely broken on Windows.** The hive protocol reaches an agent
-  as a command-line argument, and on Windows any CLI that isn't a `.exe` — which is every
-  npm-installed engine, including `claude.cmd` — was launched through `cmd.exe`. `cmd.exe` treats a
-  newline as a statement separator and `(`/`)` as block delimiters, so the ~6,100-character,
-  multi-line prompt was truncated at its first newline. The agent booted, rendered and looked
-  healthy, but never received the block naming its `inbox/` and `outbox/` — so it never wrote mail
-  and no agent ever heard from another. Prompt-carrying spawns now resolve the npm shim and launch
-  its real interpreter with an argument array, so the whole prompt survives; any shim shape we
-  cannot decode falls back to the previous behaviour rather than failing. Claude Code appeared to
-  work only because its native `claude.exe` bypassed `cmd.exe` entirely. Not the socket — the hive
-  has branched to named pipes since 0.1.9, and message routing is filesystem polling regardless.
-- **The setup wizard could not be finished** if you accepted the folder it suggested. `~/HarnessAgents`
-  was persisted with a literal `~`, and Node's `mkdir` has no concept of the shell's `~`, so Finish
-  died with `ENOENT: no such file or directory, mkdir '~/HarnessAgents'` and left the wizard wedged
-  with the interface pushed off-screen. Registered projects had been expanded for exactly this reason
-  since 0.3.6; the hive home sat directly below them and never was. ([#140](https://github.com/chaitanyagiri/munder-difflin/issues/140))
-- **Copying from a terminal returned the wrong text, mis-encoded.** The stock Edit menu owned the ⌘C
-  key equivalent, and macOS dispatches menu shortcuts before the page — so the terminal's own copy
-  never ran. Chromium's generic copy took the DOM selection (xterm's hidden accessibility textarea,
-  not the visible grid) and wrote a legacy pasteboard flavor holding UTF-8 bytes labelled as Mac OS
-  Roman, which is why an em dash pasted as `‚Äî`.
-- **Agent terminals ran with no locale.** A Finder-launched app inherits none, so every CLI an agent
-  spawned reported `charmap=US-ASCII` and any locale-aware tool mishandled non-English text.
-- **Windows agents were given instructions they could not run** — the protocol emitted POSIX
-  `$HIVE_NODE`/`$KG_CLI` shell variables and `/`-joined paths. Both are now absolute and native.
-- A task card could be wiped when two writers edited the board at once; idle agents were asked to
-  compact every hour forever; "Restart & Continue" failed on an agent that had already died; one
-  unusually-named message id could silence an agent's inbox nudge permanently; transcripts could be
-  seeded into the shared projects root; the OpenCode plugin was written to only one of two possible
-  directory names.
+
+- **Agent-to-agent messaging on Windows.** The hive protocol reaches an agent as a multi-line
+  command-line argument. A `.cmd` cannot go to `CreateProcess`, so any non-`.exe` target ran via
+  `cmd.exe /d /s /c "…"`, and cmd.exe cuts an argument at its first newline — taking the block
+  that names `inbox/` and `outbox/` with it. Agents booted, rendered, looked healthy, and had no
+  idea they could message anyone. Prompt-carrying spawns now decode the npm shim and launch its
+  real interpreter with an argv array; anything undecodable falls back to the previous behaviour.
+- **Windows OpenCode specifically.** `opencode-ai`'s bin is a compiled binary, so npm writes an
+  interpreter-less shim that the first fix did not model — it returned null for every Windows
+  OpenCode install and fell back to the truncating path. Direct-executable shims are now handled,
+  and the previously silent fallback logs the target it could not decode.
+- **A fresh install never started its hive services.** `bootstrapHiveServices()` early-returns
+  while `harnessHome` is null, which is exactly the state a first run boots in; onboarding then
+  set the home without re-bootstrapping. The message router, hook server, telemetry collector and
+  mission scheduler stayed dead for the whole session — mail never moved and agents never
+  reported. Now bootstrapped on the `null → set` transition.
+- **The setup wizard could not be finished.** `~/HarnessAgents` persisted with a literal `~` and
+  died on `ENOENT: mkdir`; the folder field also never pre-filled, because it read
+  `window.process.env.HOME`, which is always undefined under `contextIsolation`. An empty folder
+  now fails at step one instead of after step four, and the panel no longer overflows a short
+  screen.
+- **"Restart & Continue" had nothing to resume.** The live session id is now recorded from a
+  second source, so continuing works even when a hook never lands.
+- **Dark mode was unreadable in a specific way.** `ink-300` measured 1.73–2.09:1 against every
+  surface, and it is the structural token — 187 uses, 93 as 1px borders — so every control's edge
+  was invisible and the UI read as flat grey. Now 3.4–4.0:1, on a softer ground with warm
+  off-white text. The selected Command Center tab measured 1.55–1.87:1 (near-white on a light
+  accent); a new `--cth-on-accent` token takes it to 7.0–8.5:1.
+- **OpenCode ran a model you might not own.** It preselected a BYOK slug and silently fell back
+  when the key was absent, while every surface kept reporting the model it had asked for.
+- Terminal copy strips the CLI's quote rail and agent terminals run in UTF-8; dictation pastes
+  what was just said; task-ledger mutations are atomic; a frozen context reading no longer
+  re-fires `/compact` hourly; one odd message id no longer silences an agent's wake nudge; the
+  cost ledger stays out of the hive's git history; a root cwd no longer resolves to the projects
+  directory; the office floor stops rendering when nobody is looking at it.
+- Agent selection is visible on every card including Michael's — it used to be drawn in each
+  agent's own accent and was invisible on the one card that was always framed.
 
 ### Added
-- **The update notification says what's new.** It previously announced a version number and nothing
-  else. It now shows a short digest parsed from the release notes it was already downloading, plus
-  links to read more and to star the project. No new network request and no new endpoint — the
-  release body was already being fetched, and the privacy contract in
-  [TELEMETRY.md](TELEMETRY.md) is unchanged. The star ask appears at most once, ever.
-- **Images open in the IDE.** A `.png` used to produce a tab reading "binary file (not displayable)".
-  Screenshots, design assets and SVGs now render, with fit/actual-size and a view-source toggle for
-  SVG. Markdown previews render embedded local screenshots too, so an agent's report finally shows
-  its evidence. Remote image URLs stay blocked.
-- **The IDE names the agent whose workspace is open**, not just the folder — and says so honestly
-  when it had to infer which agent that is.
-- **The IDE points at the shortcuts it already had** — ⌘F find, ⌘⌥F replace, F1 command palette,
-  ⌃G go to line, ⇧⌘O go to symbol. (Repository-wide search is not included: Monaco ships in-file
-  find only, and a workspace search is a separate build.)
+
+- **Skills** — installed skills across Claude Code, OpenCode and Codex with scope precedence,
+  plus a browsable catalog of 227 with search, category and publisher filters, install and
+  uninstall. Installs are bounded and containment-checked; uninstall refuses anything that is not
+  a `SKILL.md` folder inside a managed root.
+- **Prerequisites** (Settings) — live status for uv, git, Node, MemPalace and every agent engine,
+  with real paths, platform-correct install commands, and a button that asks Michael to fill the
+  gaps.
+- **Release drops** — a release body can carry an authored HTML page, rendered in a sandboxed
+  iframe (`sandbox=""` + `default-src 'none'`) as a centered modal.
+- **Settings hero card** — version, plan, sponsor and a way to reopen the release notes, with its
+  contents fetched from `docs/hero.json` so they can change without a build.
+- IDE image preview (PNG/SVG/markdown embeds), agent-named title, real shortcut hints.
+- The update notification says what changed, and asks for a star at most once ever.
 - Grok 4.6 in the model picker.
+- Dictation setup guidance behind an info mark on the voice button, including that Groq is free.
+- `pause` and `halt` explain what they do on hover.
+- Fullscreen gained `open` (terminal at the agent's cwd) and `✕` (end + archive), and its roster
+  cards now show model, project and a context gauge.
 
 ### Changed
-- The office floor stops rendering while a fullscreen terminal or file is covering it, instead of
-  animating a scene nobody can see.
-- The hive's own git repo no longer versions the append-only cost ledger, which had grown a
-  multi-gigabyte history and could exhaust memory during `gc`.
+
+- One card size for every agent; Michael is distinguished by surface, not by a heavier border.
+- Command Center tabs wrap when docked and scroll in fullscreen; the `commands` tab was removed.
+- Prerequisites moved out of the Command Center into Settings — it is machine-wide state, not
+  something about the agent whose terminal you are reading.
+
+### Thanks
+
+Community fixes in this release: [@gts-47](https://github.com/gts-47) (#129, #130,
+#131, #132, #133, #134, #143, #144) and [@baziyer](https://github.com/baziyer) (#142).
 
 ## [0.4.3] — 2026-08-13
 
