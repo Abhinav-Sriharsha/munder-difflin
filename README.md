@@ -1,14 +1,15 @@
 <div align="center">
 
-<img src="./docs/logo.png" alt="Munder Difflin Inc — Multi-Agent Harness" width="340">
+<img src="./docs/logo.png" alt="Munder Difflin — agent harness to run an office of your clones" width="340">
 
 # Munder Difflin
 
-### Clones for you and your team, working 24/7
+### Agent harness to run an office of your clones
 
-**Free, open source and local-first.** Munder Difflin turns the terminal coding CLI you already
-run into a clone of you — one that keeps working while you're away, and coordinates a whole
-office of agents on your machine.
+**Free, open source and performant** — a multi-agent harness that works with the
+subscriptions you already pay for, on their hourly limits. It turns the terminal coding CLI
+you already run into a clone of you, one that keeps working while you're away and
+coordinates a whole office of agents on your own machine.
 
 Wraps [Claude Code](https://claude.com/claude-code), Antigravity (Gemini), OpenAI Codex,
 **xAI Grok**, **Kimi Code**, **Qwen**, **OpenCode**, **Crush**, **pi.dev**, and
