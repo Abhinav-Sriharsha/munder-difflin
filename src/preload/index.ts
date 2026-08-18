@@ -901,8 +901,13 @@ const api = {
    *  links, links that arrived during load). Resolves the queued list. */
   drainPendingHires: (): Promise<HireManifest[]> =>
     ipcRenderer.invoke('hire:drainPending'),
-  /** Open a file picker and validate the chosen hire-manifest JSON. */
-  importHireFile: (): Promise<{ ok: boolean; manifest?: HireManifest; error?: string }> =>
+  /** Open a multi-file picker and validate every selected hire manifest. */
+  importHireFiles: (): Promise<{
+    ok: boolean;
+    manifests: HireManifest[];
+    errors: string[];
+    error?: string;
+  }> =>
     ipcRenderer.invoke('hire:openFile'),
 
   // ─── Quit confirmation ───────────────────────────────────────────────────

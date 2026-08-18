@@ -8,6 +8,7 @@ import { useStore, type Agent } from '@/store/store';
 import { OFFICE_CAST, DEFAULT_CHARACTER, type OfficeCharacterName } from '@/scene/office/cast';
 import { type AccentColorName } from '@/design/tokens';
 import type { HireManifest } from '@shared/hire';
+import { hireQueueProgress } from '@shared/hireQueue';
 import { MCP_CATALOG } from '@shared/mcpCatalog';
 import {
   OSS_LOCAL_PICKS,
@@ -139,9 +140,13 @@ export interface AddAgentModalProps {
 
 export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModalProps) {
   const addAgent = useStore(s => s.addAgent);
-  // A validated hire manifest (deep link / file import) seeds the form. Manifests
-  // NEVER auto-spawn — the human reviews every field (esp. the command) first.
-  const pendingHire = useStore(s => s.pendingHire);
+  // Deep links and file batches share one FIFO. The head alone seeds the form;
+  // every item still requires an explicit spawn or skip.
+  const hireQueue = useStore(s => s.hireQueue);
+  const enqueuePendingHires = useStore(s => s.enqueuePendingHires);
+  const finishPendingHire = useStore(s => s.finishPendingHire);
+  const pendingHire = hireQueue.pending[0];
+  const reviewProgress = hireQueueProgress(hireQueue);
 
   const knownCharacter = (c?: string): OfficeCharacterName =>
     (OFFICE_CAST.some(m => m.name === c) ? (c as OfficeCharacterName) : DEFAULT_CHARACTER);
@@ -298,19 +303,52 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
     setName(m.name);
     setCharacter(knownCharacter(m.character));
     setAccent(knownAccent(m.accent));
-    if (m.provider) setProvider(m.provider);
+    setProvider(m.provider ?? initialProvider);
     setModel(m.model);
     setCommand(hireCommand(m));
-    if (m.description) setDescription(m.description);
+    setDescription(m.description ?? 'a fresh harness');
     setGoal(m.goal ?? '');
     setIsolate(m.isolate ?? false);
+    setResumeSessionId('');
+    setFolderNote(undefined);
+    setSection('identity');
+  };
+
+  // Advancing a batch keeps this modal mounted. Re-seed every form field when
+  // the queue head changes so edits made while reviewing one hire cannot leak
+  // into the next.
+  useEffect(() => {
+    if (pendingHire) applyManifest(pendingHire);
+  // applyManifest intentionally closes over the config snapshot used by this
+  // open modal; queue advances do not replace that snapshot.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingHire]);
+
+  const advanceHireReview = () => {
+    const next = hireQueue.pending[1];
+    // Seed the next manifest in the same React update as the queue advance, so
+    // the banner/progress can never paint with the previous hire's edited form.
+    if (next) applyManifest(next);
+    finishPendingHire();
+    if (!next) onClose();
   };
 
   const importHire = async () => {
     setError(undefined);
-    const res = await window.cth.importHireFile();
-    if (res.ok && res.manifest) applyManifest(res.manifest);
-    else if (res.error && res.error !== 'cancelled') setError(res.error);
+    const res = await window.cth.importHireFiles();
+    if (res.manifests.length > 0) enqueuePendingHires(res.manifests);
+    if (res.errors.length > 0) {
+      const noun = res.errors.length === 1 ? 'file' : 'files';
+      setError(`Skipped ${res.errors.length} invalid ${noun}: ${res.errors.join(' · ')}`);
+    } else if (!res.ok && res.error && res.error !== 'cancelled') {
+      setError(res.error);
+    }
+  };
+
+  const skipHire = () => {
+    if (!pendingHire) return;
+    setError(undefined);
+    advanceHireReview();
   };
 
   const submit = async () => {
@@ -412,7 +450,11 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
         .catch(() => { /* best-effort */ });
     }
     setBusy(false);
-    onClose();
+    if (pendingHire) {
+      advanceHireReview();
+    } else {
+      onClose();
+    }
   };
 
   return (
@@ -453,6 +495,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                 <span>
                   📋 hire imported: <strong>{hireMeta.name}</strong>
                   {hireMeta.author ? <> · by {hireMeta.author}</> : null}
+                  {reviewProgress ? <> · hire {reviewProgress.current} of {reviewProgress.total}</> : null}
                 </span>
                 <span>review every field — especially the command — before spawning.</span>
                 {hireMeta.commandFlags && hireMeta.commandFlags.length > 0 && (
@@ -1018,10 +1061,19 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
             </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-              <PixelButton variant="secondary" size="md" onClick={importHire} disabled={busy} title="Import a hire manifest (.json)">
-                import hire…
+              <PixelButton
+                variant="secondary"
+                size="md"
+                onClick={importHire}
+                disabled={busy}
+                title="Import one or more hire manifests (.json)"
+              >
+                import hires…
               </PixelButton>
               <div style={{ flex: 1 }} />
+              {pendingHire && (
+                <PixelButton variant="secondary" size="md" onClick={skipHire} disabled={busy}>skip hire</PixelButton>
+              )}
               <PixelButton variant="ghost" size="md" onClick={onClose} disabled={busy}>cancel</PixelButton>
               <PixelButton variant="primary" size="md" onClick={submit} disabled={busy}>
                 {busy ? 'spawning...' : 'spawn'}
