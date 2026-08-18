@@ -438,16 +438,19 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
     // hires land in the same project without re-picking.
     if (spawnedCwd && repos[0] !== spawnedCwd) {
       const nextRepos = [spawnedCwd, ...repos.filter((r) => r !== spawnedCwd && r !== cwd)];
-      void window.cth.updateConfig({ registeredRepos: nextRepos })
-        .then((updated) => onConfigChange?.(updated))
-        .catch(() => { /* best-effort */ });
+      try {
+        const updated = await window.cth.updateConfig({ registeredRepos: nextRepos });
+        onConfigChange?.(updated);
+      } catch { /* best-effort */ }
     }
     // A hire manifest may carry a per-agent token budget — apply it to the
-    // same agentTokenCaps map the Command Center card writes.
+    // latest agentTokenCaps map in main. Await it before advancing a batch: the
+    // next hire reuses this mounted modal and must not race a stale config write.
     if (hireMeta?.tokenCap) {
-      void window.cth
-        .updateConfig({ agentTokenCaps: { ...(config.agentTokenCaps ?? {}), [id]: hireMeta.tokenCap } })
-        .catch(() => { /* best-effort */ });
+      try {
+        const updated = await window.cth.setAgentTokenCap(id, hireMeta.tokenCap);
+        onConfigChange?.(updated);
+      } catch { /* best-effort */ }
     }
     setBusy(false);
     if (pendingHire) {

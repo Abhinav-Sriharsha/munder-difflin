@@ -75,3 +75,19 @@ test('review UI exposes progress and an explicit skip without auto-spawn', () =>
   assert.match(importFlow, /enqueuePendingHires\(res\.manifests\)/);
   assert.doesNotMatch(importFlow, /spawnPty/);
 });
+
+test('batch token caps persist atomically before review advances', () => {
+  const modal = readFileSync('src/renderer/src/components/AddAgentModal.tsx', 'utf8');
+  const start = modal.indexOf('const submit = async');
+  const end = modal.indexOf('\n  return (', start);
+  const submitFlow = modal.slice(start, end);
+  const persistCap = submitFlow.indexOf('await window.cth.setAgentTokenCap');
+  const advance = submitFlow.indexOf('advanceHireReview()');
+
+  assert.ok(persistCap >= 0, 'submit must use the atomic single-agent config IPC');
+  assert.ok(advance > persistCap, 'the current cap must persist before the batch advances');
+  assert.match(submitFlow.slice(persistCap, advance), /onConfigChange\?\.\(updated\)/,
+    'the latest config must be returned to App before the next review');
+  assert.doesNotMatch(submitFlow, /agentTokenCaps:\s*\{\s*\.\.\.\(config\.agentTokenCaps/,
+    'renderer must never replace the cap map from a stale config snapshot');
+});

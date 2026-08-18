@@ -618,6 +618,31 @@ export function writeConfig(patch: Partial<HarnessConfig>): HarnessConfig {
   return persistConfig(next);
 }
 
+/** Persist one agent's token ceiling against the latest config on disk.
+ *
+ * Renderer config objects are snapshots. Replacing `agentTokenCaps` from one of
+ * those snapshots loses caps written since the snapshot was read (most visibly
+ * while reviewing a batch of imported hires). Keep the read-modify-write in the
+ * synchronous main process so each call merges with the result of the previous
+ * one before returning the updated config to the renderer. */
+export function setAgentTokenCap(agentId: unknown, tokenCap: unknown): HarnessConfig {
+  if (
+    typeof agentId !== 'string'
+    || agentId.trim().length === 0
+    || typeof tokenCap !== 'number'
+    || !Number.isInteger(tokenCap)
+    || tokenCap <= 0
+    || tokenCap > 1e10
+  ) {
+    throw new Error('invalid agent token cap');
+  }
+  const current = readConfig();
+  return persistConfig({
+    ...current,
+    agentTokenCaps: { ...(current.agentTokenCaps ?? {}), [agentId]: tokenCap }
+  });
+}
+
 /** Wipe the persisted config back to first-run defaults so the app boots into
  *  onboarding again. Used by the "reset & start over" flow. */
 export function resetConfig(): HarnessConfig {
