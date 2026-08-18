@@ -37,6 +37,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { summarizeReleaseNotes } from '@shared/releaseNotes';
+import { extractDropHtml } from '@shared/releaseDrop';
+import { ReleaseDrop } from '@/components/ReleaseDrop';
 import type { UpdateStatus } from '@shared/updateState';
 
 /** The toast is the LOUD half — it only interrupts for the two states a user has
@@ -95,11 +97,41 @@ export function UpdateToast() {
     if (t) setStatus(t);
   }), []);
 
+  // Settings' hero card asks to re-open the release notes. This surface owns the
+  // last status and the drop renderer, so it answers rather than duplicating
+  // either. `updateCurrent()` is used instead of the remembered state because
+  // "later" clears the local copy while main still holds it — dismissing a
+  // release must not make it unreadable afterwards. With genuinely nothing to
+  // show (a dev build, or an install already on the newest release) the honest
+  // answer is the releases page, not an empty modal.
+  useEffect(() => {
+    const onShow = async () => {
+      try {
+        const cur = await window.cth.updateCurrent();
+        const t = toastable(cur);
+        if (t) { setStatus(t); return; }
+      } catch { /* fall through to the page */ }
+      void window.cth.updateOpenRelease();
+    };
+    window.addEventListener('cth:show-release-notes', onShow);
+    return () => window.removeEventListener('cth:show-release-notes', onShow);
+  }, []);
+
   const notes = useMemo(() => summarizeReleaseNotes(status?.notes), [status?.notes]);
+  /** An authored <!-- drop --> block in the release body upgrades this whole
+   *  moment from a corner toast to a centered release page. Absent (every
+   *  release published so far), everything below behaves exactly as before —
+   *  the digest path stays the default, not a fallback nobody exercises. */
+  const dropHtml = useMemo(() => extractDropHtml(status?.notes), [status?.notes]);
   const version = status?.version ?? null;
   // Shown = spent. Not "clicked" — an ask the user read and ignored is an
   // answer too, and asking again next release is exactly what rule 3 forbids.
-  const showStar = starAsk && notes.length > 0 && (starSpentOn === null || starSpentOn === version);
+  // `notes.length > 0` was standing in for "this toast has something to show".
+  // A drop-only release body digests to zero bullets while being the richest
+  // release page we ship, so it has to count too — otherwise the star ask
+  // silently disappears on exactly the releases most worth starring.
+  const showStar = starAsk && (notes.length > 0 || !!dropHtml)
+    && (starSpentOn === null || starSpentOn === version);
   useEffect(() => {
     if (showStar && version && starSpentOn === null) {
       setStarSpentOn(version);
@@ -122,6 +154,25 @@ export function UpdateToast() {
   const openRelease = () => {
     void window.cth.updateOpenRelease(status.state === 'available-manual' ? status.url : undefined);
   };
+
+  // An authored release: hand the whole moment to the centered drop instead of
+  // the corner toast. Every action it can take is passed in from here, so the
+  // sandboxed frame never needs (and never gets) a route back into the app.
+  if (dropHtml && version) {
+    return (
+      <ReleaseDrop
+        version={version}
+        html={dropHtml}
+        canRestart={status.state === 'downloaded'}
+        busy={busy}
+        showStar={showStar}
+        onRestart={() => void restart()}
+        onOpenRelease={openRelease}
+        onStar={() => void window.cth.openExternal(GITHUB_REPO_URL)}
+        onDismiss={() => setStatus(null)}
+      />
+    );
+  }
 
   const buttonStyle: React.CSSProperties = {
     padding: '3px 10px 1px',

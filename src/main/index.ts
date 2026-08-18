@@ -7,6 +7,7 @@ import {
 } from 'node:fs';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { join, resolve, sep, basename, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
 import { resolveCommand as resolveCliCommand } from './shellEnv';
@@ -71,6 +72,9 @@ import {
 } from '../shared/agentProvider';
 import { buildMissingCliScript, chooseInstallRung } from './cliInstall';
 import { detectNodeVersion, nodeIsUsable, resolveNodeInstaller } from './nodeInstall';
+import { toolCatalog, type ToolStatus } from '../shared/toolCatalog';
+import { listLocalSkills, loadCatalog, installSkill, uninstallSkill, type LocalSkill } from './skills';
+import { loadHero } from './hero';
 import {
   CODEX_REMOTE_SOCKET_RELATIVE,
   codexRemoteAliasPath,
@@ -1058,6 +1062,14 @@ function runBreakerBeat(progressWindowMs: number): void {
     // (aggregateLive picks the most-recent live session id), so this gates on
     // "is there a live session" without changing any live-agent behavior.
     if (sample?.sessionId) hive.appendCostLedger(sample); // ledger covers everyone incl. god
+    // Second source for the resume key. recordSession() is otherwise reachable
+    // ONLY from the hook shim, so any window where hooks don't land leaves the
+    // registry with no sessionId and "Restart & Continue" refuses to continue —
+    // while this very sample proves the app knew the live session id all along
+    // (it was already being written to the cost ledger one line above). Same id,
+    // same liveness gate; recordSession writes only on change, so this is a
+    // no-op once the hooks are flowing.
+    if (sample?.sessionId) hive.recordSession(id, sample.sessionId);
     if (id === reg.godId) continue;            // breaker skips god
     // Progress = fresh coordination files OR a recent OTel tool span. The span
     // leg closes the background-work blind spot: subagent/Workflow tool calls
@@ -2902,9 +2914,30 @@ ipcMain.handle('integrations:test', async (_evt, payload: unknown) => {
 // ─── IPC: config ────────────────────────────────────────────────────────────
 ipcMain.handle('config:get', (): HarnessConfig => readConfig());
 ipcMain.handle('config:update', (_evt, patch: Partial<HarnessConfig>) => {
+  // FIRST RUN: every hive-bound service is started by bootstrapHiveServices(),
+  // which runs once at app-ready and early-returns on `!hive.enabled()` — i.e.
+  // whenever harnessHome is still null, which is exactly the state a fresh
+  // install boots in. Onboarding then sets harnessHome through THIS handler and
+  // nothing re-bootstrapped, so the hook server, message router, telemetry
+  // collector and mission scheduler all stayed dead for the rest of the session.
+  //
+  // Symptom: agents spawn and run (the PTY is not hive-bound), but no hook ever
+  // reaches the app — no `hooks.sock` on disk, so no SessionStart, which means
+  // recordSession() is never called and "Restart & Continue" fails with "No
+  // recorded session ID"; the cards also sit on "ctx no status tick yet" and 0
+  // tool calls. Everything healed on the next app launch, which is what hid it.
+  //
+  // changeHome() has always handled this by relaunching; onboarding does not
+  // relaunch, so bootstrap here on the null → set transition. Gated on the
+  // transition so ordinary config writes never re-enter it.
+  const hiveWasEnabled = hive.enabled();
   const next = writeConfig(patch);
   // Live opt-in/out from Settings → Privacy (TELEMETRY.md).
   if (typeof patch?.telemetryEnabled === 'boolean') analytics.setEnabled(patch.telemetryEnabled);
+  if (!hiveWasEnabled && hive.enabled()) {
+    console.log('[hive] harnessHome configured — bootstrapping hive services');
+    try { bootstrapHiveServices(); } catch (e) { console.error('[hive] bootstrap after onboarding:', e); }
+  }
   return next;
 });
 ipcMain.handle('config:ensureHome', (_evt, path: unknown) => {
@@ -3154,6 +3187,105 @@ ipcMain.handle('hive:setArchived', (_evt, id: unknown, archived: unknown) => {
   if (!hive.enabled()) return { ok: false, error: 'hive disabled (no harnessHome)' };
   hive.setArchived(id, archived === true);
   return { ok: true };
+});
+
+// ─── IPC: Settings hero payload (remote data, cached) ───────────────────────
+/** Plan copy and sponsor, fetched from the repo so they can change without a
+ *  release. Validated in shared/heroPayload before it reaches the renderer. */
+ipcMain.handle('hero:payload', async (_evt, force: unknown) =>
+  loadHero(join(app.getPath('userData'), 'hero.json'), { force: force === true }));
+
+// ─── IPC: skills (installed locally, and the browsable catalog) ─────────────
+/** Skills the CLIs on this machine can already use. Scans the registered repos
+ *  plus the agent's own cwd, so a project-scoped skill shows up where it applies. */
+ipcMain.handle('skills:local', (_evt, cwd: unknown): LocalSkill[] => {
+  const cfg = readConfig();
+  const cwds = [
+    ...(typeof cwd === 'string' && cwd ? [cwd] : []),
+    ...(cfg.registeredRepos ?? [])
+  ];
+  try {
+    return listLocalSkills({ cwds, bundledDir: skillsResourceDir() });
+  } catch (e) {
+    console.error('[skills] local scan failed:', e);
+    return [];
+  }
+});
+/** The skills catalog, parsed from its README and cached in userData.
+ *  `force` is the explicit refresh button; everything else is served from a
+ *  day-old cache so opening the tab never waits on the network. */
+ipcMain.handle('skills:catalog', async (_evt, force: unknown) => {
+  const cachePath = join(app.getPath('userData'), 'skill-catalog.json');
+  return loadCatalog(cachePath, { force: force === true });
+});
+
+/** Install one catalog skill into ~/.claude/skills. Structured refusals, never a
+ *  throw: the UI distinguishes "not installable" from "install failed". */
+ipcMain.handle('skills:install', async (_evt, url: unknown, name: unknown) => {
+  if (typeof url !== 'string' || typeof name !== 'string') {
+    return { ok: false as const, error: 'bad request' };
+  }
+  return installSkill(url, name);
+});
+/** Delete an installed skill. The guard rails live in uninstallSkill — it refuses
+ *  any path it cannot prove is a skill folder inside a skills root. */
+ipcMain.handle('skills:uninstall', (_evt, path: unknown) => {
+  if (typeof path !== 'string') return { ok: false as const, error: 'bad request' };
+  const cfg = readConfig();
+  return uninstallSkill(path, { cwds: cfg.registeredRepos ?? [] });
+});
+/** Reveal a skill on disk. `openExternal` is deliberately https-only, so a
+ *  file:// URL cannot (and should not) be smuggled through it. */
+ipcMain.handle('skills:reveal', (_evt, path: unknown) => {
+  if (typeof path !== 'string' || !path.trim()) return { ok: false, error: 'bad request' };
+  const skillRoots = [join(homedir(), '.claude', 'skills'), join(homedir(), '.config', 'opencode')];
+  const target = resolve(path);
+  const inRoot = skillRoots.some((r) => target.startsWith(resolve(r) + sep))
+    || (readConfig().registeredRepos ?? []).some((c) => target.startsWith(resolve(c) + sep));
+  if (!inRoot) return { ok: false, error: 'outside a managed skills directory' };
+  shell.showItemInFolder(target);
+  return { ok: true };
+});
+
+// ─── IPC: setup catalog (which external tools are actually here) ────────────
+/**
+ * Probe every catalog row against THIS machine.
+ *
+ * Presence is a PATH resolution, not a spawn: running each candidate to read a
+ * --version would be a dozen process launches on every panel open, and several of
+ * these CLIs boot a TUI when invoked bare. `resolveCommand` returns its input
+ * unchanged when it finds nothing, so "resolved to a real, existing path that is
+ * not just the bare name" is the found test.
+ *
+ * mempalace is the one row that does NOT come from PATH: the memory subsystem
+ * already resolves it (including uv/pip locations PATH may not carry for a
+ * Finder-launched app) and knows whether the palace is initialised, so it is
+ * authoritative and reused rather than re-probed differently here.
+ */
+ipcMain.handle('tools:status', (): ToolStatus[] => {
+  const win = process.platform === 'win32';
+  const mem = (() => { try { memory.resetBinCache(); return memory.status(); } catch { return null; } })();
+  return toolCatalog().map((spec): ToolStatus => {
+    const installCommand = win ? spec.install.win32 : spec.install.posix;
+    if (spec.id === 'mempalace') {
+      return {
+        ...spec,
+        installCommand,
+        found: !!mem?.available,
+        path: mem?.bin ?? null,
+        detail: mem?.available
+          ? (mem.initialized ? 'palace initialised' : 'installed — palace not built yet')
+          : undefined
+      };
+    }
+    if (!spec.bin) return { ...spec, installCommand, found: false, path: null };
+    let path: string | null = null;
+    try {
+      const resolved = resolveCliCommand(spec.bin);
+      if (resolved !== spec.bin && existsSync(resolved)) path = resolved;
+    } catch { /* a probe must never take the panel down */ }
+    return { ...spec, installCommand, found: !!path, path };
+  });
 });
 
 // ─── IPC: semantic memory (MemPalace CLI) ───────────────────────────────────
