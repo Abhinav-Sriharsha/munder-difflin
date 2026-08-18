@@ -273,3 +273,58 @@ test('single-line args still go through cmd.exe unchanged (fallback preserved)',
     '/d /s /c ""C:\\Program Files\\x\\tool.cmd" --model gpt-5-codex"'
   );
 });
+
+/**
+ * DIRECT-EXECUTABLE shims — the shape that broke OpenCode on Windows.
+ *
+ * npm writes an interpreter-less shim whenever a package's `bin` target has no
+ * shebang, which is the norm for a compiled CLI. `opencode-ai` is exactly that:
+ * its bin is `./bin/opencode.exe`, a real binary. The resolver only modelled
+ * "interpreter + script", so it returned null for every Windows OpenCode install
+ * and the spawn fell back to cmd.exe — which truncates the multi-line hive
+ * protocol at its first newline. Agents booted looking healthy and had no idea
+ * they had an inbox.
+ *
+ * The shim body below is not hand-written: it is the verbatim output of npm's own
+ * `cmd-shim` package for a binary target.
+ */
+const DIRECT_EXE_SHIM = [
+  '@ECHO off',
+  'GOTO start',
+  ':find_dp0',
+  'SET dp0=%~dp0',
+  'EXIT /b',
+  ':start',
+  'SETLOCAL',
+  'CALL :find_dp0',
+  '"%dp0%\\..\\opencode-ai\\bin\\opencode.exe"   %*'
+].join('\r\n');
+
+test('a direct-executable shim resolves to the binary, with no interpreter', () => {
+  const t = parseNpmCmdShim('C:\\Users\\r\\AppData\\Roaming\\npm\\opencode.cmd', DIRECT_EXE_SHIM);
+  assert.ok(t, 'the shape npm generates for a binary bin must be understood');
+  assert.equal(t.interpreter, null, 'null interpreter marks "run this directly"');
+  assert.equal(
+    t.scriptPath,
+    'C:\\Users\\r\\AppData\\Roaming\\npm\\..\\opencode-ai\\bin\\opencode.exe'
+      .replace(/\\[^\\]+\\\.\./, ''),
+    'the target is expanded and normalized to an absolute path'
+  );
+});
+
+test('the hive prompt survives a direct-executable shim, where cmd.exe destroys it', () => {
+  const prompt = 'You are "Michael" (god-1), an autonomous agent.\n\nHIVE PROTOCOL\n- inbox\n- outbox';
+  // What the fixed path does: spawn the binary with an ARRAY, escaped by node-pty.
+  const line = argsToCommandLine('C:\\x\\opencode-ai\\bin\\opencode.exe', ['--prompt', prompt]);
+  assert.ok(line.includes('HIVE PROTOCOL'), 'the protocol block reaches the child intact');
+  assert.ok(line.includes('outbox'), 'including everything after the first newline');
+  // What the old fallback did: one pre-escaped string handed to cmd.exe, which
+  // treats the first newline as a statement separator.
+  const viaCmd = buildCmdCommandLine('C:\\x\\opencode.cmd', ['--prompt', prompt]);
+  assert.ok(viaCmd.split(/\r?\n/)[0].length < viaCmd.length, 'cmd.exe form is cut at a newline');
+});
+
+test('an interpreter-less shim pointing at a NON-executable is still refused', () => {
+  const odd = DIRECT_EXE_SHIM.replace('opencode.exe', 'opencode.txt');
+  assert.equal(parseNpmCmdShim('C:\\npm\\opencode.cmd', odd), null);
+});

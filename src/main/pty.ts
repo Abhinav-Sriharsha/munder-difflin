@@ -127,9 +127,11 @@ export function buildCmdCommandLine(resolved: string, args: string[]): string {
 /** What an npm-style Windows `.cmd` shim actually runs, decoded from its text. */
 export interface NpmShimTarget {
   /** BARE interpreter name — `node`, `bun` or `deno` — to be resolved off PATH by
-   *  the caller (kept bare deliberately: see parseNpmCmdShim). */
-  interpreter: string;
-  /** Absolute, normalized win32 path to the script that interpreter should run. */
+   *  the caller (kept bare deliberately: see parseNpmCmdShim), or NULL when the
+   *  shim runs a native executable directly and there is no interpreter at all. */
+  interpreter: string | null;
+  /** Absolute, normalized win32 path to the script that interpreter should run —
+   *  or to the executable itself when `interpreter` is null. */
   scriptPath: string;
 }
 
@@ -257,8 +259,29 @@ export function parseNpmCmdShim(shimPath: string, content: string): NpmShimTarge
     if (head.slice(progTok.end, scriptTok.start).trim() !== '') return null;
     progRaw = progTok.text;
   } else {
+    // Two one-token shapes share this branch, told apart by what precedes the quote.
+    const before = head.slice(0, scriptTok.start).trim().replace(/^@/, '').trim();
+    if (before === '') {
+      // DIRECT-EXECUTABLE shim: nothing before the quoted target, so there is no
+      // interpreter — the shim runs a native binary. npm writes this whenever the
+      // package's bin has no shebang, which is the norm for a compiled CLI:
+      //
+      //   "%dp0%\..\opencode-ai\bin\opencode.exe"   %*
+      //
+      // opencode-ai is exactly that (its bin is ./bin/opencode.exe, a real
+      // binary), so EVERY Windows OpenCode install hit this shape, fell through to
+      // null, and got the cmd.exe fallback that truncates the hive protocol at its
+      // first newline. The agent then booted looking healthy with no idea it had
+      // an inbox. Handing the binary straight to CreateProcess with an argv array
+      // is strictly better than routing it through cmd.exe — same program, no
+      // shell parser in between.
+      const exe = expand(scriptTok.text);
+      if (!exe) return null;
+      // Only a real executable. Anything else here is a shape we have not modelled.
+      if (!/\.(exe|com)$/i.test(exe)) return null;
+      return { interpreter: null, scriptPath: exe };
+    }
     // Classic ELSE arm: `node  "<script>" %*` — the program is an unquoted word.
-    const before = head.slice(0, scriptTok.start).trim();
     const word = before.split(/\s+/).filter(Boolean).pop();
     if (!word || word !== before) return null; // anything else before it → unknown shape
     progRaw = word;
@@ -457,7 +480,7 @@ export class PtyManager {
    * not installed or itself not a real .exe) degrades to exactly today's cmd.exe
    * behaviour. Never throws.
    */
-  private resolveWindowsShimSpawn(resolved: string): { file: string; script: string } | null {
+  private resolveWindowsShimSpawn(resolved: string): { file: string; script: string | null } | null {
     if (process.platform !== 'win32') return null;
     try {
       const lower = resolved.toLowerCase();
@@ -477,6 +500,13 @@ export class PtyManager {
       // The shim can outlive the package it points at (a half-removed global
       // install). Falling back to cmd.exe then at least reproduces today's error.
       if (!existsSync(target.scriptPath)) return null;
+
+      // Direct-executable shim: the target IS the program. No interpreter to
+      // resolve, and no script argument to prepend — spawning it with an argv
+      // array is exactly what the cmd.exe route was standing in the way of.
+      if (target.interpreter === null) {
+        return { file: target.scriptPath, script: null };
+      }
 
       const interp = this.resolveCommand(target.interpreter);
       if (!interp.found) return null;
@@ -563,7 +593,11 @@ export class PtyManager {
         // truncated it at the first newline, which is why Windows agents never
         // learned they had an inbox/outbox and could not message each other.
         file = shimSpawn.file;
-        spawnArgs = [shimSpawn.script, ...(opts.args ?? [])];
+        // `script` is null for a direct-executable shim — there is nothing to
+        // prepend, the args go straight to the binary.
+        spawnArgs = shimSpawn.script === null
+          ? [...(opts.args ?? [])]
+          : [shimSpawn.script, ...(opts.args ?? [])];
       } else {
         file = needsCmd ? (process.env.ComSpec || 'cmd.exe') : resolved;
         // #55: when routing through cmd.exe we must NOT pass `resolved` as a bare,
@@ -580,6 +614,25 @@ export class PtyManager {
         spawnArgs = needsCmd
           ? buildCmdCommandLine(resolved, opts.args ?? [])
           : (opts.args ?? []);
+        // The cmd.exe fallback is LOSSY and was previously SILENT, which is how a
+        // Windows agent could look perfectly healthy while never having received
+        // the hive protocol: cmd.exe cuts a multi-line argument at its first
+        // newline, and the whole protocol block rides on one such argument.
+        // resolveWindowsShimSpawn returns null for any shim shape it does not
+        // fully understand, so this path is reachable on a real machine while
+        // every unit test passes. Say so, loudly, with the two facts needed to
+        // diagnose it: which target refused to decode, and whether a multi-line
+        // argument is actually at risk in THIS spawn.
+        if (needsCmd) {
+          const multiline = (opts.args ?? []).some((a) => a.includes('\n'));
+          console.warn(
+            `[pty] Windows: "${resolved}" could not be decoded as an npm shim — falling back to cmd.exe.` +
+            (multiline
+              ? ' A MULTI-LINE ARGUMENT IS PRESENT AND WILL BE TRUNCATED AT ITS FIRST NEWLINE.' +
+                ' The agent will start and look healthy without ever receiving the hive protocol.'
+              : ' No multi-line argument in this spawn, so nothing is lost here.')
+          );
+        }
       }
       const proc = pty.spawn(file, spawnArgs, {
         name: 'xterm-256color',
