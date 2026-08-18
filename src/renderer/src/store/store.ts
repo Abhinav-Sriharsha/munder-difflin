@@ -627,7 +627,21 @@ export const useStore = create<State>((set) => ({
       // addAgent for the same id — never render a duplicate card. The first writer
       // (richer local record) wins; the broadcast is a no-op for it.
       if (s.agents.some((a) => a.id === agent.id)) return s;
-      const agents = [...s.agents, agent];
+      // GOD enters at the HEAD, everyone else at the tail. Michael's position was
+      // otherwise decided by a race he usually lost: useHive's bootstrap removes
+      // the restored god entry, then spawns him asynchronously (a setTimeout, a
+      // listPtys round-trip, and a --resume that seeds a transcript first), while
+      // useRestoreTeam respawns last session's workers in parallel. Whoever
+      // resolved first landed first, so a session with workers to restore put the
+      // BOSS card fourth — and persistAgents() then wrote that order to disk, so
+      // it stuck across restarts instead of flickering once.
+      //
+      // Fixed at insertion rather than by sorting in AgentStrip: the strip has
+      // drag-reorder (reorderAgents) whose whole point is a persisted manual
+      // order, and a god-first sort at render time would silently override the
+      // user's own arrangement every frame. This just makes the head the honest
+      // default; a deliberate drag still wins and still persists.
+      const agents = agent.isGod ? [agent, ...s.agents] : [...s.agents, agent];
       // Re-spawning an archived agent un-archives it: an id is active xor archived.
       const archivedAgents = s.archivedAgents.filter((a) => a.id !== agent.id);
       // A live (re)spawn also consumes any restorable entry for the same id.
