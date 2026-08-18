@@ -13,13 +13,16 @@ participating, you agree to uphold it.
 
 ### Prerequisites
 
-- **macOS** — the app is macOS-first. Windows/Linux are untested but PRs that
-  improve cross-platform support are welcome.
+- **macOS, Windows, or Linux** — signed/notarized macOS builds, plus Windows and
+  Linux builds, ship from the [releases page](https://github.com/chaitanyagiri/munder-difflin/releases/latest).
+  Cross-platform smoke-testing and fixes are still very welcome (see
+  [Good first areas](#good-first-areas)).
 - **Node.js 18+** and npm.
 - A **C/C++ toolchain** to build `node-pty`'s native addon. On macOS:
   ```bash
   xcode-select --install
   ```
+  On Windows/Linux, follow [`node-pty`'s own prerequisites](https://github.com/microsoft/node-pty#dependencies).
 - **[Claude Code](https://claude.com/claude-code)** on your `PATH` if you want
   agents to actually run `claude` (the default command). Any other command works.
 
@@ -68,7 +71,8 @@ data-flow overview.
   by a mock event loop (`src/renderer/src/store/mockEvents.ts`). Replacing it
   with real tool events is the headline next milestone.
 - The add-agent flow and config drawer.
-- Cross-platform smoke-testing (Linux/Windows).
+- Cross-platform smoke-testing — Windows and Linux builds ship, but real-world
+  coverage (WSL2, various distros, uncommon shells) is thin.
 
 ## Commit & PR conventions
 
