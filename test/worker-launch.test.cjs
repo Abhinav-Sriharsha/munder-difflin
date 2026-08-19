@@ -53,11 +53,45 @@ test('an explicit --permission-mode in the request always wins over auto-mode', 
   assert.deepEqual(l.args, ['--permission-mode', 'plan']);
 });
 
-test('auto-mode leaves non-claude commands untouched, and OFF appends nothing', () => {
+test('auto-mode OFF appends nothing', () => {
+  assert.deepEqual(launch({ requestCommand: 'claude', autoMode: false }).args, []);
+  assert.deepEqual(launch({ requestCommand: 'codex', autoMode: false }).args, []);
+});
+
+test("auto-mode appends the PROVIDER'S flag, not claude's", () => {
+  // A codex worker given --permission-mode would still stall at its first ask;
+  // each provider's preset knows its own flag, same as the renderer's spawn path.
   const codex = launch({ requestCommand: 'codex', autoMode: true });
-  assert.deepEqual(codex.args, []);
-  const off = launch({ requestCommand: 'claude', autoMode: false });
-  assert.deepEqual(off.args, []);
+  assert.deepEqual(codex.args, ['--dangerously-bypass-approvals-and-sandbox']);
+  const agy = launch({ requestCommand: 'agy', autoMode: true });
+  assert.deepEqual(agy.args, ['--dangerously-skip-permissions']);
+  const kimi = launch({ requestCommand: 'kimi', autoMode: true });
+  assert.deepEqual(kimi.args, ['--auto']);
+});
+
+test('an explicit stance wins for non-claude providers too (no doubled flag)', () => {
+  const l = launch({
+    requestCommand: 'codex --dangerously-bypass-approvals-and-sandbox',
+    autoMode: true
+  });
+  assert.deepEqual(l.args, ['--dangerously-bypass-approvals-and-sandbox']);
+});
+
+test('a provider whose preset declares no auto flag gets nothing appended', () => {
+  assert.deepEqual(launch({ requestCommand: 'opencode', autoMode: true }).args, []);
+  assert.deepEqual(launch({ requestCommand: 'my-own-tool', autoMode: true }).args, []);
+});
+
+test('a multi-token auto flag appends whole, and the stance check is by token', () => {
+  // copilot's flag starts with `-s`; a substring check would read the `-s` inside
+  // --summarize as an explicit stance and skip the append.
+  const l = launch({ requestCommand: 'copilot --summarize', autoMode: true });
+  assert.deepEqual(l.args, ['--summarize', '-s', '--allow-all-tools', '--no-ask-user']);
+});
+
+test("an explicit request provider picks that provider's flag for a custom binary", () => {
+  const l = launch({ requestCommand: 'my-codex-wrapper', requestProvider: 'codex', autoMode: true });
+  assert.deepEqual(l.args, ['--dangerously-bypass-approvals-and-sandbox']);
 });
 
 test('a missing command falls back to the default, then to claude', () => {
