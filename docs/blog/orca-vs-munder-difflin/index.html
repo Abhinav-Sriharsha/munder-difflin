@@ -175,6 +175,7 @@
 </ul>
 <p>That mobile companion and the editor-centric review flow are genuinely ahead of what Munder Difflin offers today. If your workflow is “I’m at my desk, I want to run three agents on a feature and pick the best diff,” Orca is excellent at exactly that.</p>
 <p>Notice, though, what the workflow assumes: <strong>you</strong>. You send the prompts. You compare the results. You annotate the diffs. You steer. Orca’s own docs describe an interactive loop, and there’s no orchestrator, scheduler, or external trigger in it. That’s not a flaw — it’s the product. An IDE is a place you sit.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/orca-vs-munder-difflin/note-1.png" alt="Hand-drawn sketch from “Orca vs Munder Difflin: Agent IDE or Agent Office?”" loading="lazy" decoding="async" /></figure>
 <h2 id="what-munder-difflin-actually-is" tabindex="-1">What Munder Difflin actually is <a class="anchor" href="#what-munder-difflin-actually-is" aria-hidden="true">#</a></h2>
 <p>Munder Difflin starts from the opposite question: what if you <em>don’t</em> sit there?</p>
 <p>It’s a local-first Electron app that turns the same agent CLIs — Claude Code, Codex, Antigravity, OpenCode, Crush, pi.dev, and GitHub Copilot CLI — into a <strong>coordinated office</strong>. Each agent is a real CLI process in its own pseudo-terminal and isolated worktree (same isolation idea as Orca — we’ve written about <a href="/blog/claude-code-git-worktrees-vs-hive/">how worktrees and the hive fit together</a>), visualized as an affectionate parody of The Office cast on a pixel-art floor. The differences stack up above that:</p>
@@ -185,6 +186,7 @@
 <li>Autonomy is bounded by <strong>guardrails</strong>: <a href="/blog/human-in-the-loop-approving-ai-agents/">human approval gates</a> on spend, scope, and destructive operations; per-agent token budgets; a cost/runaway circuit breaker; and OpenTelemetry observability with real per-agent cost attribution.</li>
 </ul>
 <p>v0.3.3 did add a built-in Monaco IDE — file tree, tabs, side-by-side diffs vs HEAD — but let’s be honest about what it’s for: it’s a <strong>review surface for what your agents changed</strong>, not a place you live. Orca’s editing experience is deeper. Munder Difflin’s bet is that you’ll spend less time in an editor at all, because the office handles the routing, memory, and follow-through that would otherwise pull you back to the keyboard.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/orca-vs-munder-difflin/note-2.png" alt="Hand-drawn sketch from “Orca vs Munder Difflin: Agent IDE or Agent Office?”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-boundary-drawn-plainly" tabindex="-1">The boundary, drawn plainly <a class="anchor" href="#the-boundary-drawn-plainly" aria-hidden="true">#</a></h2>
 <table>
 <thead>

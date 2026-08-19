@@ -186,6 +186,7 @@ memories in ~600–900 tokens — its “what do I already know” digest.</p>
 <p>The “essential story” was almost entirely a hooks configuration file, repeated across agents, with the
 occasional real note wedged between the blobs. The most important context an agent could load was
 being spent on JSON it would never need to recall.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/keep-agent-semantic-memory-clean/note-1.png" alt="Hand-drawn sketch from “Keep Your Agent's Semantic Memory Clean: Don't Index the Config”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-cause-the-index-ate-the-whole-directory" tabindex="-1">The cause: the index ate the whole directory <a class="anchor" href="#the-cause-the-index-ate-the-whole-directory" aria-hidden="true">#</a></h2>
 <p>The miner does what most file-based indexers do — it walks the target directory and files every file it
 finds. But an agent’s folder isn’t just <code>memory.md</code>. It also holds:</p>
@@ -218,6 +219,7 @@ rewrites a file that’s already correct, so it’s safe to call every cycle.</p
 it.</strong> A <code>.gitignore</code> is a readable, version-controlled declaration of “these files are operational, not
 knowledge.” That’s better than burying an exclude list inside the miner, where the next person has to go
 read source code to find out why their config isn’t showing up in recall.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/keep-agent-semantic-memory-clean/note-2.png" alt="Hand-drawn sketch from “Keep Your Agent's Semantic Memory Clean: Don't Index the Config”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-fix-part-two-prune-whats-already-filed" tabindex="-1">The fix, part two: prune what’s already filed <a class="anchor" href="#the-fix-part-two-prune-whats-already-filed" aria-hidden="true">#</a></h2>
 <p>Adding a <code>.gitignore</code> stops <em>future</em> noise. It does nothing about the thousands of config drawers
 already sitting in the index, because mining is <strong>additive</strong> — it files new content and updates changed

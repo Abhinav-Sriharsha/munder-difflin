@@ -198,6 +198,7 @@ behind <a href="/blog/rendering-many-live-terminals-performance/">rendering many
 <p>What the terminal plane gives you: the unfiltered truth of what each agent did. What it <em>can’t</em> easily
 give you: a reliable “which tool is running right now?” without scraping and guessing at output. That’s
 the other plane’s job.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/architecture-two-planes-one-renderer/note-1.png" alt="Hand-drawn sketch from “Munder Difflin's Architecture: Two Data Planes, One Renderer”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-event-plane-hooks-hive" tabindex="-1">The event plane (hooks + hive) <a class="anchor" href="#the-event-plane-hooks-hive" aria-hidden="true">#</a></h2>
 <p>The event plane is about <em>structure</em>. It has two sources, both feeding the main process:</p>
 <p><strong>Claude Code hooks.</strong> Each agent is launched with lifecycle hooks wired through a tiny shim that
@@ -222,6 +223,7 @@ you’d see bytes but have to guess at meaning.</li>
 <p>Together they’re complementary: the office floor is <strong>event-driven</strong> (precise, structured, cheap to
 render), and the terminal view is <strong>byte-for-byte authentic</strong> (the full detail when you want it). Two
 planes, two questions, both answered well.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/architecture-two-planes-one-renderer/note-2.png" alt="Hand-drawn sketch from “Munder Difflin's Architecture: Two Data Planes, One Renderer”" loading="lazy" decoding="async" /></figure>
 <h2 id="one-renderer-convergence" tabindex="-1">One renderer convergence <a class="anchor" href="#one-renderer-convergence" aria-hidden="true">#</a></h2>
 <p>Both planes terminate in a single Electron renderer running React and Pixi.js:</p>
 <ul>
@@ -313,6 +315,22 @@ free and open source.</p>
       <h2>Related in Internals</h2>
       <div class="post-grid">
         <article class="card t-internals">
+  <a class="thumb t-internals" href="/blog/the-newline-that-silenced-windows-agents/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/the-newline-that-silenced-windows-agents/hero.png" alt="" loading="lazy" decoding="async" /></a>
+  <div class="body">
+    <div class="meta">
+      <time datetime="2026-08-19">Aug 19, 2026</time>
+      <span class="dot" aria-hidden="true"></span>
+      <span>4 min</span>
+    </div>
+    <h3><a href="/blog/the-newline-that-silenced-windows-agents/">The Newline That Silenced Every Windows Agent</a></h3>
+    <p class="dek">A cmd.exe parsing rule from the 1980s meant Windows agents received exactly one line of their multi-line startup protocol — and nothing errored. The anatomy of our worst silent failure, and the fix.</p>
+    <div class="foot">
+      <span class="tag kind">Internals</span>
+      <a class="more" href="/blog/the-newline-that-silenced-windows-agents/" aria-label="Read: The Newline That Silenced Every Windows Agent">Read →</a>
+    </div>
+  </div>
+</article>
+<article class="card t-internals">
   <a class="thumb t-internals" href="/blog/why-our-auto-update-never-ran/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/why-our-auto-update-never-ran/hero.png" alt="" loading="lazy" decoding="async" /></a>
   <div class="body">
     <div class="meta">
@@ -341,22 +359,6 @@ free and open source.</p>
     <div class="foot">
       <span class="tag kind">Internals</span>
       <a class="more" href="/blog/hire-manifest-untrusted-input/" aria-label="Read: Treating a Hire Manifest as Untrusted Input">Read →</a>
-    </div>
-  </div>
-</article>
-<article class="card t-internals">
-  <a class="thumb t-internals" href="/blog/compressing-agent-memory/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/compressing-agent-memory/hero.png" alt="" loading="lazy" decoding="async" /></a>
-  <div class="body">
-    <div class="meta">
-      <time datetime="2026-06-05">Jun 5, 2026</time>
-      <span class="dot" aria-hidden="true"></span>
-      <span>5 min</span>
-    </div>
-    <h3><a href="/blog/compressing-agent-memory/">Compressing Agent Memory Without Losing the Original</a></h3>
-    <p class="dek">How and why to compress an agent&#39;s long-term memory: the toolbox, the lossy trap, and keeping a lossless original beside a compact copy.</p>
-    <div class="foot">
-      <span class="tag kind">Internals</span>
-      <a class="more" href="/blog/compressing-agent-memory/" aria-label="Read: Compressing Agent Memory Without Losing the Original">Read →</a>
     </div>
   </div>
 </article>

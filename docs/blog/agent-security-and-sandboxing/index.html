@@ -181,6 +181,7 @@ foot-gun on production repos.</p>
 <p>That honesty is the right framing. Bypass mode isn’t reckless — it’s the <em>correct</em> default for an
 unattended control room. But it removes the last interactive gate, so the safety has to live somewhere
 else. The rest of this post is “somewhere else.”</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/agent-security-and-sandboxing/note-1.png" alt="Hand-drawn sketch from “Running AI Agents Safely: Permission Modes and Sandboxing”" loading="lazy" decoding="async" /></figure>
 <h2 id="when-the-prompt-is-off-structure-is-your-safety" tabindex="-1">When the prompt is off, structure is your safety <a class="anchor" href="#when-the-prompt-is-off-structure-is-your-safety" aria-hidden="true">#</a></h2>
 <p>If you can’t rely on a human clicking “approve,” you make the dangerous things structurally hard to
 reach. Five layers do most of the work.</p>
@@ -211,6 +212,7 @@ log</a> records every action in order, so “what did the agent do at
 2 a.m.?” has a precise, timestamped answer — and the genuinely critical calls can still pause for a human
 through <a href="/blog/human-in-the-loop-approving-ai-agents/">native approvals</a>. Bypass mode and a human gate
 aren’t mutually exclusive: most actions flow, the few that matter still wait.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/agent-security-and-sandboxing/note-2.png" alt="Hand-drawn sketch from “Running AI Agents Safely: Permission Modes and Sandboxing”" loading="lazy" decoding="async" /></figure>
 <h2 id="what-to-gate-vs-what-to-allow" tabindex="-1">What to gate vs. what to allow <a class="anchor" href="#what-to-gate-vs-what-to-allow" aria-hidden="true">#</a></h2>
 <p>Security theater is gating everything until the human rubber-stamps a hundred prompts and stops reading.
 The goal is a <em>narrow</em> gate. A reasonable default policy:</p>

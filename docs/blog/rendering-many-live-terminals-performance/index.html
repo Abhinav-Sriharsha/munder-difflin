@@ -196,6 +196,7 @@ terminal is populated and visible <em>immediately</em>, with no repaint.</li>
 <p>This single change fixes both naive problems: no per-switch teardown (no thrash) and no empty buffer
 (no blank pane). It’s the structural decision everything else builds on — the same pool pattern at the
 center of <a href="/blog/building-a-terminal-ui-xterm-node-pty/">building a terminal UI with xterm.js and node-pty</a>.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/rendering-many-live-terminals-performance/note-1.png" alt="Hand-drawn sketch from “Rendering Many Live Terminals Without Melting the CPU”" loading="lazy" decoding="async" /></figure>
 <h2 id="technique-2-render-only-whats-visible" tabindex="-1">Technique 2 — Render only what’s visible <a class="anchor" href="#technique-2-render-only-whats-visible" aria-hidden="true">#</a></h2>
 <p>A pool keeps every session’s <em>buffer</em> current, but you don’t need to <em>paint</em> every terminal every
 frame. Only the terminal(s) actually on screen need to be laid out and rendered; the rest keep
@@ -227,6 +228,7 @@ render scheduling rather than forcing a refresh per byte.</li>
 </ul>
 <p>These come straight from how the <a href="/blog/node-pty-electron-real-terminals/">node-pty terminal plane</a>
 streams to the UI.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/rendering-many-live-terminals-performance/note-2.png" alt="Hand-drawn sketch from “Rendering Many Live Terminals Without Melting the CPU”" loading="lazy" decoding="async" /></figure>
 <h2 id="technique-5-reach-for-an-accelerated-renderer-when-needed" tabindex="-1">Technique 5 — Reach for an accelerated renderer when needed <a class="anchor" href="#technique-5-reach-for-an-accelerated-renderer-when-needed" aria-hidden="true">#</a></h2>
 <p>xterm’s default DOM renderer is fine for a handful of terminals. When you’re rendering many
 high-throughput streams, an accelerated rendering addon (canvas/WebGL) moves the drawing off the DOM
@@ -308,6 +310,22 @@ to run many real terminals without melting your CPU; it’s free and open source
       <h2>Related in Internals</h2>
       <div class="post-grid">
         <article class="card t-internals">
+  <a class="thumb t-internals" href="/blog/the-newline-that-silenced-windows-agents/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/the-newline-that-silenced-windows-agents/hero.png" alt="" loading="lazy" decoding="async" /></a>
+  <div class="body">
+    <div class="meta">
+      <time datetime="2026-08-19">Aug 19, 2026</time>
+      <span class="dot" aria-hidden="true"></span>
+      <span>4 min</span>
+    </div>
+    <h3><a href="/blog/the-newline-that-silenced-windows-agents/">The Newline That Silenced Every Windows Agent</a></h3>
+    <p class="dek">A cmd.exe parsing rule from the 1980s meant Windows agents received exactly one line of their multi-line startup protocol — and nothing errored. The anatomy of our worst silent failure, and the fix.</p>
+    <div class="foot">
+      <span class="tag kind">Internals</span>
+      <a class="more" href="/blog/the-newline-that-silenced-windows-agents/" aria-label="Read: The Newline That Silenced Every Windows Agent">Read →</a>
+    </div>
+  </div>
+</article>
+<article class="card t-internals">
   <a class="thumb t-internals" href="/blog/why-our-auto-update-never-ran/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/why-our-auto-update-never-ran/hero.png" alt="" loading="lazy" decoding="async" /></a>
   <div class="body">
     <div class="meta">
@@ -336,22 +354,6 @@ to run many real terminals without melting your CPU; it’s free and open source
     <div class="foot">
       <span class="tag kind">Internals</span>
       <a class="more" href="/blog/hire-manifest-untrusted-input/" aria-label="Read: Treating a Hire Manifest as Untrusted Input">Read →</a>
-    </div>
-  </div>
-</article>
-<article class="card t-internals">
-  <a class="thumb t-internals" href="/blog/compressing-agent-memory/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/compressing-agent-memory/hero.png" alt="" loading="lazy" decoding="async" /></a>
-  <div class="body">
-    <div class="meta">
-      <time datetime="2026-06-05">Jun 5, 2026</time>
-      <span class="dot" aria-hidden="true"></span>
-      <span>5 min</span>
-    </div>
-    <h3><a href="/blog/compressing-agent-memory/">Compressing Agent Memory Without Losing the Original</a></h3>
-    <p class="dek">How and why to compress an agent&#39;s long-term memory: the toolbox, the lossy trap, and keeping a lossless original beside a compact copy.</p>
-    <div class="foot">
-      <span class="tag kind">Internals</span>
-      <a class="more" href="/blog/compressing-agent-memory/" aria-label="Read: Compressing Agent Memory Without Losing the Original">Read →</a>
     </div>
   </div>
 </article>

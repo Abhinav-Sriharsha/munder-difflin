@@ -198,6 +198,7 @@ never contended. There is no second writer to race with.</li>
 </ul>
 <p>This collapses a hard concurrency problem into a trivial one. The repo has many <em>readers</em> and exactly
 one <em>writer</em>, which is the configuration git is perfectly happy with.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/single-committer-git-pattern/note-1.png" alt="Hand-drawn sketch from “The Single-Committer Pattern: Multi-Agent Git Without Corruption”" loading="lazy" decoding="async" /></figure>
 <h2 id="making-the-single-committer-bulletproof" tabindex="-1">Making the single committer bulletproof <a class="anchor" href="#making-the-single-committer-bulletproof" aria-hidden="true">#</a></h2>
 <p>“One committer” removes contention between agents, but the committer still has to handle the messy
 real world: a previous run that died, an occasional transient failure. A production-grade committer
@@ -236,6 +237,7 @@ a multi-agent run goes sideways, you don’t guess — you read the history.</p>
 <a href="/blog/atomic-file-mailboxes-for-agents/">atomic file mailboxes</a>), and the single committer commits
 those file changes as they happen. The same single-writer discipline runs through both — it’s the
 backbone of <a href="/blog/coordinating-ai-coding-agents/">coordinating AI coding agents</a> without collisions.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/single-committer-git-pattern/note-2.png" alt="Hand-drawn sketch from “The Single-Committer Pattern: Multi-Agent Git Without Corruption”" loading="lazy" decoding="async" /></figure>
 <h2 id="what-about-the-users-own-repo" tabindex="-1">What about the user’s own repo? <a class="anchor" href="#what-about-the-users-own-repo" aria-hidden="true">#</a></h2>
 <p>A fair question: if agents are editing your <em>actual</em> code repository, who commits <em>that</em>? The
 single-committer pattern is about the <strong>coordination</strong> repo — the shared state the agents use to talk,
@@ -315,6 +317,22 @@ never corrupt their own state; it’s free and open source.</p>
       <h2>Related in Internals</h2>
       <div class="post-grid">
         <article class="card t-internals">
+  <a class="thumb t-internals" href="/blog/the-newline-that-silenced-windows-agents/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/the-newline-that-silenced-windows-agents/hero.png" alt="" loading="lazy" decoding="async" /></a>
+  <div class="body">
+    <div class="meta">
+      <time datetime="2026-08-19">Aug 19, 2026</time>
+      <span class="dot" aria-hidden="true"></span>
+      <span>4 min</span>
+    </div>
+    <h3><a href="/blog/the-newline-that-silenced-windows-agents/">The Newline That Silenced Every Windows Agent</a></h3>
+    <p class="dek">A cmd.exe parsing rule from the 1980s meant Windows agents received exactly one line of their multi-line startup protocol — and nothing errored. The anatomy of our worst silent failure, and the fix.</p>
+    <div class="foot">
+      <span class="tag kind">Internals</span>
+      <a class="more" href="/blog/the-newline-that-silenced-windows-agents/" aria-label="Read: The Newline That Silenced Every Windows Agent">Read →</a>
+    </div>
+  </div>
+</article>
+<article class="card t-internals">
   <a class="thumb t-internals" href="/blog/why-our-auto-update-never-ran/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/why-our-auto-update-never-ran/hero.png" alt="" loading="lazy" decoding="async" /></a>
   <div class="body">
     <div class="meta">
@@ -343,22 +361,6 @@ never corrupt their own state; it’s free and open source.</p>
     <div class="foot">
       <span class="tag kind">Internals</span>
       <a class="more" href="/blog/hire-manifest-untrusted-input/" aria-label="Read: Treating a Hire Manifest as Untrusted Input">Read →</a>
-    </div>
-  </div>
-</article>
-<article class="card t-internals">
-  <a class="thumb t-internals" href="/blog/compressing-agent-memory/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/compressing-agent-memory/hero.png" alt="" loading="lazy" decoding="async" /></a>
-  <div class="body">
-    <div class="meta">
-      <time datetime="2026-06-05">Jun 5, 2026</time>
-      <span class="dot" aria-hidden="true"></span>
-      <span>5 min</span>
-    </div>
-    <h3><a href="/blog/compressing-agent-memory/">Compressing Agent Memory Without Losing the Original</a></h3>
-    <p class="dek">How and why to compress an agent&#39;s long-term memory: the toolbox, the lossy trap, and keeping a lossless original beside a compact copy.</p>
-    <div class="foot">
-      <span class="tag kind">Internals</span>
-      <a class="more" href="/blog/compressing-agent-memory/" aria-label="Read: Compressing Agent Memory Without Losing the Original">Read →</a>
     </div>
   </div>
 </article>

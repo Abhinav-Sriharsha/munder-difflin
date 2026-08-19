@@ -182,9 +182,12 @@ a.tag:hover { background: var(--ink); color: var(--paper); }
 .ph-art { text-align: center; display: grid; gap: 8px; }
 .ph-art .ph-glyph { font-size: 46px; color: var(--c, var(--accent)); }
 .ph-art .ph-note { font-family: var(--grot); font-weight: 700; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-soft); }
-.fig-inline { margin: 38px 0; }
-.fig-inline img { border: 3px solid var(--rule); }
-.fig-inline.fig-placeholder { aspect-ratio: 2/1; }
+.fig-inline { margin: 42px auto; max-width: 620px; }
+.fig-inline img { display: block; width: 100%; border: 3px solid var(--rule); border-radius: 6px; background: #fff; }
+.fig-inline figcaption { text-align: center; }
+.fig-inline:nth-of-type(odd) img { transform: rotate(-0.4deg); }
+.fig-inline:nth-of-type(even) img { transform: rotate(0.35deg); }
+.fig-inline.fig-placeholder { aspect-ratio: 15/7; }
 
 /* post body layout */
 .post-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 56px; padding-top: 44px; max-width: 1120px; }

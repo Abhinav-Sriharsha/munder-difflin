@@ -207,6 +207,7 @@ but it ends in an interactive <code>Mine now? [Y/n]</code> prompt that <code>--y
 would hang on it indefinitely. The fix in <code>memory.ts</code> is to <strong>skip init entirely</strong> and let the first
 <code>mempalace mine</code> lazily create the palace (downloading the local embedding model once, on first run).
 One less moving part, and no hang.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/how-agents-remember-semantic-memory/note-1.png" alt="Hand-drawn sketch from “How AI Agents Remember: Semantic Memory in a Hive”" loading="lazy" decoding="async" /></figure>
 <h2 id="recall-search-and-wake-up" tabindex="-1">Recall: <code>search</code> and <code>wake-up</code> <a class="anchor" href="#recall-search-and-wake-up" aria-hidden="true">#</a></h2>
 <p>With notes mined, an agent recalls in two ways — both plain CLI calls it runs itself:</p>
 <pre class="language-bash"><code class="language-bash">mempalace search <span class="token string">"how do we build the web bundle?"</span> <span class="token parameter variable">--results</span> <span class="token number">5</span>
@@ -235,6 +236,7 @@ markdown — never a single point of failure that takes the memory down with it.
 <p>The embedding model is configurable (<code>minilm</code> by default for snappy local recall, <code>embeddinggemma</code>
 when you want a heavier multilingual model). Everything runs locally — the palace, the model, the
 mining — so memory stays <a href="/blog/why-local-first-matters-for-ai-agents/">local-first</a> and private.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/how-agents-remember-semantic-memory/note-2.png" alt="Hand-drawn sketch from “How AI Agents Remember: Semantic Memory in a Hive”" loading="lazy" decoding="async" /></figure>
 <h2 id="why-this-matters-for-a-hive-not-just-one-agent" tabindex="-1">Why this matters for a hive (not just one agent) <a class="anchor" href="#why-this-matters-for-a-hive-not-just-one-agent" aria-hidden="true">#</a></h2>
 <p>A single agent with memory is useful. A <em>hive</em> with shared memory compounds:</p>
 <ul>

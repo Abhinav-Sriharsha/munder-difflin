@@ -198,6 +198,7 @@ because the expensive prefix didn’t have to be reprocessed.</li>
 turn. For a one-shot call that never repeats, caching isn’t worth the write premium. For an <em>agent</em> —
 which repeats the same prefix constantly — it’s close to a no-brainer. The break-even is usually just
 two or three reuses, and agents reuse far more than that.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/prompt-caching-for-ai-agents/note-1.png" alt="Hand-drawn sketch from “Prompt Caching for AI Agents: Stop Paying for the Same Tokens Twice”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-one-rule-stable-first-volatile-last" tabindex="-1">The one rule: stable first, volatile last <a class="anchor" href="#the-one-rule-stable-first-volatile-last" aria-hidden="true">#</a></h2>
 <p>Caches match on an <strong>exact prefix</strong>. The provider walks your prompt from the start and reuses the cache
 up to the first byte that differs. Everything after that point is reprocessed and re-priced. That single
@@ -233,6 +234,7 @@ re-write cost as the price of the pause.</li>
 <a href="/blog/human-in-the-loop-ai-agents/">human-in-the-loop checkpoints</a> should be rare and high-signal,
 not sprinkled everywhere.</li>
 </ul>
+<figure class="fig fig-inline"><img src="/blog/assets/media/prompt-caching-for-ai-agents/note-2.png" alt="Hand-drawn sketch from “Prompt Caching for AI Agents: Stop Paying for the Same Tokens Twice”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-multi-agent-angle" tabindex="-1">The multi-agent angle <a class="anchor" href="#the-multi-agent-angle" aria-hidden="true">#</a></h2>
 <p>In a single agent, caching is a per-session win. In a <a href="/blog/coordinating-ai-coding-agents/">hive</a> it
 compounds, because many agents share structure. If your agents are built from the <strong>same system-prompt

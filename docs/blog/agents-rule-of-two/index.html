@@ -193,6 +193,7 @@ private data, nothing worth stealing. No way to communicate out, nowhere to send
 just that observation made actionable: stay at two legs and the worst case is off the table. (Meta
 credits both Willison’s framing and the older Chromium “Rule of 2” as
 inspiration.)</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/agents-rule-of-two/note-1.png" alt="Hand-drawn sketch from “The Agents Rule of Two: A Simple Safety Rule for Coding Agents”" loading="lazy" decoding="async" /></figure>
 <h2 id="a-coding-agent-wants-all-three-by-default" tabindex="-1">A coding agent wants all three by default <a class="anchor" href="#a-coding-agent-wants-all-three-by-default" aria-hidden="true">#</a></h2>
 <p>Here’s the uncomfortable part for our domain: a capable coding agent is <em>born</em> at the full trifecta.</p>
 <ul>
@@ -219,6 +220,7 @@ reads as potentially hostile rather than as instructions to obey.</li>
 </ul>
 <p>In practice you rarely remove a leg entirely — you weaken it enough that a single compromised session
 can’t complete the chain.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/agents-rule-of-two/note-2.png" alt="Hand-drawn sketch from “The Agents Rule of Two: A Simple Safety Rule for Coding Agents”" loading="lazy" decoding="async" /></figure>
 <h2 id="when-you-genuinely-need-all-three-supervise" tabindex="-1">When you genuinely need all three: supervise <a class="anchor" href="#when-you-genuinely-need-all-three-supervise" aria-hidden="true">#</a></h2>
 <p>Sometimes the task really does want the full <a href="/blog/the-lethal-trifecta-for-coding-agents/">trifecta</a> — read an untrusted issue, touch private code,
 and open a PR. Meta’s escape hatch is the right one: don’t run that autonomously. Route the risky step

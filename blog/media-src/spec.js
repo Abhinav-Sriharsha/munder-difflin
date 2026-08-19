@@ -118,4 +118,19 @@ const SPEC = {
   "why-cli-agents-are-powerful": { a: "terminal", blue: "the CLI is the API", orange: "fewer tokens, same work" },
   "why-local-first-matters-for-ai-agents": { a: "guard", blue: "local-first", orange: "your machine, your data", amber: "your code stays home" },
   "why-our-auto-update-never-ran": { a: "loop", blue: "CJS export → ESM namespace", orange: "the update that never ran" },
+  // The next three posts have hand-authored pilot heroes (media-src/pilot/) —
+  // these entries exist only so buildNote() can draw their inline sketches.
+  "why-we-built-munder-difflin": { a: "fleet", blue: "one floor, many desks", orange: "the itch that started it" },
+  "your-first-hour-with-munder-difflin": { a: "terminal", blue: "first run", orange: "an office in an hour" },
+  "how-the-god-orchestrator-works": { a: "routing", blue: "michael routes the mail", orange: "one boss, many desks" },
+  "number-five-on-product-hunt": { a: "spotlight", blue: "195 upvotes · 326 followers", orange: "Nº5 product of the day" },
+  "what-reddit-told-us-about-munder-difflin": { a: "talk", blue: "516 comments", blue2: "we read every one", orange: "the stadium had notes" },
+  "launching-munder-difflin-v0-4-4": { a: "ship", blue: "v0.4.4", orange: "windows agents can finally talk" },
+  "seven-releases-in-eight-days": { a: "kanban", blue: "0.3.8 → 0.4.4", orange: "seven releases, eight days" },
+  "the-newline-that-silenced-windows-agents": { a: "wire", blue: "cmd.exe stops at the first newline", orange: "the agents never got the memo" },
+  "agents-ran-our-launch-week-analytics": { a: "memory", blue: "one agent per channel", orange: "every comment accounted for", amber: "reddit · PH · github" },
+  "an-agent-redesigned-this-blog": { a: "terminal", blue: "119 heroes, drawn as code", orange: "this blog, by an agent" },
+  "run-a-release-train-with-agents": { a: "ship", blue: "bump · notes · tag · check", orange: "the train leaves on time" },
+  "turn-feedback-into-a-backlog-with-agents": { a: "routing", blue: "comments in → cards out", orange: "feedback becomes work", amber: "516 incoming" },
+  "we-opened-a-discord": { a: "talk", blue: "come say hi", blue2: "employee of the month", orange: "the office got a lobby" },
 };

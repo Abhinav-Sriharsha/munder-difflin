@@ -171,6 +171,7 @@
 <li><strong>Can it be interrupted, steered, and fed new input mid-stream?</strong></li>
 </ol>
 <p>Claude Code and Copilot CLI give very different answers — and neither answer is wrong. They’re different shapes for different jobs.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/github-copilot-cli-vs-claude-code-for-hive-work/note-1.png" alt="Hand-drawn sketch from “GitHub Copilot CLI vs Claude Code as Hive Workers”" loading="lazy" decoding="async" /></figure>
 <h2 id="claude-code-the-hive-aware-resident" tabindex="-1">Claude Code: the hive-aware resident <a class="anchor" href="#claude-code-the-hive-aware-resident" aria-hidden="true">#</a></h2>
 <p>Claude Code runs as a persistent interactive session in its pseudo-terminal, and it exposes native hooks — external commands fired at lifecycle points. Munder Difflin leans on those hard:</p>
 <ul>
@@ -191,6 +192,7 @@
 </ul>
 <p>The honest limitation: with no resident process between turns, there’s nothing to deliver inbox mail <em>to</em>. So in Munder Difflin, Copilot’s provider is registered non-hive-aware (<code>canReceiveInbox: false</code>), and routed mail <strong>bounces to the GOD orchestrator</strong> instead of silently dropping. The orchestrator can then re-dispatch it as a fresh Copilot task or hand it to a hive-aware worker.</p>
 <p>To be fair to Copilot CLI: the tool itself is more extensible than the print-mode integration uses. GitHub ships its own hooks system (JSON files in <code>.github/hooks/</code> or <code>~/.copilot/hooks/</code>, with <code>sessionStart</code>/<code>sessionEnd</code> events), MCP server support, and custom instructions. A deeper bridge is conceivable; v0.3.3 ships the documented, honest version.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/github-copilot-cli-vs-claude-code-for-hive-work/note-2.png" alt="Hand-drawn sketch from “GitHub Copilot CLI vs Claude Code as Hive Workers”" loading="lazy" decoding="async" /></figure>
 <h2 id="verdict-dont-pick-mix" tabindex="-1">Verdict: don’t pick — mix <a class="anchor" href="#verdict-dont-pick-mix" aria-hidden="true">#</a></h2>
 <p>The comparison table writes itself once you frame it as lifecycle:</p>
 <table>

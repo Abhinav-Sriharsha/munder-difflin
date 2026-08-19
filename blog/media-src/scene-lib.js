@@ -220,6 +220,162 @@ const ARCH = {
   },
 };
 
+// ---- inline note vignettes (1200x560) ----
+// Small mid-post sketches. One or two parts, at most a tiny fixed label —
+// the post's own figcaption (if any) carries the meaning. Two variants per
+// archetype; per-slug rng keeps every render's jitter + wobble unique.
+const NOTE_W = 1200, NOTE_H = 560;
+const V = {
+  mail(r) {
+    let s = envelope(300 + J(r, 20), 300, 96, -6) + envelope(430, 230 + J(r, 16), 96, 5) + envelope(390, 370, 96, 2);
+    s += `<path d="M560 310 C 660 305, 720 300, 790 296" marker-end="url(#ah)"/>`;
+    s += box(820, 240, 150, 120) + `<path d="M845 300 h100"/>`;
+    return s + txt(842, 220, "inbox", AMBER, 28);
+  },
+  bell(r) {
+    let s = bell(500, 300 + J(r, 10), 1.5) + `<path d="M585 200 l18 -18 M600 232 l24 -8 M415 200 l-18 -18 M400 232 l-24 -8"/>`;
+    s += hei(800, 330, 0.85, { legs: "walk", armL: "up", armR: "up" });
+    return s;
+  },
+  desks(r) {
+    return miniAtDesk(360, 280 + J(r, 8)) + miniAtDesk(800, 280 + J(r, 8));
+  },
+  board(r) {
+    let s = `<rect x="420" y="120" width="440" height="330" rx="4"/><path d="M567 120 v330 M714 120 v330"/><path d="M420 180 h440"/>`;
+    s += sticky(445, 205 + J(r, 6), 62, -3) + sticky(452, 295, 62, 2) + sticky(590, 210, 62, 3) + sticky(740, 220 + J(r, 6), 62, -2);
+    s += `<path d="M756 310 l18 18 l30 -34" stroke-width="4"/>`;
+    return s + txt(455, 165, "todo", BLUE, 26) + txt(598, 165, "doing", BLUE, 26) + txt(748, 165, "done", BLUE, 26);
+  },
+  cards(r) {
+    let s = "";
+    [0, 1, 2].forEach(i => { s += `<rect x="${470 + J(r, 6)}" y="${180 + i * 96}" width="300" height="76" rx="3"/><path d="M${595} ${216 + i * 96} h60"/>`; });
+    s += hei(320, 330, 0.8, { legs: "stand", armR: "out", armL: "down" }) + sticky(400, 280, 42, -8);
+    return s;
+  },
+  vs(r) {
+    let s = box(260, 200 + J(r, 8), 230, 170, true) + box(710, 200 + J(r, 8), 230, 170, true);
+    s += `<text x="600" y="300" fill="${INK}" stroke="none" font-size="48" font-weight="600" text-anchor="middle" font-family="Caveat">vs</text>`;
+    s += hei(1030, 340, 0.75, { legs: "stand", armL: "out", armR: "down" }) + magnifier(950, 260, 0.9);
+    return s;
+  },
+  shield(r) {
+    let s = shield(560, 260 + J(r, 8), 1.3) + bolt(300, 160, 1) + bolt(260, 330, 0.9);
+    s += `<path d="M350 200 C 410 230, 440 250, 470 268" marker-end="url(#ah)"/>`;
+    s += hei(830, 330, 0.8, { legs: "stand", armL: "out", armR: "down" });
+    return s;
+  },
+  sleep(r) {
+    let s = desk(380, 380, 320);
+    s += `<g transform="rotate(-14 530 310)"><ellipse cx="530" cy="310" rx="52" ry="62" fill="${YEL}" stroke="${INK}"/><path d="M506 300 c 5 5 12 5 17 0 M536 296 c 5 5 12 5 17 0"/></g>`;
+    s += `<text x="640" y="200" font-size="40" fill="${INK}" stroke="none" font-family="Caveat">z</text><text x="672" y="170" font-size="32" fill="${INK}" stroke="none" font-family="Caveat">z</text><text x="696" y="146" font-size="25" fill="${INK}" stroke="none" font-family="Caveat">z</text>`;
+    s += terminal(760, 240, 130, 82);
+    return s;
+  },
+  nightowl(r) {
+    return moonzzz(360, 180 + J(r, 8)) + clock(800, 280, 66);
+  },
+  loop(r) {
+    let s = `<path d="M 600 140 C 780 140, 860 220, 860 290 C 860 380, 760 440, 600 440 C 440 440, 340 380, 340 290 C 340 235, 390 165, 510 145" marker-end="url(#ah)"/>`;
+    s += hei(600, 290, 0.8, { legs: "walk", armL: "out", armR: "down" });
+    s += `<path d="M880 260 l18 22 l34 -40" stroke-width="4"/>`;
+    return s;
+  },
+  coins(r) {
+    let s = desk(380, 400, 460);
+    s += coins(520, 370, 3 + Math.floor(r() * 3)) + coins(610, 370, 5);
+    s += `<rect x="700" y="200" width="150" height="190" rx="4"/><path d="M722 240 h106 M722 275 h70 M722 310 h106"/><path d="M700 390 l16 13 l20 -13 l20 13 l20 -13 l20 13 l20 -13 l20 13"/>`;
+    return s;
+  },
+  book(r) {
+    return book(400, 210 + J(r, 8), 440) + hei(300, 350, 0.72, { legs: "stand", armR: "out", armL: "down" });
+  },
+  term(r) {
+    let s = terminal(430, 130, 430, 260);
+    s += `<path d="M470 340 h24 l-10 -10 m10 10 l-10 10" stroke-width="3"/>`;
+    s += hei(340, 350, 0.7, { legs: "none", armR: "out", armL: "none" }) + desk(290, 420, 640);
+    return s;
+  },
+  ship(r) {
+    let s = `<path d="M280 430 L940 430"/>`;
+    s += box(620, 300, 190, 130, true) + flag(715, 300, 1.1);
+    s += hei(470, 320, 0.8, { legs: "walk", armL: "down", armR: "out" });
+    s += `<path d="M400 320 l-34 -8 M404 352 l-38 0 M400 384 l-34 10"/>`;
+    return s;
+  },
+  chat(r) {
+    let s = hei(420, 320, 0.8, { legs: "stand", armR: "out", armL: "down" });
+    s += hei(800, 320, 0.8, { legs: "stand", armL: "out", armR: "down" });
+    s += bubble(280, 140, 250, 86, 1) + bubble(700, 130, 260, 86, -1);
+    s += txt(330, 196, "…", BLUE, 30) + txt(760, 184, "!", BLUE, 30);
+    return s;
+  },
+  point(r) {
+    let s = `<path d="M540 430 l-52 90 M640 430 l52 90 M590 430 v90"/>`;
+    s += `<rect x="430" y="170" width="320" height="260" rx="6"/><path d="M430 216 h320"/>`;
+    s += `<path d="M465 265 h120 M465 310 h180 M465 355 h105"/>`;
+    s += hei(900, 340, 0.8, { legs: "stand", armL: "out", armR: "down" });
+    s += `<path d="M826 334 C 800 318, 780 305, 762 292"/>`;
+    return s;
+  },
+  stack(r) {
+    let s = "";
+    [0, 1, 2].forEach(i => { s += box(400, 430 - i * 82, 260 - i * 26, 74, true); });
+    s += hei(800, 320, 0.82, { legs: "stand", armL: "up", armR: "down" });
+    return s;
+  },
+  walk(r) {
+    let s = hei(520, 300 + J(r, 8), 0.85, { legs: "walk", armL: "down", armR: "out" });
+    s += envelope(610, 250, 64, 8);
+    s += `<path d="M700 300 C 800 295, 860 292, 930 290" marker-end="url(#ah)"/>`;
+    s += box(950, 240, 130, 110);
+    return s;
+  },
+};
+
+// archetype → [variant for note-1, variant for note-2]
+const NOTES = {
+  routing: [V.mail, V.walk],
+  fleet: [V.desks, V.board],
+  kanban: [V.board, V.walk],
+  memory: [V.cards, V.book],
+  versus: [V.vs, V.point],
+  guard: [V.shield, V.bell],
+  night: [V.sleep, V.nightowl],
+  wire: [V.bell, V.term],
+  stack: [V.stack, V.point],
+  loop: [V.loop, V.bell],
+  ledger: [V.coins, V.board],
+  book: [V.book, V.point],
+  terminal: [V.term, V.walk],
+  ship: [V.ship, V.board],
+  talk: [V.chat, V.mail],
+  spotlight: [V.point, V.chat],
+};
+
+// Build a 1200x560 inline-note SVG for a spec entry. `which` = 1, 2, 3…
+function buildNote(slug, spec, which) {
+  const r = rng(`${slug}#note${which}`);
+  const seed = Math.floor(r() * 900) + 2;
+  LABELS = "";
+  const variants = NOTES[spec.a] || [V.walk, V.point];
+  const inner = variants[(which - 1) % variants.length](r, spec);
+  return `<svg width="${NOTE_W}" height="${NOTE_H}" viewBox="0 0 ${NOTE_W} ${NOTE_H}" font-family="Caveat">
+  <defs>
+    <filter id="wob" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="2" seed="${seed}" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="6"/>
+    </filter>
+    <marker id="ah" viewBox="0 0 12 12" refX="9" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M2 2 L10 6 L2 10" fill="none" stroke="${INK}" stroke-width="2"/>
+    </marker>
+  </defs>
+  <g filter="url(#wob)" fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+${inner}
+  </g>
+  <g>${LABELS}</g>
+</svg>`;
+}
+
 // Build the full SVG document for a spec entry.
 function buildScene(slug, spec) {
   const r = rng(slug);

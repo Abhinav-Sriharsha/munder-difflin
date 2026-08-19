@@ -184,6 +184,7 @@ as the most prevalent, impactful client-side MCP vulnerability. The agent isn’
 following instructions it was handed by something it was told to trust.</p>
 <p>The mitigation starts with a mindset shift: <strong>tool descriptions are untrusted model input, not
 documentation.</strong> Treat them the way you’d treat any string from the internet that reaches your prompt.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/mcp-security-tool-poisoning/note-1.png" alt="Hand-drawn sketch from “MCP Tool Poisoning: How to Secure the Model Context Protocol”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-rug-pull-poisoning-on-a-delay" tabindex="-1">The rug pull: poisoning on a delay <a class="anchor" href="#the-rug-pull-poisoning-on-a-delay" aria-hidden="true">#</a></h2>
 <p>Approving a server once isn’t enough, because descriptions can change. In a <strong>rug pull</strong>, a server is
 clean when you approve it, then <strong>updates its tool descriptions later</strong> to add exfiltration instructions
@@ -210,6 +211,7 @@ mismanagement — a leaked or over-privileged API key — as the most common rea
 ahead of clever injection chains. The flashy attack gets the write-ups; the credential left in scope does
 the damage. If you do one thing, make it <strong>least privilege</strong>: scope every tool’s token so it can only
 touch the data it explicitly needs.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/mcp-security-tool-poisoning/note-2.png" alt="Hand-drawn sketch from “MCP Tool Poisoning: How to Secure the Model Context Protocol”" loading="lazy" decoding="async" /></figure>
 <h2 id="defenses-layered" tabindex="-1">Defenses, layered <a class="anchor" href="#defenses-layered" aria-hidden="true">#</a></h2>
 <p>No single control is enough; MCP security is defense in depth.</p>
 <ul>

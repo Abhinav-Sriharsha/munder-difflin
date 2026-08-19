@@ -198,6 +198,7 @@ Accuracy-critical → maker-checker. Emergent path → swarm (with guardrails).<
 <li><strong>Start simple.</strong> Most teams over-architect. Reach for more agents only when a single agent genuinely
 can’t hold the task.</li>
 </ol>
+<figure class="fig fig-inline"><img src="/blog/assets/media/multi-agent-orchestration-patterns/note-1.png" alt="Hand-drawn sketch from “Multi-Agent Orchestration Patterns: Which Topology, and When”" loading="lazy" decoding="async" /></figure>
 <h2 id="patterns-compose" tabindex="-1">Patterns compose <a class="anchor" href="#patterns-compose" aria-hidden="true">#</a></h2>
 <p>Real systems rarely use one pattern in isolation — they nest. A supervisor’s workers might each run a
 maker-checker loop internally; a sequential pipeline might fan out within a single stage; a hierarchical
@@ -222,6 +223,7 @@ dependencies corrupts its merge.</li>
 <p>The corollary: the value isn’t “more agents,” it’s <strong>the right topology plus the resilience to survive
 its failure mode</strong> — hop caps, idempotent handling, isolation. (We wrote up those mechanics in
 <a href="/blog/recovering-from-agent-failures/">recovering from agent failures</a>.)</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/multi-agent-orchestration-patterns/note-2.png" alt="Hand-drawn sketch from “Multi-Agent Orchestration Patterns: Which Topology, and When”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-2026-framework-landscape" tabindex="-1">The 2026 framework landscape <a class="anchor" href="#the-2026-framework-landscape" aria-hidden="true">#</a></h2>
 <p>If you’re building this on a framework, the control-vs-simplicity tension hasn’t converged — they differ
 mostly in orchestration model and ecosystem:</p>

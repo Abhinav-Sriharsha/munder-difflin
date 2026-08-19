@@ -187,6 +187,7 @@ an approval re-routed the message back into the queue. The
 <a href="https://github.com/chaitanyagiri/munder-difflin/blob/main/CHANGELOG.md">v0.1.7 release</a> notes it plainly:
 “Moving to native HITL removes the panel and the bug.” Deleting the abstraction deleted the class of bug
 with it.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/human-in-the-loop-approving-ai-agents/note-1.png" alt="Hand-drawn sketch from “Approving AI Agents: Human-in-the-Loop Without a Queue”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-native-approach-approve-where-the-work-happens" tabindex="-1">The native approach: approve where the work happens <a class="anchor" href="#the-native-approach-approve-where-the-work-happens" aria-hidden="true">#</a></h2>
 <p>Here’s the shift. Coding agents <em>already have</em> a human-in-the-loop mechanism — the <strong>permission prompt</strong>.
 Claude Code pauses before a sensitive tool call and asks, right there in the agent’s own terminal. That
@@ -217,6 +218,7 @@ critical calls. A <code>needsHuman</code> flag still rides along, but it’s <st
 envelope on the office-floor visualization. As the code comments note, it’s “Cosmetic only — no queue
 behind it.” The system even guards against a <code>god → &quot;human&quot;</code> message looping back to itself. One
 recipient, one source of truth, no parallel inbox to babysit.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/human-in-the-loop-approving-ai-agents/note-2.png" alt="Hand-drawn sketch from “Approving AI Agents: Human-in-the-Loop Without a Queue”" loading="lazy" decoding="async" /></figure>
 <h2 id="approve-from-anywhere" tabindex="-1">Approve from anywhere <a class="anchor" href="#approve-from-anywhere" aria-hidden="true">#</a></h2>
 <p>A nice property falls out of doing it this way: because approval rides on the native session prompt,
 <strong>you can approve from wherever you can reach the session.</strong> Munder Difflin’s <code>/remote-control</code> lets the

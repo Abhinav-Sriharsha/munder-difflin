@@ -201,6 +201,7 @@ read the whole exchange back later.</li>
 </ul>
 <p>It’s the backbone of <a href="/blog/coordinating-ai-coding-agents/">how a hive coordinates its agents</a>, and it
 never leaves your disk.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/local-first-ai-agent-orchestration/note-1.png" alt="Hand-drawn sketch from “Local-First AI Agent Orchestration: How a Hive Runs Without a Cloud”" loading="lazy" decoding="async" /></figure>
 <h2 id="scheduling-on-your-own-clock" tabindex="-1">Scheduling on your own clock <a class="anchor" href="#scheduling-on-your-own-clock" aria-hidden="true">#</a></h2>
 <p>Recurring work doesn’t need a cloud cron either. The scheduler arms ordinary in-process timers — a
 <code>setTimeout</code> into a steady <code>setInterval</code> — and when one fires it just drops a <code>request</code> message into an
@@ -222,6 +223,7 @@ answerable from your own repo history, not a vendor’s dashboard.</li>
 the whole team can query, indexed on your machine.</li>
 </ul>
 <p>Nothing in that list is a network call. The team’s shared brain is a folder you own.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/local-first-ai-agent-orchestration/note-2.png" alt="Hand-drawn sketch from “Local-First AI Agent Orchestration: How a Hive Runs Without a Cloud”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-loop-is-local-too" tabindex="-1">The loop is local, too <a class="anchor" href="#the-loop-is-local-too" aria-hidden="true">#</a></h2>
 <p>What keeps an agent <em>going</em> without you clicking “continue”? A local hook. When an agent finishes a
 turn, a Stop hook checks its inbox; if fresh messages are waiting, it tells the agent to keep working,

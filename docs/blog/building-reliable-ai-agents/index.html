@@ -197,6 +197,7 @@ a different approach, or hand it to a human.</li>
 </ol>
 <p>An unbounded retry is the single most common way a “resilient” agent turns into a money fire. The retry
 <em>budget</em> is what makes retrying a feature instead of a hazard.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/building-reliable-ai-agents/note-1.png" alt="Hand-drawn sketch from “Building Reliable AI Agents: Failure Is the Default”" loading="lazy" decoding="async" /></figure>
 <h2 id="catch-bad-output-before-it-spreads" tabindex="-1">Catch bad output before it spreads <a class="anchor" href="#catch-bad-output-before-it-spreads" aria-hidden="true">#</a></h2>
 <p>The sneakiest failure is the one that looks like success. A model returns confident nonsense, or JSON
 that’s almost-but-not-quite valid, and the agent acts on it. The defense is to <strong>validate at the
@@ -233,6 +234,7 @@ agent crashes, hangs, or goes off the rails, the others don’t even notice — 
 mailboxes are untouched, and the orchestrator can restart or reassign the failed work without a
 system-wide reset.</p>
 <p>Contain the blast radius and a single failure stays a single failure, instead of becoming an outage.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/building-reliable-ai-agents/note-2.png" alt="Hand-drawn sketch from “Building Reliable AI Agents: Failure Is the Default”" loading="lazy" decoding="async" /></figure>
 <h2 id="a-reliability-checklist" tabindex="-1">A reliability checklist <a class="anchor" href="#a-reliability-checklist" aria-hidden="true">#</a></h2>
 <p>When an agent run dies and takes its progress with it, it usually skipped one of these:</p>
 <ol>

@@ -194,6 +194,7 @@ recreate. In a fresh worktree, make the dependencies real <em>before</em> claimi
 <span class="token function">npm</span> run typecheck   <span class="token comment"># now this is a claim you can stand behind</span>
 <span class="token function">npm</span> run build       <span class="token comment"># paste the result — green that reproduces is green</span></code></pre>
 <p>“It works on my branch” is worthless if your branch is a state no one else can reach.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/how-ai-agents-verify-their-own-work/note-1.png" alt="Hand-drawn sketch from “How AI Agents Verify Their Own Work (Before Saying 'Done')”" loading="lazy" decoding="async" /></figure>
 <h2 id="verify-the-fix-not-the-intent" tabindex="-1">Verify the fix, not the intent <a class="anchor" href="#verify-the-fix-not-the-intent" aria-hidden="true">#</a></h2>
 <p>A subtler failure than skipping the check: running a check that doesn’t prove the thing you fixed. You
 patched the cause, the code compiles, so you call it done — but you never confirmed the <em>symptom</em> is gone.</p>
@@ -219,6 +220,7 @@ the wrong file, ran in a dirty environment, misread output). In practice it look
 naturally with <a href="/blog/human-in-the-loop-ai-agents/">human-in-the-loop gates</a>: the agent verifies, a peer
 re-verifies, and the human approves what’s hard to reverse. Each layer assumes the one before it can be
 wrong — which is why the chain holds.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/how-ai-agents-verify-their-own-work/note-2.png" alt="Hand-drawn sketch from “How AI Agents Verify Their Own Work (Before Saying 'Done')”" loading="lazy" decoding="async" /></figure>
 <h2 id="a-self-verification-checklist" tabindex="-1">A self-verification checklist <a class="anchor" href="#a-self-verification-checklist" aria-hidden="true">#</a></h2>
 <p>Before an agent writes “done,” it should answer yes to all of these:</p>
 <ul>

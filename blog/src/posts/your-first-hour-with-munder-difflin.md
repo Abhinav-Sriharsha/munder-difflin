@@ -53,6 +53,8 @@ First launch drops you into a short wizard, and the four choices it asks for are
 
 Finish the wizard and you land on the floor: a pixel-art office, empty except for Michael, who seats himself in his office automatically.
 
+{% img "note-1" %}
+
 ## Minute 10 — Your first brief to Michael
 
 You don't manage the workers. You talk to one agent — the GOD orchestrator — and he runs the floor. Click into Michael's terminal and type a brief the way you'd brief a colleague: what you want, which repo, what "done" looks like.
@@ -68,6 +70,8 @@ Now the part that makes the product legible: the floor is not a decoration, it's
 {% img "floor-view", "The floor mid-task: every movement maps to a real event." %}
 
 Click any agent and you get their desk: the live terminal (you can type back into it), a sandboxed file browser, and a git tab with status, log, and commit graph. This is the moment the abstraction clicks — that avatar is a real `claude` process, and you're reading its actual stdout.
+
+{% img "note-2" %}
 
 ## Minute 40 — Your first approval, and the diff
 

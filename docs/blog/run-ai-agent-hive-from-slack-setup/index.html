@@ -216,6 +216,7 @@ the signing secret, it stays in the app’s main process and is never logged.</p
 <p>Keep both values handy. You’ll paste them into Munder Difflin next, then come back to finish Event
 Subscriptions.</p>
 </blockquote>
+<figure class="fig fig-inline"><img src="/blog/assets/media/run-ai-agent-hive-from-slack-setup/note-1.png" alt="Hand-drawn sketch from “Run Your AI Agent Hive from Slack: The Complete Setup”" loading="lazy" decoding="async" /></figure>
 <h2 id="part-2-configure-munder-difflin" tabindex="-1">Part 2 — Configure Munder Difflin <a class="anchor" href="#part-2-configure-munder-difflin" aria-hidden="true">#</a></h2>
 <p>Open Munder Difflin and go to <strong>Settings</strong>. In the Slack section:</p>
 <ol>
@@ -262,6 +263,7 @@ subtype — so it never talks to itself and never reacts to channel noise.</p>
 <p>The message lands in the queue, GOD routes it, and an agent picks it up. Keep the conversation going by
 replying in that same thread — the hive is still listening. When the task is done, a summary appears
 right there in the thread.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/run-ai-agent-hive-from-slack-setup/note-2.png" alt="Hand-drawn sketch from “Run Your AI Agent Hive from Slack: The Complete Setup”" loading="lazy" decoding="async" /></figure>
 <h2 id="troubleshooting-the-request-url-rotates-on-restart" tabindex="-1">Troubleshooting: the Request URL rotates on restart <a class="anchor" href="#troubleshooting-the-request-url-rotates-on-restart" aria-hidden="true">#</a></h2>
 <p>Here’s the one quirk worth tattooing on the back of your hand. <strong>The public Request URL comes from an
 ephemeral tunnel, and it changes every time the app restarts.</strong> So if Slack suddenly stops triggering

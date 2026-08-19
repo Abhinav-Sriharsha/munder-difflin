@@ -196,6 +196,7 @@ older than ten seconds is from a committer that died, so it’s safe to remove �
 wedge the repo forever. And <strong>graceful give-up:</strong> a non-lock error doesn’t throw or block; it returns,
 because the <em>next</em> mutation will stage and commit the same pending changes anyway. Nothing is lost by
 bailing early.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/recovering-from-agent-failures/note-1.png" alt="Hand-drawn sketch from “Recovering From Agent Failures: Resilience Patterns for a Hive”" loading="lazy" decoding="async" /></figure>
 <h2 id="dont-choke-on-a-poison-message" tabindex="-1">Don’t choke on a poison message <a class="anchor" href="#dont-choke-on-a-poison-message" aria-hidden="true">#</a></h2>
 <p>A file-based mailbox will eventually contain a half-written or malformed JSON file. The naive router
 reads it, throws, and — if it retries the same file — spins on it forever. The fix is to <strong>quarantine</strong>:</p>
@@ -220,6 +221,7 @@ backstop. Every message carries a <strong>hop count</strong>, and the router dro
 <p>It’s deliberately blunt: it guarantees the conversation terminates. And because the drop is <em>logged</em>, a
 runaway leaves a breadcrumb instead of a silent hang — you can read the log and see exactly which thread
 ran away.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/recovering-from-agent-failures/note-2.png" alt="Hand-drawn sketch from “Recovering From Agent Failures: Resilience Patterns for a Hive”" loading="lazy" decoding="async" /></figure>
 <h2 id="idempotent-by-construction" tabindex="-1">Idempotent by construction <a class="anchor" href="#idempotent-by-construction" aria-hidden="true">#</a></h2>
 <p>The cheapest way to survive duplicates and replays is to make re-handling a no-op. In the hive, an agent
 moves a message to <code>inbox/.done/</code> once it’s handled, and the protocol is explicit: <em>re-reading a message
@@ -305,6 +307,22 @@ there to read.</p>
       <h2>Related in Internals</h2>
       <div class="post-grid">
         <article class="card t-internals">
+  <a class="thumb t-internals" href="/blog/the-newline-that-silenced-windows-agents/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/the-newline-that-silenced-windows-agents/hero.png" alt="" loading="lazy" decoding="async" /></a>
+  <div class="body">
+    <div class="meta">
+      <time datetime="2026-08-19">Aug 19, 2026</time>
+      <span class="dot" aria-hidden="true"></span>
+      <span>4 min</span>
+    </div>
+    <h3><a href="/blog/the-newline-that-silenced-windows-agents/">The Newline That Silenced Every Windows Agent</a></h3>
+    <p class="dek">A cmd.exe parsing rule from the 1980s meant Windows agents received exactly one line of their multi-line startup protocol — and nothing errored. The anatomy of our worst silent failure, and the fix.</p>
+    <div class="foot">
+      <span class="tag kind">Internals</span>
+      <a class="more" href="/blog/the-newline-that-silenced-windows-agents/" aria-label="Read: The Newline That Silenced Every Windows Agent">Read →</a>
+    </div>
+  </div>
+</article>
+<article class="card t-internals">
   <a class="thumb t-internals" href="/blog/why-our-auto-update-never-ran/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/why-our-auto-update-never-ran/hero.png" alt="" loading="lazy" decoding="async" /></a>
   <div class="body">
     <div class="meta">
@@ -333,22 +351,6 @@ there to read.</p>
     <div class="foot">
       <span class="tag kind">Internals</span>
       <a class="more" href="/blog/hire-manifest-untrusted-input/" aria-label="Read: Treating a Hire Manifest as Untrusted Input">Read →</a>
-    </div>
-  </div>
-</article>
-<article class="card t-internals">
-  <a class="thumb t-internals" href="/blog/compressing-agent-memory/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/compressing-agent-memory/hero.png" alt="" loading="lazy" decoding="async" /></a>
-  <div class="body">
-    <div class="meta">
-      <time datetime="2026-06-05">Jun 5, 2026</time>
-      <span class="dot" aria-hidden="true"></span>
-      <span>5 min</span>
-    </div>
-    <h3><a href="/blog/compressing-agent-memory/">Compressing Agent Memory Without Losing the Original</a></h3>
-    <p class="dek">How and why to compress an agent&#39;s long-term memory: the toolbox, the lossy trap, and keeping a lossless original beside a compact copy.</p>
-    <div class="foot">
-      <span class="tag kind">Internals</span>
-      <a class="more" href="/blog/compressing-agent-memory/" aria-label="Read: Compressing Agent Memory Without Losing the Original">Read →</a>
     </div>
   </div>
 </article>

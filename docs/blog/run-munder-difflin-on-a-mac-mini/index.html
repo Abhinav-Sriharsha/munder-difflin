@@ -301,6 +301,7 @@ gigabytes, far past any Mac Mini. To use those, skip the local server and point 
 open-source-model provider (OpenRouter, Groq, DeepInfra, and friends) with an API key — covered in the
 <a href="/blog/run-munder-difflin-on-open-models/">open-models guide</a>. For a genuinely local GLM,
 <code>glm-4.7-flash</code> (~30B) is the Mac-friendly member of the family.</p></div>
+<figure class="fig fig-inline"><img src="/blog/assets/media/run-munder-difflin-on-a-mac-mini/note-1.png" alt="Hand-drawn sketch from “Run Munder Difflin Locally on a Mac Mini”" loading="lazy" decoding="async" /></figure>
 <h2 id="step-2-install-a-local-model-server" tabindex="-1">Step 2 — Install a local model server <a class="anchor" href="#step-2-install-a-local-model-server" aria-hidden="true">#</a></h2>
 <p>You have two solid options. Both expose an <strong>OpenAI-compatible HTTP endpoint</strong>, which is exactly what
 Munder Difflin’s engines target.</p>
@@ -367,6 +368,7 @@ Once a model is served locally, each engine names it slightly differently: OpenC
 points at a third-party <code>provider/model</code> slug instead, per the note above.) The exact slugs for
 every tier live in the <a href="/blog/run-munder-difflin-on-open-models/">open-source model catalog</a>,
 kept in one place so they don't drift.</p></div>
+<figure class="fig fig-inline"><img src="/blog/assets/media/run-munder-difflin-on-a-mac-mini/note-2.png" alt="Hand-drawn sketch from “Run Munder Difflin Locally on a Mac Mini”" loading="lazy" decoding="async" /></figure>
 <h2 id="step-4-run-the-hive-offline" tabindex="-1">Step 4 — Run the hive offline <a class="anchor" href="#step-4-run-the-hive-offline" aria-hidden="true">#</a></h2>
 <p>With a model served locally and the engines pointed at it, the rest of Munder Difflin is already
 local-first. Spin up your workers from the <a href="/blog/how-to-install-and-use-munder-difflin/">Agent Gallery or Add Agent</a>,

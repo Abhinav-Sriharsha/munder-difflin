@@ -239,6 +239,7 @@
 </tbody>
 </table>
 <p>Default endpoints are the usual ones: Ollama <code>http://localhost:11434/v1</code>, LM Studio <code>http://127.0.0.1:1234/v1</code>, vLLM whatever you exposed (often <code>:8000/v1</code>). You set these in the app — no shell exports required.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/run-munder-difflin-on-open-models/note-1.png" alt="Hand-drawn sketch from “Run Munder Difflin on Open-Source Models — Fully Local or via a Third-Party Provider”" loading="lazy" decoding="async" /></figure>
 <h2 id="path-a-fully-local-ollama-lm-studio-vllm" tabindex="-1">Path A — fully local (Ollama / LM Studio / vLLM) <a class="anchor" href="#path-a-fully-local-ollama-lm-studio-vllm" aria-hidden="true">#</a></h2>
 <p>Three steps: pull a model, tell Munder Difflin where it lives, pick it for an agent.</p>
 <p><strong>1. Pull a model.</strong> With <a href="https://ollama.com">Ollama</a> installed, grab one sized to your RAM:</p>
@@ -371,6 +372,7 @@ ollama serve                   <span class="token comment"># exposes the OpenAI-
 </tbody>
 </table>
 <p>Prefer a model maker’s own API? Those work too: DeepSeek (<code>deepseek/deepseek-v4-flash</code>, <code>DEEPSEEK_API_KEY</code>), Mistral (<code>mistral/...</code>, <code>MISTRAL_API_KEY</code>), <a href="http://Z.ai">Z.ai</a> for GLM, Moonshot for Kimi. A couple of moving targets worth knowing as of mid-2026: DeepSeek’s <code>deepseek-chat</code> / <code>deepseek-reasoner</code> aliases retire on 2026-07-24 (wire <code>deepseek-v4-flash</code> directly), and Groq is sunsetting Llama 4 — so on Groq stick to gpt-oss and <code>llama-3.3-70b-versatile</code>. The full slug-by-slug table, with citations and verify-live caveats, lives in the project’s open-model catalog (the single source of truth this post and the Mac Mini guide both cite).</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/run-munder-difflin-on-open-models/note-2.png" alt="Hand-drawn sketch from “Run Munder Difflin on Open-Source Models — Fully Local or via a Third-Party Provider”" loading="lazy" decoding="async" /></figure>
 <h2 id="per-engine-cheat-sheet" tabindex="-1">Per-engine cheat-sheet <a class="anchor" href="#per-engine-cheat-sheet" aria-hidden="true">#</a></h2>
 <p>You rarely touch these directly — the AI Engines panel writes them — but here’s what each engine does under the hood, so the model field makes sense.</p>
 <p><strong>OpenCode</strong> is OpenAI-SDK native and knows most providers out of the box. BYOK is just the env var; local is a custom provider named <code>local</code>. Slugs: <code>openrouter/openai/gpt-oss-120b</code>, <code>local/qwen3:30b-a3b</code>.</p>

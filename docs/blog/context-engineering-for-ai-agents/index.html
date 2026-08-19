@@ -195,6 +195,7 @@ feature) nudges the model off course.</li>
 </ul>
 <p>Notice that three of the four get <em>worse</em> as you add tokens. That’s the whole argument for treating
 context as something to curate, not accumulate.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/context-engineering-for-ai-agents/note-1.png" alt="Hand-drawn sketch from “Context Engineering for AI Agents: Budgeting the Window”" loading="lazy" decoding="async" /></figure>
 <h2 id="multi-agent-makes-it-sharper" tabindex="-1">Multi-agent makes it sharper <a class="anchor" href="#multi-agent-makes-it-sharper" aria-hidden="true">#</a></h2>
 <p>In a single-agent setup you can sometimes get away with a messy window. In a hive you can’t. Every
 agent has its own window, and they have to coordinate. The naive design — one giant shared context that
@@ -250,6 +251,7 @@ next in a few lines, and that digest — not the raw hour of work — is what pr
 stays on disk for anyone who needs to replay it; the <em>summary</em> is what travels. Whether it’s a single
 agent compacting its own session or a team compacting into a standup, the move is the same: trade fidelity
 you no longer need for window you do.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/context-engineering-for-ai-agents/note-2.png" alt="Hand-drawn sketch from “Context Engineering for AI Agents: Budgeting the Window”" loading="lazy" decoding="async" /></figure>
 <h2 id="a-practical-checklist" tabindex="-1">A practical checklist <a class="anchor" href="#a-practical-checklist" aria-hidden="true">#</a></h2>
 <p>When an agent underperforms, resist the urge to rewrite its prompt first. Audit its window instead:</p>
 <ol>

@@ -200,6 +200,7 @@ machine without it, the markdown files <strong>still work</strong> — the agent
 is an upgrade, not a dependency. Contrast a database that won’t open: it takes the memory with it. With
 markdown-first, the floor never falls out from under the agent; the worst case is slower recall, not
 lost knowledge.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/markdown-first-agent-memory/note-1.png" alt="Hand-drawn sketch from “Why We Built Agent Memory Markdown-First”" loading="lazy" decoding="async" /></figure>
 <h2 id="why-not-a-vector-database-or-a-memory-framework" tabindex="-1">Why not a vector database or a memory framework? <a class="anchor" href="#why-not-a-vector-database-or-a-memory-framework" aria-hidden="true">#</a></h2>
 <p>Vector DBs and dedicated memory frameworks are real tools with real uses. They’re the wrong default
 <em>here</em> for two reasons.</p>
@@ -222,6 +223,7 @@ read-only, so the whole team can recall across agents without any file being wri
 It’s the same single-writer discipline that keeps
 <a href="/blog/single-committer-git-pattern/">multi-agent git safe</a> — applied to memory. Co-edited memory files
 would tear; per-agent files plus a read-only shared index don’t.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/markdown-first-agent-memory/note-2.png" alt="Hand-drawn sketch from “Why We Built Agent Memory Markdown-First”" loading="lazy" decoding="async" /></figure>
 <h2 id="when-markdown-first-is-the-right-call" tabindex="-1">When markdown-first is the right call <a class="anchor" href="#when-markdown-first-is-the-right-call" aria-hidden="true">#</a></h2>
 <p>This approach shines when:</p>
 <ul>

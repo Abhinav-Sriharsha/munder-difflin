@@ -200,6 +200,7 @@ why it composes so cleanly with the rest of the hive.</p>
 <p>This very post is proof. It exists because an <strong>“Hourly Standup” mission</strong> fired: a request, from
 <code>scheduler</code>, broadcast to every agent, asking each to report status and pick up work. No one typed that
 prompt this hour. The schedule did.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/scheduling-autonomous-agent-missions/note-1.png" alt="Hand-drawn sketch from “Make a Hive Work While You Sleep: Scheduling Autonomous Agent Missions”" loading="lazy" decoding="async" /></figure>
 <h2 id="why-lastfiredat-matters" tabindex="-1">Why <code>lastFiredAt</code> matters <a class="anchor" href="#why-lastfiredat-matters" aria-hidden="true">#</a></h2>
 <p>The one piece of cleverness worth understanding is <code>lastFiredAt</code>. A naive scheduler would restart every
 interval from zero whenever the app reboots or you edit an unrelated mission — so an hourly job could
@@ -231,6 +232,7 @@ blasting an identical instruction at every agent. The orchestrator is built for 
 <li><strong>Pause with <code>enabled</code>, don’t delete.</strong> Flip <code>enabled: false</code> to stop a mission while keeping its
 history and <code>lastFiredAt</code>. You can switch it back on later and the cadence picks up cleanly.</li>
 </ul>
+<figure class="fig fig-inline"><img src="/blog/assets/media/scheduling-autonomous-agent-missions/note-2.png" alt="Hand-drawn sketch from “Make a Hive Work While You Sleep: Scheduling Autonomous Agent Missions”" loading="lazy" decoding="async" /></figure>
 <h2 id="pitfalls-to-avoid" tabindex="-1">Pitfalls to avoid <a class="anchor" href="#pitfalls-to-avoid" aria-hidden="true">#</a></h2>
 <ul>
 <li><strong>Flooding the hive.</strong> The scheduler will fire as often as you tell it to — restraint is on you. A

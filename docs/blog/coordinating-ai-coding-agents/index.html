@@ -189,6 +189,7 @@ into place — so a reader never sees a half-written message.</li>
 that every agent appends to (that file is just a multi-writer conflict by another name). The full
 design — speech acts, hop caps to prevent ping-pong, idempotent delivery — is in
 <a href="/blog/atomic-file-mailboxes-for-agents/">atomic file mailboxes for agents</a>.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/coordinating-ai-coding-agents/note-1.png" alt="Hand-drawn sketch from “The Best Way to Coordinate AI Coding Agents”" loading="lazy" decoding="async" /></figure>
 <h2 id="rule-3-one-committer-for-git" tabindex="-1">Rule 3 — One committer for git <a class="anchor" href="#rule-3-one-committer-for-git" aria-hidden="true">#</a></h2>
 <p>Here’s the rule people learn the hard way. Git is not safe to drive from many processes at once. The
 moment two agents run <code>git add</code>/<code>git commit</code> concurrently, they race on <code>.git/index.lock</code> and you get
@@ -207,6 +208,7 @@ if they do.</p>
 <strong>writes</strong> it. Other agents <em>propose</em> changes; the scribe — typically the orchestrator — incorporates
 them. The plan stays coherent because it has one author, and it stays current because everyone can
 suggest edits. Same single-writer principle, applied to the one genuinely co-owned artifact.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/coordinating-ai-coding-agents/note-2.png" alt="Hand-drawn sketch from “The Best Way to Coordinate AI Coding Agents”" loading="lazy" decoding="async" /></figure>
 <h2 id="rule-5-an-orchestrator-to-route-and-break-ties" tabindex="-1">Rule 5 — An orchestrator to route and break ties <a class="anchor" href="#rule-5-an-orchestrator-to-route-and-break-ties" aria-hidden="true">#</a></h2>
 <p>The first four rules make collisions impossible. The fifth makes the team <em>productive</em>: someone has to
 decide who does what and settle disputes.</p>

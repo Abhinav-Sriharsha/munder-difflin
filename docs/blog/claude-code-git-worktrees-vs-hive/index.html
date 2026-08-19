@@ -203,6 +203,7 @@ roster, no single place to see what the team is collectively doing.</li>
 </ul>
 <p>In other words, worktrees make parallel agents <em>safe to run</em>, not <em>able to cooperate</em>. That’s a real
 and useful guarantee — it’s just not the same as a team.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/claude-code-git-worktrees-vs-hive/note-1.png" alt="Hand-drawn sketch from “Git Worktrees vs a Hive: Two Ways to Parallelize Claude Code”" loading="lazy" decoding="async" /></figure>
 <h2 id="what-a-hive-gives-you" tabindex="-1">What a hive gives you <a class="anchor" href="#what-a-hive-gives-you" aria-hidden="true">#</a></h2>
 <p>A <strong>hive</strong> is the coordination layer worktrees lack. It wraps several long-lived agents and adds:</p>
 <ul>
@@ -231,6 +232,7 @@ hive ───────┼─ worktree: agent-b (branch agent-b) ─┼──
 <p>The layers don’t conflict; they stack. Worktrees are a git feature for workspace isolation. A hive is a
 coordination feature for teamwork. Asking which to use is like asking whether to use seatbelts or a
 steering wheel.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/claude-code-git-worktrees-vs-hive/note-2.png" alt="Hand-drawn sketch from “Git Worktrees vs a Hive: Two Ways to Parallelize Claude Code”" loading="lazy" decoding="async" /></figure>
 <h2 id="a-decision-guide" tabindex="-1">A decision guide <a class="anchor" href="#a-decision-guide" aria-hidden="true">#</a></h2>
 <p>Pick based on how <em>interdependent</em> your parallel work is:</p>
 <p><strong>Just worktrees</strong> are enough when:</p>

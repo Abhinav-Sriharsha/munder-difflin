@@ -196,6 +196,7 @@ replying to a <code>request</code> and leaving a peer stuck.</li>
 <p>Reading the trail answers the relational question: did A actually ask B what you think it did, and did
 B get it? Half of “the hive stalled” bugs resolve right here — a message that was malformed, misrouted,
 or never sent.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/debugging-multi-agent-systems/note-1.png" alt="Hand-drawn sketch from “How to Debug a Multi-Agent System”" loading="lazy" decoding="async" /></figure>
 <h2 id="drop-into-the-agents-terminal" tabindex="-1">Drop into the agent’s terminal <a class="anchor" href="#drop-into-the-agents-terminal" aria-hidden="true">#</a></h2>
 <p>Now — and only now — open the specific agent’s terminal. Because every agent runs in a real
 pseudo-terminal, you have its byte-for-byte output, not a summary. With the log and the message trail
@@ -211,6 +212,7 @@ idle — often pointing you at the right terminal before you’ve even opened th
 <strong>replayable</strong>: each coordination step is a commit, so you can walk the history and reconstruct exactly
 what the hive knew at any point — the roster, the pending messages, the board. When “what state was the
 system in when it broke?” matters, the git log answers it precisely instead of from memory.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/debugging-multi-agent-systems/note-2.png" alt="Hand-drawn sketch from “How to Debug a Multi-Agent System”" loading="lazy" decoding="async" /></figure>
 <h2 id="check-the-usual-suspects" tabindex="-1">Check the usual suspects <a class="anchor" href="#check-the-usual-suspects" aria-hidden="true">#</a></h2>
 <p>Some failure modes recur in multi-agent systems. When you’re stuck, check these directly:</p>
 <ul>

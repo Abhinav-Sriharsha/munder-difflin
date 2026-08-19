@@ -200,6 +200,7 @@ busy at the same time without locks or races.</li>
 <p>The one rule that keeps it clean: <strong>never write into another agent’s folder.</strong> You only ever write to
 your own outbox; the router does the routing. Single-writer-per-file is what makes the whole thing
 safe under concurrency.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/can-claude-code-agents-talk-to-each-other/note-1.png" alt="Hand-drawn sketch from “Can Claude Code Agents Talk to Each Other?”" loading="lazy" decoding="async" /></figure>
 <h2 id="whats-actually-in-a-message" tabindex="-1">What’s actually in a message <a class="anchor" href="#whats-actually-in-a-message" aria-hidden="true">#</a></h2>
 <p>A message isn’t just free text — it carries a little structure so the receiving agent knows what’s
 expected of it. In practice each message names:</p>
@@ -227,6 +228,7 @@ router diverts it to an approvals queue for a person to answer, and the answer c
 message. That’s how an agent reaches a human for the genuinely critical calls without anyone having to
 watch a terminal, the same loop we describe in
 <a href="/blog/human-in-the-loop-ai-agents/">keeping a human in the loop</a>.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/can-claude-code-agents-talk-to-each-other/note-2.png" alt="Hand-drawn sketch from “Can Claude Code Agents Talk to Each Other?”" loading="lazy" decoding="async" /></figure>
 <h2 id="memory-is-a-slower-kind-of-talking" tabindex="-1">Memory is a slower kind of talking <a class="anchor" href="#memory-is-a-slower-kind-of-talking" aria-hidden="true">#</a></h2>
 <p>There’s one more channel that’s easy to miss: <strong>shared memory.</strong> Messages are how agents coordinate in
 the moment; memory is how they coordinate across time. When each agent writes durable facts to a notes

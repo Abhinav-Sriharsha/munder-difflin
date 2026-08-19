@@ -202,6 +202,7 @@ project, and <code>--settings</code> is additive — it layers the harness’s h
 configuration rather than replacing it. Your repo isn’t modified to make an agent hive-aware; there’s
 no stray settings diff to commit or gitignore. (The hook mechanics are covered in
 <a href="/blog/claude-code-hooks-explained/">Claude Code hooks, explained</a>.)</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/mcp-and-skills-in-a-hive/note-1.png" alt="Hand-drawn sketch from “Bringing Your MCP Servers and Skills Into a Hive of Agents”" loading="lazy" decoding="async" /></figure>
 <h2 id="a-note-on-the-harnesss-own-memory" tabindex="-1">A note on the harness’s own memory <a class="anchor" href="#a-note-on-the-harnesss-own-memory" aria-hidden="true">#</a></h2>
 <p>Here’s a deliberate design choice worth calling out: the hive’s <strong>semantic memory doesn’t consume an
 MCP slot.</strong> Rather than run memory as an MCP server, the harness drives it through a CLI and points each
@@ -231,6 +232,7 @@ really means in practice. Roles are the same routing signal the
 <p>Because agents are real sessions, Claude Code’s own configuration applies — per-project settings and
 permission controls govern what a session in that directory can do. You’re not learning a parallel,
 harness-specific permission system; you’re using the one you already know, per directory, per agent.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/mcp-and-skills-in-a-hive/note-2.png" alt="Hand-drawn sketch from “Bringing Your MCP Servers and Skills Into a Hive of Agents”" loading="lazy" decoding="async" /></figure>
 <h2 id="a-practical-setup" tabindex="-1">A practical setup <a class="anchor" href="#a-practical-setup" aria-hidden="true">#</a></h2>
 <p>Putting it together, a tooled-up hive might look like this:</p>
 <ol>

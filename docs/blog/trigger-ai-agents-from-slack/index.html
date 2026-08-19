@@ -186,6 +186,7 @@ best-effort <strong>local tunnel</strong> and hands you a public URL to paste in
 Subscriptions → Request URL</em>. That tunnel is just a doorbell: it forwards Slack’s POSTs to your local
 port. If it can’t be established, the local handler stays up anyway — the tunnel is a convenience, not
 the security boundary.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/trigger-ai-agents-from-slack/note-1.png" alt="Hand-drawn sketch from “Trigger Your AI Agent Hive from Slack”" loading="lazy" decoding="async" /></figure>
 <h2 id="security-verify-everything-before-you-trust-it" tabindex="-1">Security: verify everything before you trust it <a class="anchor" href="#security-verify-everything-before-you-trust-it" aria-hidden="true">#</a></h2>
 <p>A webhook that can enqueue work for autonomous agents is exactly the kind of endpoint you don’t want
 strangers poking. So the handler treats every request as hostile until proven otherwise:</p>
@@ -211,6 +212,7 @@ through <a href="/blog/coordinating-ai-coding-agents/">the hive’s normal messa
 <p>You can scope what counts, too. An optional <strong>channel filter</strong> means only messages from one specific
 channel are accepted; events from anywhere else are dropped before they ever reach the queue. That
 keeps a noisy workspace from turning into a noisy hive.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/trigger-ai-agents-from-slack/note-2.png" alt="Hand-drawn sketch from “Trigger Your AI Agent Hive from Slack”" loading="lazy" decoding="async" /></figure>
 <h2 id="setting-it-up" tabindex="-1">Setting it up <a class="anchor" href="#setting-it-up" aria-hidden="true">#</a></h2>
 <p>The moving parts are minimal. In the app you enable Slack and paste your <strong>signing secret</strong> (from your
 Slack app’s <em>Basic Information</em>). Optionally set a <strong>channel id</strong> to listen to just one channel, and a

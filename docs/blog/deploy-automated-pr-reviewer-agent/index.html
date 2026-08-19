@@ -169,6 +169,7 @@
 <li><strong>It sees the whole backlog at once.</strong> Reading the full set of open issues plus shared hive memory, it can notice that issues #41, #43, and #47 are three faces of the same bug — rather than reviewing each in a vacuum.</li>
 <li><strong>It escalates through the same inbox you use.</strong> A serious finding becomes a message to you, routed like any other hive mail. No separate alerting system.</li>
 </ul>
+<figure class="fig fig-inline"><img src="/blog/assets/media/deploy-automated-pr-reviewer-agent/note-1.png" alt="Hand-drawn sketch from “Deploy a PR Reviewer That Never Sleeps — In About One Prompt”" loading="lazy" decoding="async" /></figure>
 <h2 id="deploying-it-the-one-prompt-version" tabindex="-1">Deploying it: the one-prompt version <a class="anchor" href="#deploying-it-the-one-prompt-version" aria-hidden="true">#</a></h2>
 <p>You don’t configure this. You brief it. Open Munder Difflin, select the GOD orchestrator, and describe the outcome the way you’d brief a coworker:</p>
 <blockquote>
@@ -201,6 +202,7 @@
 <h3 id="why-the-consolidation-is-the-real-win" tabindex="-1">Why the consolidation is the real win <a class="anchor" href="#why-the-consolidation-is-the-real-win" aria-hidden="true">#</a></h3>
 <p>It’s tempting to frame this as “it reviewed PRs fast.” But the load-bearing part is the <strong>de-noising</strong>: 22 → 2. A reviewer that comments on everything just moves the triage burden into your inbox. A reviewer that reads the whole backlog, verifies against source, and collapses duplicates into root causes does the part of code review that’s actually hard — deciding <em>what’s true and what’s distinct</em> — and hands you the short list.</p>
 <p>That’s the difference between an automated commenter and an automated <em>reviewer</em>.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/deploy-automated-pr-reviewer-agent/note-2.png" alt="Hand-drawn sketch from “Deploy a PR Reviewer That Never Sleeps — In About One Prompt”" loading="lazy" decoding="async" /></figure>
 <h2 id="what-to-be-honest-about" tabindex="-1">What to be honest about <a class="anchor" href="#what-to-be-honest-about" aria-hidden="true">#</a></h2>
 <p>Two limits worth stating plainly, because overselling this helps no one:</p>
 <ul>

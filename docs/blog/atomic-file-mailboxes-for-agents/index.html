@@ -202,6 +202,7 @@ rename inbox/&lt;id&gt;.json.tmp-9f3a → inbox/&lt;id&gt;.json   ← appears at
 </code></pre>
 <p>This one trick is why files beat a naive shared log. A log every agent appends to is a multi-writer
 race; a directory of atomically-renamed files is conflict-free by construction.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/atomic-file-mailboxes-for-agents/note-1.png" alt="Hand-drawn sketch from “Atomic File Mailboxes: How Agents Message Each Other”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-message-itself-speech-acts-not-free-text" tabindex="-1">The message itself: speech acts, not free text <a class="anchor" href="#the-message-itself-speech-acts-not-free-text" aria-hidden="true">#</a></h2>
 <p>A message isn’t just a blob of text — it carries intent. The design borrows the one genuinely useful
 idea from decades of agent-communication research, the <strong>speech act</strong>, and drops the rest:</p>
@@ -239,6 +240,7 @@ re-seeing a message is a no-op. Combined with moving handled messages to <code>i
 can’t accidentally act on the same request twice.</li>
 </ul>
 <p>These are small rules with a big payoff: the messaging layer can be busy and still provably converge.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/atomic-file-mailboxes-for-agents/note-2.png" alt="Hand-drawn sketch from “Atomic File Mailboxes: How Agents Message Each Other”" loading="lazy" decoding="async" /></figure>
 <h2 id="broadcast-and-escalation" tabindex="-1">Broadcast and escalation <a class="anchor" href="#broadcast-and-escalation" aria-hidden="true">#</a></h2>
 <p>Two special addresses round out the system:</p>
 <ul>
@@ -325,6 +327,22 @@ the office floor; it’s free and open source.</p>
       <h2>Related in Internals</h2>
       <div class="post-grid">
         <article class="card t-internals">
+  <a class="thumb t-internals" href="/blog/the-newline-that-silenced-windows-agents/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/the-newline-that-silenced-windows-agents/hero.png" alt="" loading="lazy" decoding="async" /></a>
+  <div class="body">
+    <div class="meta">
+      <time datetime="2026-08-19">Aug 19, 2026</time>
+      <span class="dot" aria-hidden="true"></span>
+      <span>4 min</span>
+    </div>
+    <h3><a href="/blog/the-newline-that-silenced-windows-agents/">The Newline That Silenced Every Windows Agent</a></h3>
+    <p class="dek">A cmd.exe parsing rule from the 1980s meant Windows agents received exactly one line of their multi-line startup protocol — and nothing errored. The anatomy of our worst silent failure, and the fix.</p>
+    <div class="foot">
+      <span class="tag kind">Internals</span>
+      <a class="more" href="/blog/the-newline-that-silenced-windows-agents/" aria-label="Read: The Newline That Silenced Every Windows Agent">Read →</a>
+    </div>
+  </div>
+</article>
+<article class="card t-internals">
   <a class="thumb t-internals" href="/blog/why-our-auto-update-never-ran/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/why-our-auto-update-never-ran/hero.png" alt="" loading="lazy" decoding="async" /></a>
   <div class="body">
     <div class="meta">
@@ -353,22 +371,6 @@ the office floor; it’s free and open source.</p>
     <div class="foot">
       <span class="tag kind">Internals</span>
       <a class="more" href="/blog/hire-manifest-untrusted-input/" aria-label="Read: Treating a Hire Manifest as Untrusted Input">Read →</a>
-    </div>
-  </div>
-</article>
-<article class="card t-internals">
-  <a class="thumb t-internals" href="/blog/compressing-agent-memory/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/compressing-agent-memory/hero.png" alt="" loading="lazy" decoding="async" /></a>
-  <div class="body">
-    <div class="meta">
-      <time datetime="2026-06-05">Jun 5, 2026</time>
-      <span class="dot" aria-hidden="true"></span>
-      <span>5 min</span>
-    </div>
-    <h3><a href="/blog/compressing-agent-memory/">Compressing Agent Memory Without Losing the Original</a></h3>
-    <p class="dek">How and why to compress an agent&#39;s long-term memory: the toolbox, the lossy trap, and keeping a lossless original beside a compact copy.</p>
-    <div class="foot">
-      <span class="tag kind">Internals</span>
-      <a class="more" href="/blog/compressing-agent-memory/" aria-label="Read: Compressing Agent Memory Without Losing the Original">Read →</a>
     </div>
   </div>
 </article>

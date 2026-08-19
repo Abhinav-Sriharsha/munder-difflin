@@ -193,6 +193,7 @@ swallowing for three releases:</p>
 <pre><code>[updater] electron-updater unavailable; notify-only mode:
 TypeError: Cannot set properties of undefined (setting 'autoDownload')
 </code></pre>
+<figure class="fig fig-inline"><img src="/blog/assets/media/why-our-auto-update-never-ran/note-1.png" alt="Hand-drawn sketch from “Our Auto-Update Never Ran Once: A CommonJS Export That Vanished Into an ESM Namespace”" loading="lazy" decoding="async" /></figure>
 <h2 id="one-line-three-releases" tabindex="-1">One line, three releases <a class="anchor" href="#one-line-three-releases" aria-hidden="true">#</a></h2>
 <p>Here is the code that shipped in v0.3.4:</p>
 <pre class="language-js"><code class="language-js"><span class="token keyword">const</span> <span class="token punctuation">{</span> autoUpdater <span class="token punctuation">}</span> <span class="token operator">=</span> <span class="token keyword">await</span> <span class="token keyword">import</span><span class="token punctuation">(</span><span class="token string">'electron-updater'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -238,6 +239,7 @@ native path again.</li>
 plain module with no Electron imports, with unit tests covering the rule that bit us — a
 re-check must never wipe out an update you already have staged.</li>
 </ul>
+<figure class="fig fig-inline"><img src="/blog/assets/media/why-our-auto-update-never-ran/note-2.png" alt="Hand-drawn sketch from “Our Auto-Update Never Ran Once: A CommonJS Export That Vanished Into an ESM Namespace”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-version-number-is-now-a-button" tabindex="-1">The version number is now a button <a class="anchor" href="#the-version-number-is-now-a-button" aria-hidden="true">#</a></h2>
 <p>The other half of the report was that nothing in the app told the user what was happening.
 There was a toast for “downloaded”, and nothing for anything else — so a multi-minute
@@ -315,6 +317,22 @@ why.</p>
       <h2>Related in Internals</h2>
       <div class="post-grid">
         <article class="card t-internals">
+  <a class="thumb t-internals" href="/blog/the-newline-that-silenced-windows-agents/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/the-newline-that-silenced-windows-agents/hero.png" alt="" loading="lazy" decoding="async" /></a>
+  <div class="body">
+    <div class="meta">
+      <time datetime="2026-08-19">Aug 19, 2026</time>
+      <span class="dot" aria-hidden="true"></span>
+      <span>4 min</span>
+    </div>
+    <h3><a href="/blog/the-newline-that-silenced-windows-agents/">The Newline That Silenced Every Windows Agent</a></h3>
+    <p class="dek">A cmd.exe parsing rule from the 1980s meant Windows agents received exactly one line of their multi-line startup protocol — and nothing errored. The anatomy of our worst silent failure, and the fix.</p>
+    <div class="foot">
+      <span class="tag kind">Internals</span>
+      <a class="more" href="/blog/the-newline-that-silenced-windows-agents/" aria-label="Read: The Newline That Silenced Every Windows Agent">Read →</a>
+    </div>
+  </div>
+</article>
+<article class="card t-internals">
   <a class="thumb t-internals" href="/blog/hire-manifest-untrusted-input/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/hire-manifest-untrusted-input/hero.png" alt="" loading="lazy" decoding="async" /></a>
   <div class="body">
     <div class="meta">
@@ -343,22 +361,6 @@ why.</p>
     <div class="foot">
       <span class="tag kind">Internals</span>
       <a class="more" href="/blog/compressing-agent-memory/" aria-label="Read: Compressing Agent Memory Without Losing the Original">Read →</a>
-    </div>
-  </div>
-</article>
-<article class="card t-internals">
-  <a class="thumb t-internals" href="/blog/architecture-two-planes-one-renderer/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/architecture-two-planes-one-renderer/hero.png" alt="" loading="lazy" decoding="async" /></a>
-  <div class="body">
-    <div class="meta">
-      <time datetime="2026-06-04">Jun 4, 2026</time>
-      <span class="dot" aria-hidden="true"></span>
-      <span>5 min</span>
-    </div>
-    <h3><a href="/blog/architecture-two-planes-one-renderer/">Munder Difflin&#39;s Architecture: Two Data Planes, One Renderer</a></h3>
-    <p class="dek">A walkthrough of the multi-agent harness architecture: a node-pty terminal plane and a hooks/hive event plane feeding one React + Pixi.js renderer.</p>
-    <div class="foot">
-      <span class="tag kind">Internals</span>
-      <a class="more" href="/blog/architecture-two-planes-one-renderer/" aria-label="Read: Munder Difflin&#39;s Architecture: Two Data Planes, One Renderer">Read →</a>
     </div>
   </div>
 </article>

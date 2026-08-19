@@ -197,6 +197,7 @@ of Claude. It’s what the June 15 update re-bills onto the separate credit.</li
 <p>A useful test: if a tool <strong>embeds the SDK</strong> to run agents headlessly, it’s affected; if it <strong>drives the
 Claude Code CLI</strong> the way you would by hand, it isn’t. Munder Difflin is firmly the latter — it’s a
 <a href="/blog/claude-code-subagents-vs-multi-agent-harness/">harness around Claude Code, not a wrapper around the SDK</a>.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/does-the-june-2026-agent-sdk-change-affect-munder-difflin/note-1.png" alt="Hand-drawn sketch from “Does the June 2026 Agent SDK Change Affect Munder Difflin?”" loading="lazy" decoding="async" /></figure>
 <h2 id="why-this-doesnt-change-how-munder-difflin-runs" tabindex="-1">Why this doesn’t change how Munder Difflin runs <a class="anchor" href="#why-this-doesnt-change-how-munder-difflin-runs" aria-hidden="true">#</a></h2>
 <p>Munder Difflin is a <a href="/#what">multi-agent harness</a> that orchestrates the <strong>native Claude Code CLI</strong>. Each
 agent in the hive is spawned as a real <strong>interactive terminal session</strong> through <code>node-pty</code> — a genuine
@@ -220,6 +221,7 @@ it), and its usage is light enough to sit comfortably <strong>within the include
 even with enrich turned on, you’re covered; with it off, the change is invisible to you.</p>
 <p>That’s the honest shape of it: <strong>the agents are unaffected; the optional enrich assistant uses
 <code>claude -p</code>, which the new credit covers.</strong> No “100% unaffected” hand-waving.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/does-the-june-2026-agent-sdk-change-affect-munder-difflin/note-2.png" alt="Hand-drawn sketch from “Does the June 2026 Agent SDK Change Affect Munder Difflin?”" loading="lazy" decoding="async" /></figure>
 <h2 id="how-to-check-for-yourself" tabindex="-1">How to check for yourself <a class="anchor" href="#how-to-check-for-yourself" aria-hidden="true">#</a></h2>
 <p>You don’t have to take our word for it. In Munder Difflin, every agent is a tab you can watch — a live
 terminal running Claude Code, exactly the interactive usage the policy keeps on your subscription. The

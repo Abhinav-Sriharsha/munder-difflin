@@ -190,6 +190,7 @@ weakly-tested codebase is the harder case the benchmark removed. As benchmark ro
 a leaderboard score is a starting point, not a verdict — real-world reliability is consistently lower.</p>
 <p>The takeaway isn’t “ignore benchmarks.” It’s: use them to <em>rank</em>, then re-measure on <em>your</em> work before
 you trust anything.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/evaluating-ai-agent-reliability/note-1.png" alt="Hand-drawn sketch from “Evaluating AI Agent Reliability: How to Measure What You Can Trust”" loading="lazy" decoding="async" /></figure>
 <h2 id="measure-the-things-that-actually-break" tabindex="-1">Measure the things that actually break <a class="anchor" href="#measure-the-things-that-actually-break" aria-hidden="true">#</a></h2>
 <p>Final-answer accuracy hides the failure modes that matter for an autonomous agent. What predicts
 real reliability is the stuff that compounds over a long run:</p>
@@ -225,6 +226,7 @@ overall pass.</li>
 <li><strong>Human calibration on a sample.</strong> Have a person review 1–2% of cases and check the judge agrees;
 when they diverge, fix the rubric. Automated eval scales; human eval keeps it honest.</li>
 </ul>
+<figure class="fig fig-inline"><img src="/blog/assets/media/evaluating-ai-agent-reliability/note-2.png" alt="Hand-drawn sketch from “Evaluating AI Agent Reliability: How to Measure What You Can Trust”" loading="lazy" decoding="async" /></figure>
 <h2 id="close-the-loop-with-observability" tabindex="-1">Close the loop with observability <a class="anchor" href="#close-the-loop-with-observability" aria-hidden="true">#</a></h2>
 <p>A reliability number is only as good as the data behind it, and a <a href="/#what">multi-agent harness</a> is already
 producing most of it. Munder Difflin records <strong>real token and cost telemetry</strong> from the agents’

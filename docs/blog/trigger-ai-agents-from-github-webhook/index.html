@@ -199,6 +199,7 @@ to that local port. That’s the URL you give GitHub.</li>
 reports the tunnel error without a URL — so you’re never in a half-broken state where the endpoint is exposed
 but unguarded. The tunnel is a doorbell; it is not what keeps strangers out.</p>
 <p>Copy the public URL. You’ll paste it into GitHub next.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/trigger-ai-agents-from-github-webhook/note-1.png" alt="Hand-drawn sketch from “How to Trigger Your AI Agent Hive from a GitHub Webhook”" loading="lazy" decoding="async" /></figure>
 <h2 id="step-2-point-github-at-it" tabindex="-1">Step 2 — Point GitHub at it <a class="anchor" href="#step-2-point-github-at-it" aria-hidden="true">#</a></h2>
 <p>You have two clean ways to do this, depending on how literal you want to be.</p>
 <p><strong>Option A — A GitHub Action (recommended).</strong> GitHub’s native webhooks send GitHub’s <em>own</em> payload shape, but
@@ -254,6 +255,7 @@ just another task: the orchestrator reads it, decides who should handle it, and 
 exactly like work that arrives through <a href="/blog/coordinating-ai-coding-agents/">the hive’s normal message
 routing</a>. A reviewer agent might read the PR; a writer might draft the
 issue response. The webhook doesn’t pick the agent — it just gets the work onto the board.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/trigger-ai-agents-from-github-webhook/note-2.png" alt="Hand-drawn sketch from “How to Trigger Your AI Agent Hive from a GitHub Webhook”" loading="lazy" decoding="async" /></figure>
 <h2 id="security-in-one-breath" tabindex="-1">Security, in one breath <a class="anchor" href="#security-in-one-breath" aria-hidden="true">#</a></h2>
 <p>A public endpoint that can enqueue work for autonomous agents is exactly what you don’t want strangers poking,
 so the handler treats every request as hostile until proven otherwise:</p>

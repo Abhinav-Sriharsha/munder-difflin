@@ -183,6 +183,7 @@ Claude’s next move.</p>
 }</code></pre>
 <p>The <code>matcher</code> (for tool events) lets you scope a hook to specific tools — <code>*</code> means “every tool.” Tool
 events carry that matcher; lifecycle events like <code>Stop</code> don’t need one.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/claude-code-hooks-explained/note-1.png" alt="Hand-drawn sketch from “Claude Code Hooks, Explained (PreToolUse, PostToolUse, Stop)”" loading="lazy" decoding="async" /></figure>
 <h2 id="the-lifecycle-events-that-matter" tabindex="-1">The lifecycle events that matter <a class="anchor" href="#the-lifecycle-events-that-matter" aria-hidden="true">#</a></h2>
 <p>There are several hook events; these are the ones you’ll reach for most.</p>
 <h3 id="pretooluse" tabindex="-1">PreToolUse <a class="anchor" href="#pretooluse" aria-hidden="true">#</a></h3>
@@ -253,6 +254,7 @@ to the agent exactly once. No message is re-delivered, and the loop can’t spin
 nothing left — the foundation of <a href="/blog/claude-code-automation-while-you-sleep/">letting agents build while you sleep</a>.
 It’s also how the <a href="/blog/how-the-god-orchestrator-works/">GOD orchestrator</a> keeps the whole floor
 moving: route a task into an agent’s inbox, and its next Stop hook picks it up automatically.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/claude-code-hooks-explained/note-2.png" alt="Hand-drawn sketch from “Claude Code Hooks, Explained (PreToolUse, PostToolUse, Stop)”" loading="lazy" decoding="async" /></figure>
 <h2 id="writing-your-own-hooks-practical-tips" tabindex="-1">Writing your own hooks: practical tips <a class="anchor" href="#writing-your-own-hooks-practical-tips" aria-hidden="true">#</a></h2>
 <p>If you’re building with hooks directly, a few lessons that save pain:</p>
 <ul>
@@ -327,6 +329,22 @@ free and open source.</p>
       <h2>Related in Internals</h2>
       <div class="post-grid">
         <article class="card t-internals">
+  <a class="thumb t-internals" href="/blog/the-newline-that-silenced-windows-agents/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/the-newline-that-silenced-windows-agents/hero.png" alt="" loading="lazy" decoding="async" /></a>
+  <div class="body">
+    <div class="meta">
+      <time datetime="2026-08-19">Aug 19, 2026</time>
+      <span class="dot" aria-hidden="true"></span>
+      <span>4 min</span>
+    </div>
+    <h3><a href="/blog/the-newline-that-silenced-windows-agents/">The Newline That Silenced Every Windows Agent</a></h3>
+    <p class="dek">A cmd.exe parsing rule from the 1980s meant Windows agents received exactly one line of their multi-line startup protocol — and nothing errored. The anatomy of our worst silent failure, and the fix.</p>
+    <div class="foot">
+      <span class="tag kind">Internals</span>
+      <a class="more" href="/blog/the-newline-that-silenced-windows-agents/" aria-label="Read: The Newline That Silenced Every Windows Agent">Read →</a>
+    </div>
+  </div>
+</article>
+<article class="card t-internals">
   <a class="thumb t-internals" href="/blog/why-our-auto-update-never-ran/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/why-our-auto-update-never-ran/hero.png" alt="" loading="lazy" decoding="async" /></a>
   <div class="body">
     <div class="meta">
@@ -355,22 +373,6 @@ free and open source.</p>
     <div class="foot">
       <span class="tag kind">Internals</span>
       <a class="more" href="/blog/hire-manifest-untrusted-input/" aria-label="Read: Treating a Hire Manifest as Untrusted Input">Read →</a>
-    </div>
-  </div>
-</article>
-<article class="card t-internals">
-  <a class="thumb t-internals" href="/blog/compressing-agent-memory/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/compressing-agent-memory/hero.png" alt="" loading="lazy" decoding="async" /></a>
-  <div class="body">
-    <div class="meta">
-      <time datetime="2026-06-05">Jun 5, 2026</time>
-      <span class="dot" aria-hidden="true"></span>
-      <span>5 min</span>
-    </div>
-    <h3><a href="/blog/compressing-agent-memory/">Compressing Agent Memory Without Losing the Original</a></h3>
-    <p class="dek">How and why to compress an agent&#39;s long-term memory: the toolbox, the lossy trap, and keeping a lossless original beside a compact copy.</p>
-    <div class="foot">
-      <span class="tag kind">Internals</span>
-      <a class="more" href="/blog/compressing-agent-memory/" aria-label="Read: Compressing Agent Memory Without Losing the Original">Read →</a>
     </div>
   </div>
 </article>

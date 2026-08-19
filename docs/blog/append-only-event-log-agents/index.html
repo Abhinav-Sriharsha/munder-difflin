@@ -195,6 +195,7 @@ picks up new lines from there. Multiple consumers, no coordination.</li>
 </ul>
 <p>A database would give you indexes and queries you mostly don’t need here, at the cost of a schema and a
 server. For an audit/observability log, plain JSONL is the right amount of technology.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/append-only-event-log-agents/note-1.png" alt="Hand-drawn sketch from “An Append-Only Event Log for a Hive of Agents”" loading="lazy" decoding="async" /></figure>
 <h2 id="what-to-record-per-event" tabindex="-1">What to record per event <a class="anchor" href="#what-to-record-per-event" aria-hidden="true">#</a></h2>
 <p>The art is choosing events that are <strong>small, typed, and factual.</strong> Each line carries a <code>ts</code>
 (timestamp) and a <code>kind</code>, plus only the fields that matter for that kind. In a hive, the events worth
@@ -218,6 +219,7 @@ resolves approvals, and it’s the only thing that writes the file. That keeps t
 interleaved, half-written lines, and it pairs with the
 <a href="/blog/single-committer-git-pattern/">single-committer git pattern</a>: each batch of coordination is
 both appended to the log <em>and</em> committed, so the log’s history and git’s history line up.</p>
+<figure class="fig fig-inline"><img src="/blog/assets/media/append-only-event-log-agents/note-2.png" alt="Hand-drawn sketch from “An Append-Only Event Log for a Hive of Agents”" loading="lazy" decoding="async" /></figure>
 <h2 id="replay-and-debugging" tabindex="-1">Replay and debugging <a class="anchor" href="#replay-and-debugging" aria-hidden="true">#</a></h2>
 <p>Here’s where the log earns its keep. Because it’s an ordered, immutable record, you can <strong>replay</strong> the
 system’s history:</p>
@@ -310,6 +312,22 @@ it’s free and open source.</p>
       <h2>Related in Internals</h2>
       <div class="post-grid">
         <article class="card t-internals">
+  <a class="thumb t-internals" href="/blog/the-newline-that-silenced-windows-agents/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/the-newline-that-silenced-windows-agents/hero.png" alt="" loading="lazy" decoding="async" /></a>
+  <div class="body">
+    <div class="meta">
+      <time datetime="2026-08-19">Aug 19, 2026</time>
+      <span class="dot" aria-hidden="true"></span>
+      <span>4 min</span>
+    </div>
+    <h3><a href="/blog/the-newline-that-silenced-windows-agents/">The Newline That Silenced Every Windows Agent</a></h3>
+    <p class="dek">A cmd.exe parsing rule from the 1980s meant Windows agents received exactly one line of their multi-line startup protocol — and nothing errored. The anatomy of our worst silent failure, and the fix.</p>
+    <div class="foot">
+      <span class="tag kind">Internals</span>
+      <a class="more" href="/blog/the-newline-that-silenced-windows-agents/" aria-label="Read: The Newline That Silenced Every Windows Agent">Read →</a>
+    </div>
+  </div>
+</article>
+<article class="card t-internals">
   <a class="thumb t-internals" href="/blog/why-our-auto-update-never-ran/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/why-our-auto-update-never-ran/hero.png" alt="" loading="lazy" decoding="async" /></a>
   <div class="body">
     <div class="meta">
@@ -338,22 +356,6 @@ it’s free and open source.</p>
     <div class="foot">
       <span class="tag kind">Internals</span>
       <a class="more" href="/blog/hire-manifest-untrusted-input/" aria-label="Read: Treating a Hire Manifest as Untrusted Input">Read →</a>
-    </div>
-  </div>
-</article>
-<article class="card t-internals">
-  <a class="thumb t-internals" href="/blog/compressing-agent-memory/" aria-hidden="true" tabindex="-1"><img src="/blog/assets/media/compressing-agent-memory/hero.png" alt="" loading="lazy" decoding="async" /></a>
-  <div class="body">
-    <div class="meta">
-      <time datetime="2026-06-05">Jun 5, 2026</time>
-      <span class="dot" aria-hidden="true"></span>
-      <span>5 min</span>
-    </div>
-    <h3><a href="/blog/compressing-agent-memory/">Compressing Agent Memory Without Losing the Original</a></h3>
-    <p class="dek">How and why to compress an agent&#39;s long-term memory: the toolbox, the lossy trap, and keeping a lossless original beside a compact copy.</p>
-    <div class="foot">
-      <span class="tag kind">Internals</span>
-      <a class="more" href="/blog/compressing-agent-memory/" aria-label="Read: Compressing Agent Memory Without Losing the Original">Read →</a>
     </div>
   </div>
 </article>
