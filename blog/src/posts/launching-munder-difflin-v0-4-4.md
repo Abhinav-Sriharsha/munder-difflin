@@ -48,7 +48,8 @@ error, anywhere, because nothing *failed*. The floor just never came alive.
 
 v0.4.4 decodes the npm shim and launches its real interpreter with a proper argv array — no
 cmd.exe in the middle, no truncation. A second pass handles OpenCode's compiled-binary shims,
-which the first fix didn't model. The full autopsy is in
+which the first fix didn't model — and OpenCode on Windows is confirmed working, re-verified
+on a real Windows machine on August 19. The full autopsy is in
 [its own post](/blog/the-newline-that-silenced-windows-agents/), because bugs this quiet deserve
 a paper trail.
 
