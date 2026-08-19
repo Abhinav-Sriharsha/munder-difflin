@@ -1926,24 +1926,24 @@
     "youtube": []
   },
   "number-five-on-product-hunt": {
-    "title": "Nº 5 Product of the Day: Our Product Hunt Launch, by the Numbers",
+    "title": "Nº 5 Product of the Day: How Our First Product Hunt Launch Went",
     "category": "story",
     "hero": {
       "file": "assets/media/number-five-on-product-hunt/hero.png",
-      "alt": "Illustration: Nº 5 Product of the Day: Our Product Hunt Launch, by the Numbers",
+      "alt": "Illustration: Nº 5 Product of the Day: How Our First Product Hunt Launch Went",
       "prompt": "Hero image for a blog post titled \"Nº 5 Product of the Day: Our Product Hunt Launch, by the Numbers\". The post is about: Munder Difflin finished #5 Product of the Day on Product Hunt — ahead of DeepSeek's harness launch that day. Here's what actually happened: the numbers, the people who showed up, and the two pieces of feedback we're already shipping fixes for.",
       "status": "ready"
     },
     "inline": {
       "note-1": {
         "file": "assets/media/number-five-on-product-hunt/note-1.png",
-        "alt": "Hand-drawn sketch from “Nº 5 Product of the Day: Our Product Hunt Launch, by the Numbers”",
+        "alt": "Hand-drawn sketch from “Nº 5 Product of the Day: How Our First Product Hunt Launch Went”",
         "prompt": "",
         "status": "ready"
       },
       "note-2": {
         "file": "assets/media/number-five-on-product-hunt/note-2.png",
-        "alt": "Hand-drawn sketch from “Nº 5 Product of the Day: Our Product Hunt Launch, by the Numbers”",
+        "alt": "Hand-drawn sketch from “Nº 5 Product of the Day: How Our First Product Hunt Launch Went”",
         "prompt": "",
         "status": "ready"
       }
@@ -3007,24 +3007,24 @@
     "youtube": []
   },
   "what-reddit-told-us-about-munder-difflin": {
-    "title": "What 516 Reddit Comments Told Us About Munder Difflin",
+    "title": "What Reddit Told Us About Munder Difflin",
     "category": "story",
     "hero": {
       "file": "assets/media/what-reddit-told-us-about-munder-difflin/hero.png",
-      "alt": "Illustration: What 516 Reddit Comments Told Us About Munder Difflin",
+      "alt": "Illustration: What Reddit Told Us About Munder Difflin",
       "prompt": "Hero image for a blog post titled \"What 516 Reddit Comments Told Us About Munder Difflin\". The post is about: We launched across ten subreddits, collected 2,233 combined upvotes and 516 comments, and then read every single one. What landed, what got roasted, and what we shipped because of it.",
       "status": "ready"
     },
     "inline": {
       "note-1": {
         "file": "assets/media/what-reddit-told-us-about-munder-difflin/note-1.png",
-        "alt": "Hand-drawn sketch from “What 516 Reddit Comments Told Us About Munder Difflin”",
+        "alt": "Hand-drawn sketch from “What Reddit Told Us About Munder Difflin”",
         "prompt": "",
         "status": "ready"
       },
       "note-2": {
         "file": "assets/media/what-reddit-told-us-about-munder-difflin/note-2.png",
-        "alt": "Hand-drawn sketch from “What 516 Reddit Comments Told Us About Munder Difflin”",
+        "alt": "Hand-drawn sketch from “What Reddit Told Us About Munder Difflin”",
         "prompt": "",
         "status": "ready"
       }
