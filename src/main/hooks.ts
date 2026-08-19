@@ -67,7 +67,11 @@ export class HookServer {
     private control?: ControlRegistry,
     /** Circuit breaker (Lane A #6.6b) — fed the hook-derived signals (session id,
      *  repeated identical tool calls). Optional so the server still runs without it. */
-    private breaker?: CircuitBreaker
+    private breaker?: CircuitBreaker,
+    /** Optional observer of every hook boundary (agentId, event, message). The
+     *  worker inbox-wake watchdog (workerWake.ts) feeds on this to learn when an
+     *  agent is parked on a permission/HITL prompt so it never types into it. */
+    private onEvent?: (agentId: string | undefined, event: string, message: string | undefined) => void
   ) {}
 
   start(): void {
@@ -115,6 +119,7 @@ export class HookServer {
   private handle(p: HookPayload): unknown {
     const agentId = p.agent_id ?? undefined;
     const event = p.hook_event_name ?? 'Unknown';
+    this.onEvent?.(agentId, event, p.message);
     if (agentId && typeof p.transcript_path === 'string' && p.transcript_path) {
       this.transcriptPaths.set(agentId, p.transcript_path);
     }
