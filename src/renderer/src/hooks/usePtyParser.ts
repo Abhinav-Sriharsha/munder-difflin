@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useStore, type ToolKind, type StationKind } from '@/store/store';
-
-// ANSI escape sequence stripper — Claude colors its tool tags with these.
-const ANSI_RE = /\x1b\[[0-9;]*m/g;
+import { stripAnsi } from '@/components/ansiText';
 
 // Tool call lines look like: `● Read SPEC.md`, `● Bash npm test`, `● Edit src/foo.ts`
 const TOOL_RE = /●\s+([A-Za-z][A-Za-z_]*)(?:\s+(.+))?/g;
@@ -85,7 +83,7 @@ export function usePtyParser(agentId: string) {
   }, []);
 
   return useCallback((chunk: string) => {
-    const text = chunk.replace(ANSI_RE, '');
+    const text = stripAnsi(chunk);
     if (!text.trim()) return;
 
     // Passive context-limit sniffing from /context output (the gauge poll
@@ -117,7 +115,10 @@ export function usePtyParser(agentId: string) {
     if (lastTool) {
       const station = TOOL_TO_STATION[lastTool] ?? 'desk';
       const carrying = TOOLKIND_BY_NAME[lastTool] ?? undefined;
-      const summary = lastArg ? `${lastTool.toLowerCase()} ${lastArg}` : lastTool.toLowerCase();
+      // Collapse space runs: translated cursor-forwards (see stripAnsi) can
+      // stand for several columns, and the bubble shouldn't show the gaps.
+      const summary = (lastArg ? `${lastTool.toLowerCase()} ${lastArg}` : lastTool.toLowerCase())
+        .replace(/\s+/g, ' ');
       // NOTE: `progress` deliberately untouched — it's the context gauge now
       // (filled by the useHive context poll), not a per-task meter.
       updateAgent(agentId, {
