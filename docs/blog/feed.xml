@@ -252,8 +252,8 @@
     <link href="https://munderdiffl.in/blog/your-first-hour-with-munder-difflin/" />
     <id>https://munderdiffl.in/blog/your-first-hour-with-munder-difflin/</id>
     <published>2026-07-03T00:00:00.000Z</published>
-    <updated>2026-07-03T00:00:00.000Z</updated><category term="Guides" />
-    <summary>A minute-by-minute walkthrough of your first hour with Munder Difflin: install, the onboarding wizard, your first brief to Michael, watching the floor, approving your first escalation, and leaving a schedule running.</summary>
+    <updated>2026-08-20T00:00:00.000Z</updated><category term="Guides" />
+    <summary>A minute-by-minute walkthrough of your first hour with Munder Difflin v0.4.4: install, the clone-of-you onboarding, your first brief to Michael, watching the floor, approving your first escalation, and leaving a schedule running.</summary>
   </entry>
   <entry>
     <title>Launching Munder Difflin v0.3.2: Talk to Michael, a Realtime Voice Orchestrator</title>
@@ -276,8 +276,8 @@
     <link href="https://munderdiffl.in/blog/run-munder-difflin-on-open-models/" />
     <id>https://munderdiffl.in/blog/run-munder-difflin-on-open-models/</id>
     <published>2026-06-22T00:00:00.000Z</published>
-    <updated>2026-06-22T00:00:00.000Z</updated><category term="Guides" />
-    <summary>Munder Difflin v0.3.1 runs your agent floor on open-weight models — gpt-oss, Qwen3, DeepSeek, Llama, Mistral, GLM, Kimi — either fully local (Ollama/LM Studio/vLLM) or through a third-party OSS provider. Here&#39;s how to wire each across the OpenCode, Crush, and pi engines.</summary>
+    <updated>2026-08-20T00:00:00.000Z</updated><category term="Guides" />
+    <summary>Munder Difflin runs your agent floor on open-weight models — gpt-oss, Qwen3, DeepSeek, Llama, Mistral, GLM, Kimi — fully local (Ollama/LM Studio/vLLM), through a third-party OSS provider, or on the model-maker&#39;s own CLI. Here&#39;s the wiring, current as of v0.4.4.</summary>
   </entry>
   <entry>
     <title>Launching Munder Difflin v0.3.0: Selectable Engines, Integrations &amp; Slack-Spawned Workers</title>
@@ -316,15 +316,15 @@
     <link href="https://munderdiffl.in/blog/deploy-a-blog-writer-agent/" />
     <id>https://munderdiffl.in/blog/deploy-a-blog-writer-agent/</id>
     <published>2026-06-10T00:00:00.000Z</published>
-    <updated>2026-06-10T00:00:00.000Z</updated><category term="Use Cases" />
-    <summary>How Munder Difflin&#39;s blog is written by an automated writer agent in the hive — drafts in a worktree, single-committer integration, Eleventy build, human-gated deploy. Build your own.</summary>
+    <updated>2026-08-20T00:00:00.000Z</updated><category term="Use Cases" />
+    <summary>How Munder Difflin&#39;s blog is written by an automated writer agent in the hive — drafts in a worktree, single-committer integration, Eleventy build, human-gated deploy, and now hand-drawn illustrations from the same office. Build your own.</summary>
   </entry>
   <entry>
     <title>Deploy a PR Reviewer That Never Sleeps — In About One Prompt</title>
     <link href="https://munderdiffl.in/blog/deploy-automated-pr-reviewer-agent/" />
     <id>https://munderdiffl.in/blog/deploy-automated-pr-reviewer-agent/</id>
     <published>2026-06-10T00:00:00.000Z</published>
-    <updated>2026-06-10T00:00:00.000Z</updated><category term="Orchestration" />
+    <updated>2026-08-20T00:00:00.000Z</updated><category term="Orchestration" />
     <summary>A how-to for standing up a fully automated PR-reviewing agent in Munder Difflin — one that reads your real source (not just the PR description), de-dupes noise, and only escalates what matters. With a real triage run that turned 22 duplicate firings into a clean v0.2.5 patch queue.</summary>
   </entry>
   <entry>
@@ -436,8 +436,8 @@
     <link href="https://munderdiffl.in/blog/how-to-install-and-use-munder-difflin/" />
     <id>https://munderdiffl.in/blog/how-to-install-and-use-munder-difflin/</id>
     <published>2026-06-05T00:00:00.000Z</published>
-    <updated>2026-06-05T00:00:00.000Z</updated><category term="Guides" />
-    <summary>Install Munder Difflin on macOS, Windows, or Linux and put a hive of Claude Code agents to work on ambitious, long-horizon tasks — start to finish.</summary>
+    <updated>2026-08-20T00:00:00.000Z</updated><category term="Guides" />
+    <summary>Install Munder Difflin v0.4.4 on macOS, Windows, or Linux and put a hive of coding agents — on any of ten engines — to work on ambitious, long-horizon tasks, start to finish.</summary>
   </entry>
   <entry>
     <title>MCP Tool Poisoning: How to Secure the Model Context Protocol</title>
