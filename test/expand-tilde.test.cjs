@@ -70,14 +70,14 @@ test('#140: the suggested default is expanded, not persisted literally', () => {
 
 test('#140: the new home leads the recent list exactly once', () => {
   const { recentHives } = normalizeHiveHome('~/HarnessAgents', ['/other/hive']);
-  assert.deepEqual(recentHives, [path.join(HOME, 'HarnessAgents'), '/other/hive']);
+  assert.deepEqual(recentHives, [path.join(HOME, 'HarnessAgents'), path.resolve('/other/hive')]);
 });
 
 test('#140: stale `~` entries already on disk are normalized too', () => {
   // Without this the launch picker could hand a pre-fix `~/…` string straight
   // back and reintroduce the identical mkdir failure.
   const { recentHives } = normalizeHiveHome('/now/here', ['~/HarnessAgents']);
-  assert.deepEqual(recentHives, ['/now/here', path.join(HOME, 'HarnessAgents')]);
+  assert.deepEqual(recentHives, [path.resolve('/now/here'), path.join(HOME, 'HarnessAgents')]);
 });
 
 test('#140: the same home written twice does not duplicate', () => {
@@ -92,7 +92,7 @@ test('#140: the recent list stays capped and skips blanks', () => {
   const prior = Array.from({ length: 20 }, (_, i) => `/hive/${i}`);
   const { recentHives } = normalizeHiveHome('/hive/new', ['', '   ', ...prior]);
   assert.equal(recentHives.length, 8);
-  assert.equal(recentHives[0], '/hive/new');
+  assert.equal(recentHives[0], path.resolve('/hive/new'));
 });
 
 /* ------------------------------------------------------------------ *
@@ -102,19 +102,10 @@ test('#140: the recent list stays capped and skips blanks', () => {
  * literal `~` — which either fails outright or, worse, silently creates a
  * directory actually named "~" wherever the process cwd happens to be, leaving
  * the hive somewhere the user will never find it.
+ *
+ * The real ensureHarnessHome is exercised end-to-end (through a stubbed
+ * electron `app`) in test/harness-home.test.cjs.
  * ------------------------------------------------------------------ */
-
-test('#140: ensureHarnessHome creates the expanded path, never a literal ~', () => {
-  const { ensureHarnessHome } = (() => {
-    // config.ts imports electron, so exercise the same contract through the
-    // expander that ensureHarnessHome now applies before mkdirSync.
-    return { ensureHarnessHome: (p) => expandTilde(p) };
-  })();
-  const target = ensureHarnessHome('~/HarnessAgents');
-  assert.equal(target, path.join(HOME, 'HarnessAgents'));
-  assert.ok(!target.startsWith('~'), 'mkdirSync must never receive a bare ~');
-  assert.ok(path.isAbsolute(target), 'a relative ~ path would land beside the process cwd');
-});
 
 test('#140: both entry points agree on the same directory', () => {
   // The mkdir (ensureHarnessHome) and the persisted value (normalizeHiveHome)

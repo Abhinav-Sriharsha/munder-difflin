@@ -5,7 +5,13 @@
  * is picked, and `~/HarnessAgents` is the suggestion itself. Node's fs treats a
  * literal `~` as a directory name, so ensureHarnessHome died with ENOENT and the
  * un-expanded home would have been persisted, poisoning every path derived from
- * it. The home now goes through the same expandTilde as registered repos.
+ * it.
+ *
+ * This file exercises the REAL ensureHarnessHome / writeConfig / readConfig from
+ * src/main/config.ts (electron's app.getPath stubbed to a temp dir). It replaces
+ * the stand-in test that used to live in expand-tilde.test.cjs — that one only
+ * re-ran expandTilde and would still have passed with the expandTilde call
+ * deleted from the real ensureHarnessHome.
  */
 
 const test = require('node:test');
