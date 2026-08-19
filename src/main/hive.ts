@@ -1164,11 +1164,14 @@ export class HiveManager {
     };
   }
 
-  /** Atomically deliver a message into a recipient agent's inbox. */
-  private deliver(msg: HiveMessage, toId: string): void {
+  /** Atomically deliver a message into a recipient agent's inbox.
+   *  Returns false when the recipient has no inbox, so the caller can bounce and
+   *  log the drop rather than let the message vanish. */
+  private deliver(msg: HiveMessage, toId: string): boolean {
     const inbox = join(this.agentDir(toId), 'inbox');
-    if (!existsSync(inbox)) return; // unknown recipient — dropped (logged by caller)
+    if (!existsSync(inbox)) return false; // unknown recipient — the caller reports it
     this.atomicWriteJson(join(inbox, `${msg.id}.json`), msg);
+    return true;
   }
 
   /** Inject a message directly (used by the orchestrator / UI / tests). */
@@ -1205,6 +1208,9 @@ export class HiveManager {
           && canReceiveInbox(reg.agents[a]?.provider))
       // Never deliver to self — guards a god → "human" message looping back to god.
       : [resolveTo(msg.to)].filter((t) => t !== msg.from);
+    // Targets that actually took delivery. The log below reports these instead of
+    // intent, so a bounced or dropped message can never read as delivered.
+    const delivered: string[] = [];
     for (const t of targets) {
       // The send-only prep assistant must never be a delivery target: it doesn't
       // drain an inbox, so direct mail to it would rot unread (observed live: a
@@ -1232,7 +1238,7 @@ export class HiveManager {
             to: godId,
             subject: `[undeliverable — "${t}" runs ${reg.agents[t]?.provider ?? 'a hookless CLI'} and the terminal handoff failed (renderer unavailable); relay this to it] ${msg.subject}`
           }, godId);
-        }
+        } else delivered.push(t);
         continue;
       }
       // 1d — proxy-tier providers (qwen) CAN receive inbox, but only via a
@@ -1248,12 +1254,24 @@ export class HiveManager {
             to: godId,
             subject: `[undeliverable — "${t}" runs ${reg.agents[t]?.provider ?? 'a proxy-tier CLI'} and the terminal handoff failed (renderer unavailable); relay this to it] ${msg.subject}`
           }, godId);
-        }
+        } else delivered.push(t);
         continue;
       }
-      this.deliver(msg, t);
+      if (this.deliver(msg, t)) { delivered.push(t); continue; }
+      // No agents/<t>/inbox — an id that isn't on the floor. This was the one
+      // delivery failure with neither bounce nor log, so the sender saw a routed
+      // message and the mail simply ceased to exist. Record the drop beside the
+      // hop-cap one and bounce to god, mirroring the undeliverable bounces above.
+      this.appendLog({ kind: 'drop', reason: 'no-inbox', from: msg.from, to: t, id: msg.id });
+      if (t !== godId) {
+        this.deliver({
+          ...msg,
+          to: godId,
+          subject: `[undeliverable — no agent "${t}" on this floor; check the id against the roster] ${msg.subject}`
+        }, godId);
+      }
     }
-    this.appendLog({ kind: 'message', from: msg.from, to: msg.to, act: msg.act, subject: msg.subject, id: msg.id });
+    this.appendLog({ kind: 'message', from: msg.from, to: msg.to, act: msg.act, subject: msg.subject, id: msg.id, delivered });
     this.emitMessage(msg, targets);
     // Main-process observer (e.g. the closing-time controller watching for the
     // team's ACKs and the god's COMPLETE). Best-effort, never breaks routing.
