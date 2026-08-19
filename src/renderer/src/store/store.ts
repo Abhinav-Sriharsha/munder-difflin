@@ -7,6 +7,7 @@ import type { AgentProvider } from '@shared/agentProvider';
 import type { HireManifest } from '@shared/hire';
 import { DEFAULT_ORG_TRIGGER, type OrgTriggerConfig, type WebhookTrigger } from '@shared/triggers';
 import { isCompactionCommand } from '@shared/providerAutomation';
+import { isInboxNudge } from '@shared/hiveNudge';
 
 export type ToolKind =
   | 'Read' | 'Edit' | 'Write' | 'Bash' | 'WebFetch' | 'WebSearch'
@@ -763,6 +764,18 @@ export const useStore = create<State>((set) => ({
       // cheap defence in depth, but this is the one that cannot be routed around.
       const queued = s.messageQueues[agentId] ?? [];
       if (isCompactionCommand(trimmed) && queued.some((m) => isCompactionCommand(m.text))) {
+        return s;
+      }
+      // ONE PENDING INBOX NUDGE PER AGENT — the same property, for the same
+      // reason. The first nudge makes the agent drain its WHOLE inbox, so every
+      // nudge queued behind it lands on a directory that agent has already
+      // emptied and answers "nothing new": a delivery slot and a model
+      // round-trip each, to say nothing. Mail arriving while an agent is mid-turn
+      // queues one nudge per poll, so this is the common case rather than the
+      // rare one, and the floor reports it as repeated empty-inbox wakes.
+      // Suppressing the copy loses nothing — the surviving nudge sends the agent
+      // to the same authoritative directory, where the newer mail is waiting too.
+      if (isInboxNudge(trimmed) && queued.some((m) => isInboxNudge(m.text))) {
         return s;
       }
       const msg: QueuedMessage = {

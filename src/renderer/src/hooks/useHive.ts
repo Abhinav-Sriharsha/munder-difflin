@@ -16,6 +16,7 @@ import {
 } from '../../../shared/providerAutomation';
 import { DEFAULT_CONTEXT_TRIGGER, type ContextRule } from '../../../shared/triggers';
 import type { AgentProvider } from '../../../shared/agentProvider';
+import { inboxNudgeText } from '../../../shared/hiveNudge';
 import { acquireTerminal, resetTerminal, isTerminalAutomationSafe } from '@/components/terminalPool';
 import { deliverWithAcknowledgement } from './queueDelivery';
 import { OFFICE_CAST, DEFAULT_CHARACTER } from '@/scene/office/cast';
@@ -630,10 +631,14 @@ export function useHive(config: HarnessConfig | null): void {
           const seen = nudged.current[a.id] ?? (nudged.current[a.id] = new Set());
           const fresh = inbox.filter((m) => m.id && !seen.has(m.id));
           if (fresh.length) {
-            useStore.getState().enqueueMessage(
-              a.id,
-              'You have new hive inbox message(s) — read your inbox, act on them now, and move handled ones to inbox/.done/. Act autonomously; only message god if you genuinely need a decision.'
-            );
+            // Name the ids: the nudge is queued now and typed whenever the agent
+            // next goes idle, so it can arrive long after the agent drained and
+            // filed this very mail. Carrying the ids is what lets it tell
+            // "already handled" from "woken for nothing". The queue keeps only
+            // one nudge pending per agent (see enqueueMessage), so a suppressed
+            // copy's ids stay unnamed — hence the text points at the pending
+            // inbox as the authority rather than at the list.
+            useStore.getState().enqueueMessage(a.id, inboxNudgeText(fresh.map((m) => m.id)));
             for (const m of fresh) seen.add(m.id);
           }
         } catch { /* ignore */ }
