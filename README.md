@@ -288,11 +288,12 @@ chrome. The 15 avatars are the cast of *The Office*, differentiated by hair/skin
 
 ## Roadmap
 
-Shipped through **v0.4.3** — ten agent engines with BYOK keys and local LLMs, voice orchestration,
+Shipped through **v0.4.4** — ten agent engines with BYOK keys and local LLMs, voice orchestration,
 the hive (memory · mailboxes · blackboard · event log), Command Center with kanban and schedules,
 a built-in Monaco IDE with git rails, integrations registry + secret broker, Slack-spawned workers,
 shareable hires and the Agent Gallery, observability and the circuit breaker, durable persistence,
-session resume, multi-window floors, and working auto-update.
+session resume, multi-window floors, working auto-update, a Skills browser, and a live Prerequisites
+check.
 Full history in [`CHANGELOG.md`](./CHANGELOG.md).
 
 Next up:
