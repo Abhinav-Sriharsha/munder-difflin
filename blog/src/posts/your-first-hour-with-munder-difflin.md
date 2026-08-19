@@ -34,6 +34,8 @@ faq:
 
 Most tools ask you to learn them before they do anything. Munder Difflin is the other kind: within an hour you've briefed an orchestrator, watched agents work, approved a real change, and left the office running without you. Here's that hour, minute by minute.
 
+{% youtube "", "Your first hour with Munder Difflin — full walkthrough" %}
+
 ## Minute 0 — Install
 
 Two paths: grab a signed build (macOS, Windows, Linux) from the [releases page](https://github.com/chaitanyagiri/munder-difflin/releases/latest), or clone and run from source with `npm install && npm run dev`. You need Node.js 18+, a C/C++ toolchain for `node-pty`, and at least one supported agent CLI on your `PATH` — Claude Code, Antigravity, Codex, OpenCode, Crush, pi.dev, or GitHub Copilot CLI.
@@ -62,6 +64,8 @@ A good first brief is small and self-contained: "read this repo and write a REPO
 ## Minute 20 — Watch the floor, then open a desk
 
 Now the part that makes the product legible: the floor is not a decoration, it's the state of the system. Avatars walk to stations as they work. When the hive routes a message, an envelope flies from sender to recipient; escalations fly to the door. The cast is an affectionate parody of The Office, and every movement maps to a real event.
+
+{% img "floor-view", "The floor mid-task: every movement maps to a real event." %}
 
 Click any agent and you get their desk: the live terminal (you can type back into it), a sandboxed file browser, and a git tab with status, log, and commit graph. This is the moment the abstraction clicks — that avatar is a real `claude` process, and you're reading its actual stdout.
 
