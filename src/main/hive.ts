@@ -39,6 +39,7 @@ import {
 import { MCP_CATALOG } from '../shared/mcpCatalog';
 import { selectBroadcastTargets } from '../shared/broadcast';
 import { preferredAgentRole } from '../shared/agentRole';
+import { mergeTaskLedger } from '../shared/taskLedger';
 import { expandTilde } from './fs';
 
 /** The subset of HarnessConfig the hive consumes for the default-MCP merge.
@@ -1396,14 +1397,28 @@ export class HiveManager {
   }
 
   /** Persist the task ledger to hive/tasks.json and commit it. Mirrors the
-   *  board/message persist pattern: write JSON, log the change, single-commit. */
+   *  board/message persist pattern: write JSON, log the change, single-commit.
+   *
+   *  MERGES by card id instead of clobbering. Callers hold PARTIAL models of a
+   *  card — the renderer's kanban parser knows nine fields, the god writes as
+   *  many as the work needs (`result`, the verbatim Slack reply posted back to
+   *  the user; `repo`; `scope`; `origin`; `commit`; …). A wholesale write meant
+   *  one small edit through the UI deleted every unmodelled field on EVERY card
+   *  on the board. Now an unmentioned field keeps its on-disk value.
+   *
+   *  Deleting a card still works: the incoming list IS the membership, so a card
+   *  dropped from it (TasksKanban dismiss, the voice delete_task action) is
+   *  gone. Merging protects fields, never card membership. */
   writeTasks(tasks: HiveTask[]): void {
     const root = this.root();
     if (!root) return;
     this.ensureHive();
-    this.writeJson(join(root, 'tasks.json'), { tasks });
-    this.appendLog({ kind: 'tasks', count: tasks.length });
-    this.commit(`hive: tasks (${tasks.length})`);
+    const path = join(root, 'tasks.json');
+    const current = this.readJson<{ tasks?: unknown }>(path, { tasks: [] });
+    const merged = mergeTaskLedger(current?.tasks, tasks);
+    this.writeJson(path, { tasks: merged });
+    this.appendLog({ kind: 'tasks', count: merged.length });
+    this.commit(`hive: tasks (${merged.length})`);
   }
 
   /** Append one card against the latest on-disk ledger. Renderer callers must
