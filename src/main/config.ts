@@ -697,20 +697,6 @@ export function modelForRole(
   return MODEL_WORKER;
 }
 
-/** Auto-suggested command string given current autoMode preference. */
-export function commandForAutoMode(
-  config: HarnessConfig,
-  provider?: AgentProvider
-): string {
-  const p = provider ?? inferAgentProvider(config.defaultCommand);
-  const base = p === 'claude' || p === 'custom'
-    ? config.defaultCommand
-    : defaultCommandForProvider(p, config.defaultCommand);
-  if (!config.autoMode) return base;
-  const flag = autoModeFlagForProvider(p);
-  return flag ? `${base} ${flag}` : base;
-}
-
 /** Ensure harnessHome exists on disk. Expands `~` first — the onboarding wizard
  *  lets the user type the path, and mkdir treats a literal `~` as a plain
  *  directory name (issue #140's `ENOENT: mkdir '~/HarnessAgents'`). */
