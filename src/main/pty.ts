@@ -3,7 +3,7 @@ import type { WebContents } from 'electron';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { delimiter, join, win32 } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { ensureKilled } from './procKill';
+import { ensureKilled, hardKillTree } from './procKill';
 import { expandTilde } from './fs';
 import { captureFromLoginShell, userShellPath } from './shellEnv';
 
@@ -787,15 +787,33 @@ export class PtyManager {
   /** Bulk-kill every PTY for app quit / reset. This is wholesale shutdown, not
    *  individual agent lifecycle, so it suppresses the natural-exit teardown —
    *  we don't want to archive every agent or fire a storm of `git worktree
-   *  remove` while the process is tearing down. */
+   *  remove` while the process is tearing down.
+   *
+   *  On Windows the tree sweep runs SYNCHRONOUSLY here, unlike kill():
+   *  ensureKilled's grace timer is unref'd, and on the quit path the main
+   *  process exits (will-quit caps the analytics flush at ~1.2s) long before
+   *  the 4s grace — so the deferred `taskkill /T /F` never ran and agent trees
+   *  survived the app. conpty's own kill is async and best-effort (and our
+   *  conpty patch degrades a failed console enumeration to killing nothing),
+   *  so the synchronous sweep is the only reliable reaper at quit. POSIX keeps
+   *  the graceful path: closing the pty HUPs the foreground process group, so
+   *  trees die without us SIGKILLing mid-cleanup. */
   killAll() {
     this.exitHandler = null;
+    const sweepNow = process.platform === 'win32';
     for (const s of this.sessions.values()) {
-      try {
-        const pid = s.proc.pid;
-        s.proc.kill();
+      const pid = s.proc.pid;
+      if (sweepNow) {
+        // Capture and kill the intact Windows process tree before closing
+        // ConPTY: once the root exits, taskkill may no longer be able to find
+        // descendants by that PID. Keep node-pty cleanup independent so a
+        // failure in either operation cannot prevent the other.
+        try { hardKillTree(pid); } catch { /* noop */ }
+        try { s.proc.kill(); } catch { /* noop */ }
+      } else {
+        try { s.proc.kill(); } catch { /* noop */ }
         ensureKilled(pid);
-      } catch { /* noop */ }
+      }
     }
     this.sessions.clear();
   }

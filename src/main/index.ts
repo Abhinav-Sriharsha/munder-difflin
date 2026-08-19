@@ -4807,8 +4807,10 @@ app.on('before-quit', (e) => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    ptyManager.killAll();
-    app.quit();
+    // Full teardown, not a bare killAll: this path must also stop the proxy
+    // sidecars and helper servers — on Windows a child is NOT killed when its
+    // parent exits, so anything skipped here outlives the app.
+    teardownAndQuit();
   }
 });
 
