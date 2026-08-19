@@ -25,9 +25,11 @@ test('expands the tilde-home forms', () => {
 });
 
 test('leaves absolute paths alone (beyond normalizing)', () => {
-  assert.equal(expandTilde('/a/b/c'), '/a/b/c');
-  assert.equal(expandTilde('/a/b/c/'), '/a/b/c');
-  assert.equal(expandTilde('/a/b/../c'), '/a/c');
+  // path.resolve anchors POSIX-looking paths to the current drive on Windows
+  // ("L:\a\b\c"), so compare against resolve() output rather than literals.
+  assert.equal(expandTilde('/a/b/c'), path.resolve('/a/b/c'));
+  assert.equal(expandTilde('/a/b/c/'), path.resolve('/a/b/c'));
+  assert.equal(expandTilde('/a/b/../c'), path.resolve('/a/c'));
 });
 
 test('does not touch anything that is not a tilde-home path', () => {
