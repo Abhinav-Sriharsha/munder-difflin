@@ -3,7 +3,12 @@
  * restorable entries, and parked message queues, stored as one JSON file beside
  * the hive.
  *
- * WHY THIS EXISTS. All of that used to live only in the renderer's localStorage,
+ * WHY THIS EXISTS. This is the UI floor (cards, notes, queues, worktrees).
+ * Hive identity — id, role, cwd, session — lives in `<harnessHome>/hive/registry.json`
+ * and is what agents read. The two must not drift: `description` here is the
+ * same durable job string as registry `role`, never live status (pause/idle).
+ *
+ * All of that used to live only in the renderer's localStorage,
  * and localStorage is partitioned by ORIGIN. A dev run loads the renderer from
  * `http://localhost:5173` and a packaged build loads it from `file://`, so the
  * two never see each other's storage: switching between them showed an empty

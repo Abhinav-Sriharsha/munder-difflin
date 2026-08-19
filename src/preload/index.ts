@@ -727,6 +727,9 @@ const api = {
 
   // ─── Hive (multi-agent coordination) ─────────────────────────────────────
   hiveRegistry: (): Promise<HiveRegistry> => ipcRenderer.invoke('hive:registry'),
+  /** Persist a hire/job role to hive registry.json + identity.md (no respawn). */
+  hivePatchAgentRole: (id: string, role: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('hive:patchAgentRole', id, role),
   hiveBoard: (): Promise<string> => ipcRenderer.invoke('hive:board'),
   hiveTasks: (): Promise<unknown> => ipcRenderer.invoke('hive:tasks'),
   hiveLog: (n?: number): Promise<unknown[]> => ipcRenderer.invoke('hive:log', n ?? 200),

@@ -17,6 +17,7 @@ import {
 import { DEFAULT_CONTEXT_TRIGGER, type ContextRule } from '../../../shared/triggers';
 import type { AgentProvider } from '../../../shared/agentProvider';
 import { bridgeOf, providerPreset } from '../../../shared/agentProvider';
+import { isDurableRole, preferredAgentRole, roleForHiveSpawn } from '../../../shared/agentRole';
 import { acquireTerminal, resetTerminal, isTerminalAutomationSafe } from '@/components/terminalPool';
 import { deliverWithAcknowledgement } from './queueDelivery';
 import { OFFICE_CAST, DEFAULT_CHARACTER } from '@/scene/office/cast';
@@ -333,6 +334,26 @@ export function useHive(config: HarnessConfig | null): void {
   // 'stopped' the avatar is pinned to 'looping' and hook events must NOT flip it
   // back to 'working' (the flicker the spec calls out); only a genuine Stop clears it.
   const breakerLevel = useRef<Record<string, string>>({});
+
+  // 0) Heal roster `description` from hive `role` when the floor caption was
+  //    overwritten by a status string ("on standby") after hire.
+  useEffect(() => {
+    if (!config?.onboardingComplete) return;
+    void window.cth.hiveRegistry().then((reg) => {
+      const roles: Record<string, string> = {};
+      for (const [id, entry] of Object.entries(reg.agents ?? {})) {
+        if (typeof entry.role === 'string' && entry.role.trim()) roles[id] = entry.role.trim();
+      }
+      useStore.getState().syncDescriptionsFromRoles(roles);
+      const { agents, archivedAgents } = useStore.getState();
+      for (const a of [...agents, ...archivedAgents]) {
+        const next = preferredAgentRole(a.description, roles[a.id], !!a.isGod);
+        if (isDurableRole(next) && next !== roles[a.id]) {
+          void window.cth.hivePatchAgentRole(a.id, next);
+        }
+      }
+    }).catch(() => { /* hive not ready yet */ });
+  }, [config?.onboardingComplete]);
 
   // 1) Bootstrap the god agent (source of truth = live PTYs, to dodge restarts).
   useEffect(() => {
@@ -1089,10 +1110,10 @@ export function useHive(config: HarnessConfig | null): void {
         const command = (a.command ?? '').trim() || buildSpawnCommand(cfg, a.model, provider);
         const [exe, ...args] = tokenizeCommand(command);
         const hive = a.isGod
-          ? { id: a.id, name: a.name, cwd, provider, isGod: true, role: 'orchestrator (god)' }
+          ? { id: a.id, name: a.name, cwd, provider, isGod: true, role: roleForHiveSpawn(a) }
           : a.isAssistant
-          ? { id: a.id, name: a.name, cwd, provider, isAssistant: true, role: "Michael's prep assistant" }
-          : { id: a.id, name: a.name, cwd, provider, role: a.description };
+          ? { id: a.id, name: a.name, cwd, provider, isAssistant: true, role: roleForHiveSpawn(a) }
+          : { id: a.id, name: a.name, cwd, provider, role: roleForHiveSpawn(a) };
         // Spawn at the terminal's real grid so the TUI's absolute cursor moves land
         // in the right cells (a size mismatch scatters the redraw).
         const entry = acquireTerminal(deadId);

@@ -3209,6 +3209,12 @@ ipcMain.handle('hive:setArchived', (_evt, id: unknown, archived: unknown) => {
   hive.setArchived(id, archived === true);
   return { ok: true };
 });
+ipcMain.handle('hive:patchAgentRole', (_evt, id: unknown, role: unknown) => {
+  if (typeof id !== 'string') return { ok: false, error: 'invalid id' };
+  if (typeof role !== 'string') return { ok: false, error: 'invalid role' };
+  if (!hive.enabled()) return { ok: false, error: 'hive disabled (no harnessHome)' };
+  return hive.patchAgentRole(id, role);
+});
 
 // ─── IPC: Settings hero payload (remote data, cached) ───────────────────────
 /** Plan copy and sponsor, fetched from the repo so they can change without a

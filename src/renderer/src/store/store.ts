@@ -7,6 +7,7 @@ import type { AgentProvider } from '@shared/agentProvider';
 import type { HireManifest } from '@shared/hire';
 import { DEFAULT_ORG_TRIGGER, type OrgTriggerConfig, type WebhookTrigger } from '@shared/triggers';
 import { isCompactionCommand } from '@shared/providerAutomation';
+import { preferredAgentRole } from '@shared/agentRole';
 
 export type ToolKind =
   | 'Read' | 'Edit' | 'Write' | 'Bash' | 'WebFetch' | 'WebSearch'
@@ -33,7 +34,8 @@ export interface Agent {
   /** which Office character represents this agent on the floor */
   character: OfficeCharacterName;
   accent: AccentColorName;
-  /** persistent short context — what is this agent for (shown on the floor) */
+  /** persistent job / hire one-liner — same string as hive registry `role`.
+   *  Live status belongs on `status` / `action`, never here. */
   description: string;
   project: string;
   /** legacy field — populated only for the seeded mock agents */
@@ -184,6 +186,9 @@ interface State {
   setGodStatus: (status: GodStatus) => void;
   select: (id: string) => void;
   updateAgent: (id: string, patch: Partial<Agent>) => void;
+  /** Copy durable hive roles onto roster descriptions (and the reverse is a
+   *  no-op when the roster already has a real job string). */
+  syncDescriptionsFromRoles: (roles: Record<string, string>) => void;
   setAgentNote: (id: string, note: string) => void;
   pushFeed: (id: string, line: string) => void;
   addAgent: (agent: Agent) => void;
@@ -611,6 +616,29 @@ export const useStore = create<State>((set) => ({
       // and restore relaunched the old command.
       if (touchesDurableAgentField(patch)) persistAgents(agents, s.selectedId);
       return { agents };
+    }),
+  syncDescriptionsFromRoles: (roles) =>
+    set((s) => {
+      const apply = (list: Agent[]): Agent[] => {
+        let changed = false;
+        const next = list.map((a) => {
+          const description = preferredAgentRole(a.description, roles[a.id], !!a.isGod);
+          if (description === a.description) return a;
+          changed = true;
+          return { ...a, description };
+        });
+        return changed ? next : list;
+      };
+      const agents = apply(s.agents);
+      const archivedAgents = apply(s.archivedAgents);
+      const restorableAgents = apply(s.restorableAgents);
+      if (agents === s.agents && archivedAgents === s.archivedAgents && restorableAgents === s.restorableAgents) {
+        return s;
+      }
+      persistAgents(agents, s.selectedId);
+      if (archivedAgents !== s.archivedAgents) persistArchived(archivedAgents);
+      if (restorableAgents !== s.restorableAgents) persistRestorable(restorableAgents);
+      return { agents, archivedAgents, restorableAgents };
     }),
   setAgentNote: (id, note) =>
     set((s) => {
