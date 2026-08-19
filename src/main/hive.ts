@@ -1825,10 +1825,20 @@ export class HiveManager {
    * told to read fleet.json, but "told to" is not "always knows" — so we push the
    * truth in on every turn instead. One line, so the cost is negligible.
    *
+   * `ctxOf` (optional, supplied by HookServer) lets the caller layer the LIVE
+   * context-window occupancy on top of the disk snapshot — each agent gets a
+   * `ctx NN%` so god can see at a glance whose context is nearly full when it
+   * routes work. fleet.json only carries cumulative `tokens`, which is a spend
+   * figure, not how full the CURRENT window is; the real occupancy lives in
+   * HookServer.contextById (from the statusLine shim). Omitted when the callback
+   * is absent or an agent has no Status tick yet.
+   *
    * Returns null when there is nothing to say (no hive, no snapshot, no agents),
    * so the hook stays a no-op rather than injecting noise.
    */
-  rosterContext(): string | null {
+  rosterContext(
+    ctxOf?: (agentId: string) => { tokens: number; limit: number } | undefined
+  ): string | null {
     const root = this.root();
     if (!root) return null;
     try {
@@ -1862,6 +1872,15 @@ export class HiveManager {
         if (a.inboxBacklog) bits.push(`inbox ${a.inboxBacklog}`);
         if (a.breaker && a.breaker !== 'ok' && a.breaker !== 'none') bits.push(`breaker ${a.breaker}`);
         if (a.isGod) bits.push('you');
+        // Live context-window occupancy from the statusLine shim — lets god see
+        // which agents are near-full when routing, instead of guessing from the
+        // cumulative token count. Clamp to 0-100; a fresh meter can briefly
+        // report more than 100% before a window rotation.
+        const cw = ctxOf?.(a.id);
+        if (cw && cw.limit > 0) {
+          const pct = Math.max(0, Math.min(100, Math.round((cw.tokens / cw.limit) * 100)));
+          bits.push(`ctx ${pct}%`);
+        }
         return `${a.id}${a.name ? ` "${a.name}"` : ''} (${bits.join(', ')})`;
       });
       const more = agents.length > shown.length ? ` +${agents.length - shown.length} more` : '';

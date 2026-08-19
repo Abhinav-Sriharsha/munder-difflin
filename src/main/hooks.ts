@@ -256,7 +256,12 @@ export class HookServer {
     // God-only and one line — every other agent is unaffected.
     const wantsRoster = (event === 'SessionStart' || event === 'UserPromptSubmit')
       && !!agentId && this.hive.isGod(agentId);
-    const roster = wantsRoster ? this.hive.rosterContext() : null;
+    // Hand the roster the LIVE context-window occupancy (contextById) so each
+    // agent line can carry a `ctx NN%` — god then sees whose context is nearly
+    // full when it routes work, instead of guessing from cumulative token spend.
+    const roster = wantsRoster
+      ? this.hive.rosterContext((id) => this.contextFor(id))
+      : null;
 
     if (steer || roster) {
       this.emit(agentId, event, p);

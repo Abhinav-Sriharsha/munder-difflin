@@ -47,7 +47,7 @@ async function floor(t, { steer } = {}) {
     ? { takeSteer: (id) => (id === 'god-1' ? steer : null), shouldHalt: () => false, toolDecision: () => ({ deny: false }) }
     : undefined;
   const server = new HookServer(hive, () => null, () => CONFIG, control, undefined);
-  const fire = (agent_id, hook_event_name) => server.handle({ agent_id, hook_event_name, session_id: 's1' });
+  const fire = (agent_id, hook_event_name, extra = {}) => server.handle({ agent_id, hook_event_name, session_id: 's1', ...extra });
   return { home, hive, server, fire };
 }
 
@@ -81,6 +81,29 @@ test('the roster line carries the whole floor and its state', async (t) => {
   assert.match(line, /no activity yet/, 'an agent that never ran must not read as "active never"');
   assert.match(line, /SUPERSEDES/, 'the point is to override what god remembers');
   assert.ok(line.length < 1200, `too long for a 3-agent floor: ${line.length} chars`);
+});
+
+test('each agent line carries its live context-window occupancy (ctx NN%)', async (t) => {
+  const { hive, fire } = await floor(t);
+  snapshot(hive);
+
+  // No Status tick yet — a bare direct call (no callback) must not add ctx.
+  assert.ok(!hive.rosterContext().includes('ctx '), 'no occupancy when no statusLine tick has fired');
+
+  // Seed live context-window accounting through the statusLine shim path.
+  // god-1: 62% of a 200k window; jim-1: 99% (near-full, the routing signal).
+  await fire('god-1', 'Status', { context_window: { total_input_tokens: 124000, context_window_size: 200000 } });
+  await fire('jim-1', 'Status', { context_window: { total_input_tokens: 99000, context_window_size: 100000 } });
+
+  // Read the roster the way god actually receives it: injected on a prompt,
+  // which is where HookServer layers the LIVE occupancy onto the disk snapshot.
+  const line = context(await fire('god-1', 'UserPromptSubmit'));
+  assert.ok(line.includes('LIVE ROSTER'), 'roster injected on prompt');
+  assert.match(line, /god-1[^;]*ctx 62%/, 'god line shows its own occupancy');
+  assert.match(line, /jim-1[^;]*ctx 99%/, 'a near-full agent is flagged to god');
+  // pam-1 never fired a Status tick — its line must NOT get ctx.
+  assert.match(line, /pam-1[^;]*\(agent, no activity yet\)/, 'no ctx for an agent with no Status data');
+  assert.ok(!line.includes('\n'), 'still a single compact line');
 });
 
 test('god gets the roster on SessionStart and on every prompt — nobody else does', async (t) => {
