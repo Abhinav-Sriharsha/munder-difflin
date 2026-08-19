@@ -41,7 +41,7 @@ Four agents, one channel each, spawned with a written brief:
 - **Reddit agent** — the big one. Ten launch threads saved as raw JSON, every comment including
   every nested reply. Brief: account for *every* comment — bucket objections, praise,
   feature asks, and pricing signals, with quotes and usernames preserved.
-- **Product Hunt agent** — the launch page: all 27 comments, the review, and the page's own
+- **Product Hunt agent** — the launch page: every comment, the review, and the page's own
   embedded data, read straight from the source rather than eyeballing rendered numbers.
 - **GitHub agent** — stars, traffic, referrers, clones: which channel actually moved the repo.
 - **Analytics agent** — PostHog funnels: installs, first runs, and where new users stalled.
