@@ -68,6 +68,12 @@ function withStandingGoal(agent: Agent, text: string): string {
   return `<goal>\n${goal}\n</goal>\n\n${text}`;
 }
 
+// The standard inbox-wake nudge — ONE shared string because two paths queue it
+// (effect #3's poll and the main watchdog's re-fire, #151) and dedupe against
+// the queue by content so an agent is never nudged twice for the same mail.
+const INBOX_NUDGE =
+  'You have new hive inbox message(s) — read your inbox, act on them now, and move handled ones to inbox/.done/. Act autonomously; only message god if you genuinely need a decision.';
+
 // The first thing Michael (god) is told on a fresh spawn — orient him and put
 // him to work running the floor. Kept terse and action-oriented.
 const INITIAL_GOD_PROMPT = [
@@ -674,7 +680,7 @@ export function useHive(config: HarnessConfig | null): void {
           if (fresh.length) {
             useStore.getState().enqueueMessage(
               a.id,
-              'You have new hive inbox message(s) — read your inbox, act on them now, and move handled ones to inbox/.done/. Act autonomously; only message god if you genuinely need a decision.'
+              INBOX_NUDGE
             );
             for (const m of fresh) seen.add(m.id);
           }
@@ -682,6 +688,38 @@ export function useHive(config: HarnessConfig | null): void {
       }
     }, 4000);
     return () => clearInterval(iv);
+  }, [config?.onboardingComplete]);
+
+  // 3c) The main-process wake watchdog (#151). Effect #3 is a single renderer
+  //     timer with a single-shot dedup — one wedged store status or one stale
+  //     key and a durable inbox message stalls until app restart (god survives
+  //     this because the heartbeat re-delivers HIS digest from main). Main
+  //     re-fires when a pty sits quiet with mail undrained; we re-drive the
+  //     SAME queue + drain path, so every typing guard (idle-only, boot grace,
+  //     pause, draft/picker safety) still holds.
+  useEffect(() => {
+    if (!config?.onboardingComplete) return;
+    return window.cth.onHiveInboxWake?.((p) => {
+      if (!p?.agentId) return;
+      const { agents, messageQueues, enqueueMessage, updateAgent } = useStore.getState();
+      const a = agents.find((x) => x.id === p.agentId);
+      if (!a?.ptyId) return;
+      // Main has watched this pty stay quiet ≥30s while the store still says
+      // 'working' — that status is wedged (a live turn repaints constantly) and
+      // it is exactly what blocks the drain. Reconcile to idle the same way the
+      // quiesce poll (#2) does. 'waiting'/'blocked'/'looping' are deliberate
+      // holds (HITL prompt / breaker) and are never overridden.
+      if (a.status === 'working' && (p.idleMs ?? 0) >= 30_000) {
+        updateAgent(a.id, { status: 'idle', action: 'awaiting', carrying: undefined });
+      }
+      // Queue the standard nudge unless one is already waiting — and remember
+      // the newest id so effect #3's own tick doesn't queue a duplicate.
+      const queued = messageQueues[a.id] ?? [];
+      if (!queued.some((m) => m.text === INBOX_NUDGE)) enqueueMessage(a.id, INBOX_NUDGE);
+      // Renderer-side dedupe is a per-id Set (#130), so record the id rather
+      // than overwriting a single slot — otherwise effect #3 re-nudges for it.
+      if (p.newestId) (nudged.current[a.id] ??= new Set()).add(p.newestId);
+    });
   }, [config?.onboardingComplete]);
 
   // 3b) Seed a fresh "type-into-tui" worker (Crush) with the hive protocol. Its
