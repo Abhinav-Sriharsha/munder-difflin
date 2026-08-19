@@ -679,7 +679,9 @@ export function commandForAutoMode(
   return flag ? `${base} ${flag}` : base;
 }
 
-/** Ensure harnessHome exists on disk. */
+/** Ensure harnessHome exists on disk. Expands `~` first — the onboarding wizard
+ *  lets the user type the path, and mkdir treats a literal `~` as a plain
+ *  directory name (issue #140's `ENOENT: mkdir '~/HarnessAgents'`). */
 export function ensureHarnessHome(path: string): { ok: boolean; error?: string } {
   try {
     // Expand HERE too, not only at the config write (#140). This runs FIRST —
