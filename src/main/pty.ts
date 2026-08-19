@@ -634,36 +634,53 @@ export class PtyManager {
           );
         }
       }
+      const childEnv = {
+        ...process.env,
+        PATH: userPath,
+        TERM: 'xterm-256color',
+        COLORTERM: 'truecolor',
+        // Help apps that look for a real interactive shell
+        FORCE_COLOR: '1',
+        // A Finder/Dock-launched Electron app inherits NO locale from launchd
+        // (`launchctl getenv LANG` is empty), so without this every child runs in
+        // the C/POSIX locale — where macOS's CoreFoundation default text encoding
+        // is Mac OS Roman (__CF_USER_TEXT_ENCODING=<uid>:0:0). Any locale-sensitive
+        // tool an agent runs then decodes UTF-8 as MacRoman and paints mojibake
+        // into the grid ("—" → "‚Äî"), which copy faithfully reproduces. This
+        // terminal IS UTF-8 (xterm.js + Unicode11), so say so.
+        //
+        // LC_CTYPE only, deliberately: it is the character-encoding category. Using
+        // LC_ALL would also override collation and date formatting for every user
+        // who never exported a locale. A locale the user really did export wins.
+        ...(process.platform === 'win32'
+          ? {}
+          : { LANG: process.env.LANG ?? 'en_US.UTF-8',
+              LC_CTYPE: process.env.LC_ALL ?? process.env.LC_CTYPE ?? process.env.LANG ?? 'en_US.UTF-8' }),
+        // Per-agent hive identity (AGENT_ID, HIVE_ROOT, …) when provided.
+        ...(opts.env ?? {})
+      } as Record<string, string>;
+      // The app itself is often launched from INSIDE a Claude Code session
+      // (`npm run dev` typed into a claude terminal), so that session's
+      // identity markers arrive via process.env and would flow into every
+      // agent CLI. CLAUDE_CODE_CHILD_SESSION makes the agent believe it is a
+      // child session and silently DISABLES transcript saving, which breaks
+      // --resume for every agent of that run: their sessions never reach
+      // disk. The session id / messaging socket+token likewise belong to the
+      // PARENT session, never to a fresh agent. Agents are top-level
+      // sessions regardless of how the app was launched.
+      for (const k of [
+        'CLAUDE_CODE_CHILD_SESSION',
+        'CLAUDE_CODE_SESSION_ID',
+        'CLAUDE_PID',
+        'CLAUDE_CODE_MESSAGING_SOCKET',
+        'CLAUDE_CODE_MESSAGING_TOKEN'
+      ]) delete childEnv[k];
       const proc = pty.spawn(file, spawnArgs, {
         name: 'xterm-256color',
         cols: opts.cols ?? 100,
         rows: opts.rows ?? 30,
         cwd: opts.cwd,
-        env: {
-          ...process.env,
-          PATH: userPath,
-          TERM: 'xterm-256color',
-          COLORTERM: 'truecolor',
-          // Help apps that look for a real interactive shell
-          FORCE_COLOR: '1',
-          // A Finder/Dock-launched Electron app inherits NO locale from launchd
-          // (`launchctl getenv LANG` is empty), so without this every child runs in
-          // the C/POSIX locale — where macOS's CoreFoundation default text encoding
-          // is Mac OS Roman (__CF_USER_TEXT_ENCODING=<uid>:0:0). Any locale-sensitive
-          // tool an agent runs then decodes UTF-8 as MacRoman and paints mojibake
-          // into the grid ("—" → "‚Äî"), which copy faithfully reproduces. This
-          // terminal IS UTF-8 (xterm.js + Unicode11), so say so.
-          //
-          // LC_CTYPE only, deliberately: it is the character-encoding category. Using
-          // LC_ALL would also override collation and date formatting for every user
-          // who never exported a locale. A locale the user really did export wins.
-          ...(process.platform === 'win32'
-            ? {}
-            : { LANG: process.env.LANG ?? 'en_US.UTF-8',
-                LC_CTYPE: process.env.LC_ALL ?? process.env.LC_CTYPE ?? process.env.LANG ?? 'en_US.UTF-8' }),
-          // Per-agent hive identity (AGENT_ID, HIVE_ROOT, …) when provided.
-          ...(opts.env ?? {})
-        } as Record<string, string>
+        env: childEnv
       });
 
       // Capture THIS session object so the proc's callbacks can tell whether the
