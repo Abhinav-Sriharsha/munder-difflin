@@ -75,9 +75,9 @@ enforces that list as a hard allowlist, no prompts or paths or repo names ever l
 machine, `DO_NOT_TRACK` is respected unconditionally, and a fork built from source has no key —
 the entire module becomes a no-op. The toggle is right in onboarding.
 
-It's also why this post can contain honest numbers instead of adjectives. As of August 19:
-**2,929 installs, 1,695 people have run at least one agent, and 12,430 agents have been
-spawned.** (Installs, not "users" — download counters lie, install events mostly don't.)
+It's also the difference between guessing and knowing. Before 0.4.2 we couldn't have told you
+whether the features we sweat over ever got touched; now the product can answer that without
+ever seeing a prompt, a path, or a name.
 
 ## 0.4.4 — the one Windows was owed
 

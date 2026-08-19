@@ -22,7 +22,7 @@ faq:
 
 <div class="callout tldr"><span class="ic">TL;DR</span><p><strong>v0.4.4 is the release where
 Windows stops being a second-class citizen.</strong> Agent-to-agent messaging worked everywhere
-except the platform with roughly half our downloads — a cmd.exe quirk ate the hive protocol
+except the platform where a huge share of our users live — a cmd.exe quirk ate the hive protocol
 mid-prompt, silently. That's fixed, along with a first run that never started its own services,
 a setup wizard you couldn't finish, and a dark mode you couldn't read. Plus: a 227-skill catalog,
 a Prerequisites page, and release notes with their own designed pages.</p></div>
@@ -67,9 +67,9 @@ Three more launch-week wounds, closed:
   measured under 2.1:1 contrast against every surface — 187 uses, 93 of them as 1px borders —
   so the whole UI read as flat grey. It's rebuilt at 3.4–4.0:1 on a warmer ground.
 
-Did it matter? As of August 19, the share of fresh installs that go on to actually run an
-agent has moved from **50.2% to 57.5%** since these fixes shipped. That's dozens of people a
-week who used to hit a wall and now hit an office floor.
+Did it matter? The clearest signal yet that it did: the share of fresh installs that make it
+all the way to a running agent has climbed visibly since these fixes shipped. People who used
+to hit a wall now hit an office floor.
 
 ## The new toys (there are some)
 

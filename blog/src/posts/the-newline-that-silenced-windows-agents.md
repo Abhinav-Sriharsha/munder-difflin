@@ -27,7 +27,8 @@ and <strong>cmd.exe truncates an argument at its first newline</strong>. Our sta
 multi-line. Every Windows agent got line one and lost the rest. Here's the full anatomy, because
 this bug class is hiding in more codebases than ours.</p></div>
 
-Half of our downloads are Windows. For an uncomfortably long time, the core of the product —
+A huge share of the people who install Munder Difflin do it on Windows. For an uncomfortably
+long time, the core of the product —
 [agents talking to each other](/blog/can-claude-code-agents-talk-to-each-other/) — did not work
 for those users, and neither they nor we could tell. This is the autopsy.
 

@@ -1,6 +1,6 @@
 ---
 title: "Our Agents Ran Our Launch-Week Analytics"
-description: "Ten Reddit threads, 501 comments, a Product Hunt page, GitHub traffic and PostHog funnels — read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch."
+description: "Ten Reddit threads, a Product Hunt page, GitHub traffic and PostHog funnels — every comment read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch."
 date: 2026-08-19
 category: use-cases
 categoryLabel: Use Cases
@@ -13,7 +13,7 @@ author:
   initials: CG
 faq:
   - q: "What did the agents actually analyze?"
-    a: "Four channels in parallel: ten Reddit launch threads (501 comments including every nested reply), the full Product Hunt page (27 comments plus the page's own data), GitHub traffic, and PostHog funnels. Each agent produced a structured report — a readable markdown brief plus a JSON file — and the orchestrator synthesized them into one picture."
+    a: "Four channels in parallel: ten Reddit launch threads (every comment, including every nested reply), the full Product Hunt page (every comment plus the page's own data), GitHub traffic, and PostHog funnels. Each agent produced a structured report — a readable markdown brief plus a JSON file — and the orchestrator synthesized them into one picture."
   - q: "Why use multiple agents instead of one long session?"
     a: "Each channel is a full context window of raw material on its own. One agent per channel means each report is written by something that actually read every comment, not a skim. The orchestrator then works from the four distilled reports — which is exactly the fan-out-then-synthesize pattern hives are good at."
   - q: "Can I run this on my own launch?"
@@ -21,14 +21,14 @@ faq:
 ---
 
 <div class="callout tldr"><span class="ic">TL;DR</span><p>After launch week we had ten Reddit
-threads, 516 comments, a Product Hunt page, and analytics dashboards — far more than any human
+threads deep in comments, a Product Hunt page, and analytics dashboards — far more than any human
 was going to read honestly. So we didn't. <strong>A hive of agents read all of it</strong>: one
 agent per channel, structured briefs in, markdown + JSON reports out, one synthesis at the end.
 Every launch decision we've made since traces to those reports. Here's the workflow.</p></div>
 
 There's a specific kind of lying founders do after a launch: they remember the five most
-emotional comments and call it "what the community said." We had 516 comments across ten
-subreddits. Nobody's memory survives that honestly.
+emotional comments and call it "what the community said." We had ten subreddits' worth of
+comment threads, most of them still growing. Nobody's memory survives that honestly.
 
 But we make a tool whose whole job is
 [coordinating agents on real work](/blog/run-an-office-of-ai-agents/). Launch analytics turned
@@ -38,7 +38,7 @@ out to be the best dogfood we've ever had.
 
 Four agents, one channel each, spawned with a written brief:
 
-- **Reddit agent** — the big one. Ten launch threads saved as raw JSON, 501 comments including
+- **Reddit agent** — the big one. Ten launch threads saved as raw JSON, every comment including
   every nested reply. Brief: account for *every* comment — bucket objections, praise,
   feature asks, and pricing signals, with quotes and usernames preserved.
 - **Product Hunt agent** — the launch page: all 27 comments, the review, and the page's own
@@ -73,11 +73,11 @@ pass appended to the same reports. The research got *thicker* instead of startin
 
 Findings we would have missed by skimming, all of which changed real decisions:
 
-- **46% of all engagement came from one subreddit.** r/ClaudeCode delivered 1,017 of 2,233
-  combined upvotes. Two other communities flatlined. That's next launch's channel budget,
-  decided.
-- **Product Hunt sent 195 upvotes and ~25 visitors.** Credibility channel, not traffic channel.
-  We'd have guessed wrong.
+- **Nearly half of all engagement came from one subreddit.** r/ClaudeCode carried the launch
+  almost single-handedly, and two other communities flatlined. That's next launch's channel
+  budget, decided.
+- **Product Hunt sent applause, not visitors.** Loud page, quiet referrer logs — a credibility
+  channel, not a traffic channel. We'd have guessed wrong.
 - **The two most serious evaluators asked for the same missing feature** — a visible
   "this decision needs your eyes" flag — in different words on different platforms. Only
   cross-channel synthesis caught that they were the same request.

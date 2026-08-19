@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Our Agents Ran Our Launch-Week Analytics — Munder Difflin Blog</title>
-<meta name="description" content="Ten Reddit threads, 501 comments, a Product Hunt page, GitHub traffic and PostHog funnels — read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch." />
+<meta name="description" content="Ten Reddit threads, a Product Hunt page, GitHub traffic and PostHog funnels — every comment read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch." />
 <link rel="canonical" href="https://munderdiffl.in/blog/agents-ran-our-launch-week-analytics/" />
 
 <link rel="icon" type="image/png" href="https://munderdiffl.in/logo.png" />
@@ -15,7 +15,7 @@
 <meta property="og:site_name" content="Munder Difflin Blog" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Our Agents Ran Our Launch-Week Analytics — Munder Difflin Blog" />
-<meta property="og:description" content="Ten Reddit threads, 501 comments, a Product Hunt page, GitHub traffic and PostHog funnels — read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch." />
+<meta property="og:description" content="Ten Reddit threads, a Product Hunt page, GitHub traffic and PostHog funnels — every comment read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch." />
 <meta property="og:url" content="https://munderdiffl.in/blog/agents-ran-our-launch-week-analytics/" />
 <meta property="og:image" content="https://munderdiffl.in/media/og.png" />
 <meta property="og:locale" content="en_US" />
@@ -31,7 +31,7 @@
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Our Agents Ran Our Launch-Week Analytics — Munder Difflin Blog" />
-<meta name="twitter:description" content="Ten Reddit threads, 501 comments, a Product Hunt page, GitHub traffic and PostHog funnels — read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch." />
+<meta name="twitter:description" content="Ten Reddit threads, a Product Hunt page, GitHub traffic and PostHog funnels — every comment read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch." />
 <meta name="twitter:image" content="https://munderdiffl.in/media/og.png" />
 
 <link rel="alternate" type="application/atom+xml" title="Munder Difflin Blog" href="https://munderdiffl.in/blog/feed.xml" />
@@ -45,7 +45,7 @@
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "Our Agents Ran Our Launch-Week Analytics",
-  "description": "Ten Reddit threads, 501 comments, a Product Hunt page, GitHub traffic and PostHog funnels — read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch.",
+  "description": "Ten Reddit threads, a Product Hunt page, GitHub traffic and PostHog funnels — every comment read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch.",
   "image": ["https://munderdiffl.in/media/og.png"],
   "datePublished": "2026-08-19T00:00:00.000Z",
   "dateModified": "2026-08-19T00:00:00.000Z",
@@ -79,7 +79,7 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "What did the agents actually analyze?", "acceptedAnswer": { "@type": "Answer", "text": "Four channels in parallel: ten Reddit launch threads (501 comments including every nested reply), the full Product Hunt page (27 comments plus the page's own data), GitHub traffic, and PostHog funnels. Each agent produced a structured report — a readable markdown brief plus a JSON file — and the orchestrator synthesized them into one picture." } },
+    { "@type": "Question", "name": "What did the agents actually analyze?", "acceptedAnswer": { "@type": "Answer", "text": "Four channels in parallel: ten Reddit launch threads (every comment, including every nested reply), the full Product Hunt page (every comment plus the page's own data), GitHub traffic, and PostHog funnels. Each agent produced a structured report — a readable markdown brief plus a JSON file — and the orchestrator synthesized them into one picture." } },
     { "@type": "Question", "name": "Why use multiple agents instead of one long session?", "acceptedAnswer": { "@type": "Answer", "text": "Each channel is a full context window of raw material on its own. One agent per channel means each report is written by something that actually read every comment, not a skim. The orchestrator then works from the four distilled reports — which is exactly the fan-out-then-synthesize pattern hives are good at." } },
     { "@type": "Question", "name": "Can I run this on my own launch?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — the recipe is at the end of the post. You need the raw threads saved locally (Reddit's JSON endpoints work), one agent per channel with a clear brief, a shared folder for reports, and one synthesis pass at the end. A weekend launch produces an evening of agent work." } }
     
@@ -141,14 +141,14 @@
       <a href="/blog/topics/use-cases/">Use Cases</a>
     </nav>
     <h1>Our Agents Ran Our Launch-Week Analytics</h1>
-    <p class="dek">Ten Reddit threads, 501 comments, a Product Hunt page, GitHub traffic and PostHog funnels — read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch.</p>
+    <p class="dek">Ten Reddit threads, a Product Hunt page, GitHub traffic and PostHog funnels — every comment read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch.</p>
     <div class="byline">
       <span class="av" aria-hidden="true">CG</span>
       <strong>Chaitanya Giri</strong>
       <span class="dot" aria-hidden="true">·</span>
       <time datetime="2026-08-19">Aug 19, 2026</time>
       <span class="dot" aria-hidden="true">·</span>
-      <span>3 min read</span>
+      <span>4 min read</span>
       <span class="tag kind">Use Cases</span>
     </div>
   </header>
@@ -158,20 +158,20 @@
   <div class="post-wrap wrap">
     <div class="prose">
       <div class="callout tldr"><span class="ic">TL;DR</span><p>After launch week we had ten Reddit
-threads, 516 comments, a Product Hunt page, and analytics dashboards — far more than any human
+threads deep in comments, a Product Hunt page, and analytics dashboards — far more than any human
 was going to read honestly. So we didn't. <strong>A hive of agents read all of it</strong>: one
 agent per channel, structured briefs in, markdown + JSON reports out, one synthesis at the end.
 Every launch decision we've made since traces to those reports. Here's the workflow.</p></div>
 <p>There’s a specific kind of lying founders do after a launch: they remember the five most
-emotional comments and call it “what the community said.” We had 516 comments across ten
-subreddits. Nobody’s memory survives that honestly.</p>
+emotional comments and call it “what the community said.” We had ten subreddits’ worth of
+comment threads, most of them still growing. Nobody’s memory survives that honestly.</p>
 <p>But we make a tool whose whole job is
 <a href="/blog/run-an-office-of-ai-agents/">coordinating agents on real work</a>. Launch analytics turned
 out to be the best dogfood we’ve ever had.</p>
 <h2 id="the-floor-plan" tabindex="-1">The floor plan <a class="anchor" href="#the-floor-plan" aria-hidden="true">#</a></h2>
 <p>Four agents, one channel each, spawned with a written brief:</p>
 <ul>
-<li><strong>Reddit agent</strong> — the big one. Ten launch threads saved as raw JSON, 501 comments including
+<li><strong>Reddit agent</strong> — the big one. Ten launch threads saved as raw JSON, every comment including
 every nested reply. Brief: account for <em>every</em> comment — bucket objections, praise,
 feature asks, and pricing signals, with quotes and usernames preserved.</li>
 <li><strong>Product Hunt agent</strong> — the launch page: all 27 comments, the review, and the page’s own
@@ -199,11 +199,11 @@ pass appended to the same reports. The research got <em>thicker</em> instead of 
 <h2 id="what-fell-out-of-it" tabindex="-1">What fell out of it <a class="anchor" href="#what-fell-out-of-it" aria-hidden="true">#</a></h2>
 <p>Findings we would have missed by skimming, all of which changed real decisions:</p>
 <ul>
-<li><strong>46% of all engagement came from one subreddit.</strong> r/ClaudeCode delivered 1,017 of 2,233
-combined upvotes. Two other communities flatlined. That’s next launch’s channel budget,
-decided.</li>
-<li><strong>Product Hunt sent 195 upvotes and ~25 visitors.</strong> Credibility channel, not traffic channel.
-We’d have guessed wrong.</li>
+<li><strong>Nearly half of all engagement came from one subreddit.</strong> r/ClaudeCode carried the launch
+almost single-handedly, and two other communities flatlined. That’s next launch’s channel
+budget, decided.</li>
+<li><strong>Product Hunt sent applause, not visitors.</strong> Loud page, quiet referrer logs — a credibility
+channel, not a traffic channel. We’d have guessed wrong.</li>
 <li><strong>The two most serious evaluators asked for the same missing feature</strong> — a visible
 “this decision needs your eyes” flag — in different words on different platforms. Only
 cross-channel synthesis caught that they were the same request.</li>
@@ -239,7 +239,7 @@ half of this ran while we slept off the launch.</p>
         
         <div class="qa">
           <p class="q">What did the agents actually analyze?</p>
-          <p class="a">Four channels in parallel: ten Reddit launch threads (501 comments including every nested reply), the full Product Hunt page (27 comments plus the page&#39;s own data), GitHub traffic, and PostHog funnels. Each agent produced a structured report — a readable markdown brief plus a JSON file — and the orchestrator synthesized them into one picture.</p>
+          <p class="a">Four channels in parallel: ten Reddit launch threads (every comment, including every nested reply), the full Product Hunt page (every comment plus the page&#39;s own data), GitHub traffic, and PostHog funnels. Each agent produced a structured report — a readable markdown brief plus a JSON file — and the orchestrator synthesized them into one picture.</p>
         </div>
         
         <div class="qa">
@@ -322,7 +322,7 @@ half of this ran while we slept off the launch.</p>
       <span>3 min</span>
     </div>
     <h3><a href="/blog/turn-feedback-into-a-backlog-with-agents/">Turn a Firehose of Feedback into a Backlog with Agents</a></h3>
-    <p class="dek">516 Reddit comments, 27 Product Hunt threads, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts.</p>
+    <p class="dek">Reddit threads, Product Hunt comments, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts.</p>
     <div class="foot">
       <span class="tag kind">Use Cases</span>
       <a class="more" href="/blog/turn-feedback-into-a-backlog-with-agents/" aria-label="Read: Turn a Firehose of Feedback into a Backlog with Agents">Read →</a>

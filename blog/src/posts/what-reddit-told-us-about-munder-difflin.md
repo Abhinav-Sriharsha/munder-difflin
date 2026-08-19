@@ -1,6 +1,6 @@
 ---
-title: "What 516 Reddit Comments Told Us About Munder Difflin"
-description: "We launched across ten subreddits, collected 2,233 combined upvotes and 516 comments, and then read every single one. What landed, what got roasted, and what we shipped because of it."
+title: "What Reddit Told Us About Munder Difflin"
+description: "We launched across ten subreddits and then read every single comment. What landed, what got roasted, and what we shipped because of it."
 date: 2026-08-19
 category: story
 categoryLabel: Story
@@ -13,7 +13,7 @@ author:
   initials: CG
 faq:
   - q: "How did the Munder Difflin Reddit launch go?"
-    a: "Ten posts across ten subreddits earned a combined score of 2,233 and 516 comments. r/ClaudeCode alone contributed 1,017 upvotes — almost half of everything — while r/OpenAI and r/selfhosted barely registered. The audience that already runs Claude Code all day understood the product instantly; everyone else needed more explaining than a screenshot can do."
+    a: "Ten posts across ten subreddits, and the response was lopsided in an instructive way: r/ClaudeCode alone delivered close to half of all the engagement, while r/OpenAI and r/selfhosted barely registered. The audience that already runs Claude Code all day understood the product instantly; everyone else needed more explaining than a screenshot can do."
   - q: "What did Reddit criticize about Munder Difflin?"
     a: "Three things, honestly: skepticism that a visual layer adds real utility over raw terminals, worry about token costs when running many agents, and fatigue with the orchestration-tool category in general. All three are fair, and two of them shaped what we shipped next — clearer budget controls and less theater, more control."
   - q: "What did people like most?"
@@ -21,10 +21,10 @@ faq:
 ---
 
 <div class="callout tldr"><span class="ic">TL;DR</span><p>Our Reddit launch: <strong>ten posts,
-2,233 combined upvotes, 516 comments</strong>. Nearly half the engagement came from one
-subreddit — r/ClaudeCode — and two communities ignored us entirely. We read all 516 comments,
-sorted them into what resonated, what got roasted, and what got fixed. This is that sorting,
-published.</p></div>
+ten subreddits, and a comment section that didn't stop for a week.</strong> Nearly half the
+engagement came from one community — r/ClaudeCode — and two communities ignored us entirely. We
+read every comment and sorted them into what resonated, what got roasted, and what got fixed.
+This is that sorting, published.</p></div>
 
 Launch week, we posted Munder Difflin to ten subreddits over a few days. Not the same post ten
 times — each one angled for its community — and then the comments started, and did not stop for
@@ -32,8 +32,8 @@ a week.
 
 ## Where it landed, and where it didn't
 
-The distribution was brutal and informative. **r/ClaudeCode delivered 1,017 upvotes — 46% of
-all engagement from one community.** People who already run
+The distribution was brutal and informative. **r/ClaudeCode delivered nearly half of all the
+engagement on its own.** People who already run
 [multiple Claude Code sessions](/blog/how-to-run-multiple-claude-code-agents/) didn't need the
 pitch; they recognized the problem from the screenshot alone.
 
@@ -46,7 +46,7 @@ audience selection, not copywriting.
 
 ## What resonated
 
-Reading 516 comments in bulk, three themes kept earning upvotes:
+Reading a launch week's worth of comments in bulk, three themes kept earning upvotes:
 
 **Visibility.** The single most-upvoted non-post comment in the whole corpus was someone
 describing exactly the moment we built the office floor for: glancing at the screen and knowing
@@ -75,14 +75,14 @@ the open-source version of a standing ovation.
 
 Publishing only the praise would be exactly the launch-retro genre we hate, so:
 
-**"Is this actually useful, or is it theater?"** The most common objection — a dozen distinct
-commenters. Watching pixel-art agents walk envelopes around is charming; charm is not utility.
-Our answer then and now: the simulation is deterministic and costs zero tokens, and the utility
-lives underneath it — routing, memory, lifecycle. But the burden of proof is ours, and it's why
-our sharpest users' asks are about *control* surfaces, not prettier sprites.
+**"Is this actually useful, or is it theater?"** The most common objection, by a wide margin.
+Watching pixel-art agents walk envelopes around is charming; charm is not utility. Our answer
+then and now: the simulation is deterministic and costs zero tokens, and the utility lives
+underneath it — routing, memory, lifecycle. But the burden of proof is ours, and it's why our
+sharpest users' asks are about *control* surfaces, not prettier sprites.
 
-**Token cost.** Eleven commenters worried that a floor full of agents burns money. Fair — which
-is why budgets and caps exist, and why we wrote
+**Token cost.** A steady drumbeat of commenters worried that a floor full of agents burns
+money. Fair — which is why budgets and caps exist, and why we wrote
 [the multi-agent cost playbook](/blog/the-multi-agent-cost-playbook/) and keep
 [model routing](/blog/do-more-with-less-model-routing/) cheap by default: one strong
 orchestrator, inexpensive workers.
@@ -103,7 +103,7 @@ Reddit gave us the stadium; [Product Hunt](/blog/number-five-on-product-hunt/) g
 panel interview. The stadium's verdict, compressed: **charm gets people in the door; visibility
 and control keep them.** The people who stayed cited watching state and steering it. The people
 who left cited theater and cost. Every roadmap argument we've had since launch week ends by
-re-reading one of those 516 comments.
+re-reading one of those comments.
 
 We didn't skim them. We [pointed agents at the threads](/blog/agents-ran-our-launch-week-analytics/)
 and made them account for every single comment — but that's its own story.

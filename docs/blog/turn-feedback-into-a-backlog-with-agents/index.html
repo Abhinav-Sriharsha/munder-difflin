@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Turn a Firehose of Feedback into a Backlog with Agents — Munder Difflin Blog</title>
-<meta name="description" content="516 Reddit comments, 27 Product Hunt threads, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts." />
+<meta name="description" content="Reddit threads, Product Hunt comments, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts." />
 <link rel="canonical" href="https://munderdiffl.in/blog/turn-feedback-into-a-backlog-with-agents/" />
 
 <link rel="icon" type="image/png" href="https://munderdiffl.in/logo.png" />
@@ -15,7 +15,7 @@
 <meta property="og:site_name" content="Munder Difflin Blog" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Turn a Firehose of Feedback into a Backlog with Agents — Munder Difflin Blog" />
-<meta property="og:description" content="516 Reddit comments, 27 Product Hunt threads, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts." />
+<meta property="og:description" content="Reddit threads, Product Hunt comments, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts." />
 <meta property="og:url" content="https://munderdiffl.in/blog/turn-feedback-into-a-backlog-with-agents/" />
 <meta property="og:image" content="https://munderdiffl.in/media/og.png" />
 <meta property="og:locale" content="en_US" />
@@ -31,7 +31,7 @@
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Turn a Firehose of Feedback into a Backlog with Agents — Munder Difflin Blog" />
-<meta name="twitter:description" content="516 Reddit comments, 27 Product Hunt threads, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts." />
+<meta name="twitter:description" content="Reddit threads, Product Hunt comments, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts." />
 <meta name="twitter:image" content="https://munderdiffl.in/media/og.png" />
 
 <link rel="alternate" type="application/atom+xml" title="Munder Difflin Blog" href="https://munderdiffl.in/blog/feed.xml" />
@@ -45,7 +45,7 @@
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "Turn a Firehose of Feedback into a Backlog with Agents",
-  "description": "516 Reddit comments, 27 Product Hunt threads, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts.",
+  "description": "Reddit threads, Product Hunt comments, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts.",
   "image": ["https://munderdiffl.in/media/og.png"],
   "datePublished": "2026-08-19T00:00:00.000Z",
   "dateModified": "2026-08-19T00:00:00.000Z",
@@ -141,7 +141,7 @@
       <a href="/blog/topics/use-cases/">Use Cases</a>
     </nav>
     <h1>Turn a Firehose of Feedback into a Backlog with Agents</h1>
-    <p class="dek">516 Reddit comments, 27 Product Hunt threads, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts.</p>
+    <p class="dek">Reddit threads, Product Hunt comments, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts.</p>
     <div class="byline">
       <span class="av" aria-hidden="true">CG</span>
       <strong>Chaitanya Giri</strong>
@@ -158,8 +158,9 @@
   <div class="post-wrap wrap">
     <div class="prose">
       <div class="callout tldr"><span class="ic">TL;DR</span><p>Feedback is an asset with a
-half-life: unprocessed, it decays into a vibe. After launch week handed us <strong>516 Reddit
-comments, a Product Hunt thread, and a swelling issue tracker</strong>, agents turned all of it
+half-life: unprocessed, it decays into a vibe. After launch week handed us <strong>ten
+subreddits' worth of comments, a Product Hunt thread, and a swelling issue tracker</strong>,
+agents turned all of it
 into a ranked backlog where every card cites the real humans who asked. Two of the top three
 cards shipped in v0.4.4. The workflow, start to finish.</p></div>
 <p>Launch-week feedback has a cruel shape: it arrives all at once, from five channels, in wildly
@@ -172,10 +173,10 @@ roadmap around them both.</p>
 <p>The first pass is deliberately dumb: every comment, from every channel, gets bucketed —
 <strong>bug report, feature ask, objection, praise, question</strong> — with the quote, the author, and the
 permalink preserved. The brief’s key sentence is <em>account for every comment</em>, because that’s
-the sentence a tired human violates. Ours came back with counts we still quote in arguments:
-utility skepticism, 12 distinct commenters; token-cost concern, 11.</p>
+the sentence a tired human violates. Ours came back with every objection bucketed and counted,
+each with its list of linked quotes attached.</p>
 <p>The receipts matter more than the counts. “Users are worried about cost” starts a debate;
-eleven linked quotes end one.</p>
+a column of linked quotes ends one.</p>
 <h2 id="pass-two-merge-across-channels" tabindex="-1">Pass two: merge across channels <a class="anchor" href="#pass-two-merge-across-channels" aria-hidden="true">#</a></h2>
 <figure class="fig fig-inline"><img src="/blog/assets/media/turn-feedback-into-a-backlog-with-agents/note-1.png" alt="Hand-drawn sketch from “Turn a Firehose of Feedback into a Backlog with Agents”" loading="lazy" decoding="async" /><figcaption>Five phrasings, two platforms, one problem. Cross-channel merging is where the signal actually lives.</figcaption></figure>
 <p>The pass most teams never do, because it requires holding everything at once. The same problem
@@ -183,7 +184,7 @@ arrives dressed differently per platform: a Product Hunt commenter politely repo
 unable to switch engines after setup; a Redditor says the onboarding dead-ended; a GitHub
 issue titles it precisely. One agent with all three corpora merges them into <strong>one backlog
 item with five receipts</strong> — and suddenly it’s not three small complaints, it’s one bug class
-blocking a fifth of new evaluators.</p>
+quietly blocking a meaningful share of new evaluators.</p>
 <p>This pass produced our best roadmap insight of the year: our two most sophisticated users — on
 <em>different platforms, in different words</em> — asked for the same missing primitive, a visible
 “this decision needs your eyes” flag on agents. Read channel by channel, that’s two mild
@@ -269,10 +270,10 @@ That tension is now the roadmap’s spine, and we can cite our sources.</p>
     <div class="meta">
       <time datetime="2026-08-19">Aug 19, 2026</time>
       <span class="dot" aria-hidden="true"></span>
-      <span>3 min</span>
+      <span>4 min</span>
     </div>
     <h3><a href="/blog/agents-ran-our-launch-week-analytics/">Our Agents Ran Our Launch-Week Analytics</a></h3>
-    <p class="dek">Ten Reddit threads, 501 comments, a Product Hunt page, GitHub traffic and PostHog funnels — read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch.</p>
+    <p class="dek">Ten Reddit threads, a Product Hunt page, GitHub traffic and PostHog funnels — every comment read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch.</p>
     <div class="foot">
       <span class="tag kind">Use Cases</span>
       <a class="more" href="/blog/agents-ran-our-launch-week-analytics/" aria-label="Read: Our Agents Ran Our Launch-Week Analytics">Read →</a>

@@ -1,6 +1,6 @@
 ---
 title: "Turn a Firehose of Feedback into a Backlog with Agents"
-description: "516 Reddit comments, 27 Product Hunt threads, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts."
+description: "Reddit threads, Product Hunt comments, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts."
 date: 2026-08-19
 category: use-cases
 categoryLabel: Use Cases
@@ -21,8 +21,9 @@ faq:
 ---
 
 <div class="callout tldr"><span class="ic">TL;DR</span><p>Feedback is an asset with a
-half-life: unprocessed, it decays into a vibe. After launch week handed us <strong>516 Reddit
-comments, a Product Hunt thread, and a swelling issue tracker</strong>, agents turned all of it
+half-life: unprocessed, it decays into a vibe. After launch week handed us <strong>ten
+subreddits' worth of comments, a Product Hunt thread, and a swelling issue tracker</strong>,
+agents turned all of it
 into a ranked backlog where every card cites the real humans who asked. Two of the top three
 cards shipped in v0.4.4. The workflow, start to finish.</p></div>
 
@@ -39,11 +40,11 @@ The fix isn't discipline. It's admitting this is a data-processing job and
 The first pass is deliberately dumb: every comment, from every channel, gets bucketed —
 **bug report, feature ask, objection, praise, question** — with the quote, the author, and the
 permalink preserved. The brief's key sentence is *account for every comment*, because that's
-the sentence a tired human violates. Ours came back with counts we still quote in arguments:
-utility skepticism, 12 distinct commenters; token-cost concern, 11.
+the sentence a tired human violates. Ours came back with every objection bucketed and counted,
+each with its list of linked quotes attached.
 
 The receipts matter more than the counts. "Users are worried about cost" starts a debate;
-eleven linked quotes end one.
+a column of linked quotes ends one.
 
 ## Pass two: merge across channels
 
@@ -54,7 +55,7 @@ arrives dressed differently per platform: a Product Hunt commenter politely repo
 unable to switch engines after setup; a Redditor says the onboarding dead-ended; a GitHub
 issue titles it precisely. One agent with all three corpora merges them into **one backlog
 item with five receipts** — and suddenly it's not three small complaints, it's one bug class
-blocking a fifth of new evaluators.
+quietly blocking a meaningful share of new evaluators.
 
 This pass produced our best roadmap insight of the year: our two most sophisticated users — on
 *different platforms, in different words* — asked for the same missing primitive, a visible

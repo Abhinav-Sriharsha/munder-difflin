@@ -13,7 +13,7 @@
     <id>https://munderdiffl.in/blog/agents-ran-our-launch-week-analytics/</id>
     <published>2026-08-19T00:00:00.000Z</published>
     <updated>2026-08-19T00:00:00.000Z</updated><category term="Use Cases" />
-    <summary>Ten Reddit threads, 501 comments, a Product Hunt page, GitHub traffic and PostHog funnels — read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch.</summary>
+    <summary>Ten Reddit threads, a Product Hunt page, GitHub traffic and PostHog funnels — every comment read, cross-referenced, and reported by a hive of agents. The workflow, and how to point it at your own launch.</summary>
   </entry>
   <entry>
     <title>An Agent Redesigned the Blog You&#39;re Reading</title>
@@ -32,12 +32,12 @@
     <summary>v0.4.4 fixes the bug that silently broke agent-to-agent messaging on Windows, starts hive services on the very first run, rebuilds dark mode so you can read it, and adds a 227-skill catalog, a Prerequisites page, and designed release notes.</summary>
   </entry>
   <entry>
-    <title>Nº 5 Product of the Day: Our Product Hunt Launch, by the Numbers</title>
+    <title>Nº 5 Product of the Day: How Our First Product Hunt Launch Went</title>
     <link href="https://munderdiffl.in/blog/number-five-on-product-hunt/" />
     <id>https://munderdiffl.in/blog/number-five-on-product-hunt/</id>
     <published>2026-08-19T00:00:00.000Z</published>
     <updated>2026-08-19T00:00:00.000Z</updated><category term="Story" />
-    <summary>Munder Difflin finished #5 Product of the Day on Product Hunt — ahead of DeepSeek&#39;s harness launch that day. Here&#39;s what actually happened: the numbers, the people who showed up, and the two pieces of feedback we&#39;re already shipping fixes for.</summary>
+    <summary>Munder Difflin finished #5 Product of the Day on Product Hunt — ahead of DeepSeek&#39;s harness launch that day. The honest retro: who showed up, what they asked, and the two pieces of feedback we&#39;re already shipping fixes for.</summary>
   </entry>
   <entry>
     <title>Run a Release Train with Agents</title>
@@ -69,7 +69,7 @@
     <id>https://munderdiffl.in/blog/turn-feedback-into-a-backlog-with-agents/</id>
     <published>2026-08-19T00:00:00.000Z</published>
     <updated>2026-08-19T00:00:00.000Z</updated><category term="Use Cases" />
-    <summary>516 Reddit comments, 27 Product Hunt threads, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts.</summary>
+    <summary>Reddit threads, Product Hunt comments, GitHub issues and Discord — launch week buries you in feedback that decays if unprocessed. The agent workflow that turned ours into a ranked backlog, with receipts.</summary>
   </entry>
   <entry>
     <title>We Opened a Discord (Merge a PR, Become Employee of the Month)</title>
@@ -80,12 +80,12 @@
     <summary>Munder Difflin has a Discord now. Come watch releases land, get help with your floor, and earn the most thematically necessary contributor role in open source.</summary>
   </entry>
   <entry>
-    <title>What 516 Reddit Comments Told Us About Munder Difflin</title>
+    <title>What Reddit Told Us About Munder Difflin</title>
     <link href="https://munderdiffl.in/blog/what-reddit-told-us-about-munder-difflin/" />
     <id>https://munderdiffl.in/blog/what-reddit-told-us-about-munder-difflin/</id>
     <published>2026-08-19T00:00:00.000Z</published>
     <updated>2026-08-19T00:00:00.000Z</updated><category term="Story" />
-    <summary>We launched across ten subreddits, collected 2,233 combined upvotes and 516 comments, and then read every single one. What landed, what got roasted, and what we shipped because of it.</summary>
+    <summary>We launched across ten subreddits and then read every single comment. What landed, what got roasted, and what we shipped because of it.</summary>
   </entry>
   <entry>
     <title>What&#39;s Up With Munder Difflin: Six Weeks, Four Releases, and the Part of the Stack You Actually Own</title>
