@@ -262,9 +262,30 @@ let breakerBeatTimer: ReturnType<typeof setInterval> | null = null;
 // Feed the breaker's api_error-storm trip from Oscar's OTel api_error spans —
 // Jim's one breaker input with no on-branch source (telemetry.onApiError seam).
 telemetry.onApiError((agentId) => breaker.recordError(agentId));
+// Shared roster on disk — created early so HookServer can re-read standing goals
+// on every UserPromptSubmit (Edit Agent saves land here via persistAgents).
+const roster = new RosterStore(() => readConfig().harnessHome);
+function standingGoalFromRoster(agentId: string): string | null {
+  const snap = roster.read();
+  if (!snap || !Array.isArray(snap.agents)) return null;
+  for (const entry of snap.agents) {
+    if (!entry || typeof entry !== 'object') continue;
+    const a = entry as { id?: unknown; goal?: unknown };
+    if (a.id !== agentId) continue;
+    return typeof a.goal === 'string' && a.goal.trim() ? a.goal.trim() : null;
+  }
+  return null;
+}
 // HookServer needs BOTH: Oscar's control registry (HITL pause/gate/steer/halt via
 // hook returns) AND Jim's breaker (feed recordToolUse on each PostToolUse).
-const hookServer = new HookServer(hive, () => liveWebContents(), () => readConfig(), control, breaker);
+const hookServer = new HookServer(
+  hive,
+  () => liveWebContents(),
+  () => readConfig(),
+  control,
+  breaker,
+  standingGoalFromRoster
+);
 const memory = new MemoryManager(
   () => readConfig().harnessHome,
   () => { const c = readConfig(); return { enabled: c.semanticMemory !== false, model: c.embeddingModel ?? 'minilm' }; }
@@ -3139,7 +3160,7 @@ ipcMain.handle('git:checkout', async (_evt, cwd: unknown, ref: unknown, detach: 
 // IPC could resolve, so the read is `ipcMain.on` + `returnValue` — one blocking
 // round trip at boot, in exchange for the roster being correct on first paint
 // instead of flashing an empty floor and then filling in.
-const roster = new RosterStore(() => readConfig().harnessHome);
+// (`roster` itself is constructed earlier so HookServer can read standing goals.)
 ipcMain.on('roster:readSync', (evt) => { evt.returnValue = roster.read(); });
 ipcMain.handle('roster:read', () => roster.read());
 ipcMain.handle('roster:write', (_evt, snap: unknown) => roster.write(snap));

@@ -162,7 +162,6 @@ export function startMockLoop() {
         updateAgent(a.id, {
           status: 'idle',
           action: 'awaiting',
-          description: 'on standby',
           carrying: undefined,
           recentAssistantText: 'Done with that one. What next?',
           recentTextTs: Date.now()

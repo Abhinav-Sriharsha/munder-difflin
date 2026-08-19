@@ -32,6 +32,7 @@ export type AgentProvider =
   | 'crush'
   | 'pi'
   | 'copilot'
+  | 'cursor'
   | 'custom';
 
 /** Structured descriptor for how a NON-hiveAware provider gets hive lifecycle
@@ -495,6 +496,45 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     docsUrl: 'https://docs.github.com/copilot/concepts/agents/about-copilot-cli'
   },
   {
+    // Cursor Agent CLI (`cursor-agent`, https://cursor.com/docs/cli). The official
+    // installer puts `cursor-agent` on PATH; `agent` is a shorter alias. Interactive
+    // TUI by default (no `-p`), so the session stays alive for hive mail via the
+    // renderer idle / work-order path — same class as Crush. Print mode (`-p`) is
+    // available for scripts but exits per turn; this preset intentionally does
+    // NOT use `-p` so Michael and workers remain god-eligible / inbox-capable.
+    // Models (including cheap gpt-5.6-luna-*) bill against Cursor credits via the
+    // logged-in CLI — there is no separate "plain OpenAI API" path for Luna.
+    id: 'cursor',
+    label: 'Cursor',
+    defaultCommand: 'cursor-agent',
+    commandGroups: [],
+    // --force/--yolo: allow tool calls without confirmations. --trust: skip the
+    // workspace trust prompt so unattended Mac Mini spawns do not stall. Gated by
+    // the floor config.autoMode toggle like every other engine.
+    autoModeFlag: '--force --trust',
+    autoFlag: '--force --trust',
+    supportsModel: true,
+    modelFlag: '--model', // e.g. gpt-5.6-luna-high, auto, composer-2.5
+    hiveAware: false,
+    // No Cursor hook bridge yet — mail delivery uses the terminal work-order /
+    // idle-nudge fallback (same honesty as Crush before its proxy is verified).
+    canReceiveInbox: true,
+    // `cursor-agent` parses early argv as Cobra-style commands (login, models, mcp, …).
+    // A long hive protocol string must NOT ride as a positional — type it into
+    // the TUI after boot instead (Crush pattern).
+    initialPromptFlag: undefined,
+    seedDelivery: 'type-into-tui',
+    recommendedOrchestratorModel: 'gpt-5.6-luna-high',
+    resumeFlag: '--resume',
+    // Official install is a curl|bash script (not npm). Prefer the native rung so
+    // a node-free machine can still self-heal. Trusted hardcoded constants only.
+    nativeInstallCommand: {
+      posix: 'curl https://cursor.com/install -fsS | bash',
+      win32: 'irm https://cursor.com/install?win32=true | iex'
+    },
+    docsUrl: 'https://cursor.com/docs/cli/install'
+  },
+  {
     id: 'custom',
     label: 'Custom',
     defaultCommand: '',
@@ -519,6 +559,7 @@ export function isAgentProvider(value: unknown): value is AgentProvider {
     value === 'crush' ||
     value === 'pi' ||
     value === 'copilot' ||
+    value === 'cursor' ||
     value === 'custom'
   );
 }
@@ -569,6 +610,9 @@ export function inferAgentProvider(command: string | undefined, explicit?: unkno
   if (bin === 'crush') return 'crush';
   if (bin === 'pi') return 'pi';
   if (bin === 'copilot') return 'copilot';
+  // Cursor ships as `cursor-agent`; `agent` is a shorter alias (generic name — check last).
+  if (bin === 'cursor-agent') return 'cursor';
+  if (bin === 'agent') return 'cursor';
   if (bin === 'claude' || !bin) return 'claude';
   return 'custom';
 }

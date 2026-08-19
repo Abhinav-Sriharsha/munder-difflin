@@ -16,6 +16,7 @@ import {
 } from '../../../shared/providerAutomation';
 import { DEFAULT_CONTEXT_TRIGGER, type ContextRule } from '../../../shared/triggers';
 import type { AgentProvider } from '../../../shared/agentProvider';
+import { bridgeOf, providerPreset } from '../../../shared/agentProvider';
 import { acquireTerminal, resetTerminal, isTerminalAutomationSafe } from '@/components/terminalPool';
 import { deliverWithAcknowledgement } from './queueDelivery';
 import { OFFICE_CAST, DEFAULT_CHARACTER } from '@/scene/office/cast';
@@ -45,6 +46,26 @@ const BOOT_GRACE_MS = 35_000;
 // long enough for the TUI to finish painting and surface any permission prompt.
 // submitToPty additionally waits for the terminal's readiness handshake.
 const SEED_BOOT_MS = 12_000;
+
+/** Hive-aware / hooks-bridge engines get standing goals via HookServer
+ *  (SessionStart + UserPromptSubmit). Cursor and other no-hook engines need the
+ *  goal prepended onto queued PTY deliveries so an Edit Agent save still lands
+ *  on the next drain cycle without a restart. */
+function usesHookStandingGoal(agent: Agent): boolean {
+  const provider = inferAgentProvider(agent.command, agent.provider);
+  const preset = providerPreset(provider);
+  if (preset.hiveAware) return true;
+  return bridgeOf(provider)?.kind === 'hooks';
+}
+
+/** Prepend `<goal>…</goal>` for engines that cannot inject via hooks. Reads the
+ *  live store field, so a just-saved goal is picked up on the next queue flush. */
+function withStandingGoal(agent: Agent, text: string): string {
+  const goal = agent.goal?.trim();
+  if (!goal || usesHookStandingGoal(agent)) return text;
+  if (text.includes('<goal>')) return text;
+  return `<goal>\n${goal}\n</goal>\n\n${text}`;
+}
 
 // The first thing Michael (god) is told on a fresh spawn — orient him and put
 // him to work running the floor. Kept terse and action-oriented.
@@ -676,7 +697,11 @@ export function useHive(config: HarnessConfig | null): void {
             useStore.getState().updateAgent(a.id, { seedPrompt: seed });
             return;
           }
-          submitToPty(ptyId, seed, inferAgentProvider(live.command, live.provider))
+          submitToPty(
+            ptyId,
+            withStandingGoal(live, seed),
+            inferAgentProvider(live.command, live.provider)
+          )
             .catch(() => { /* pty may have died */ });
         }, SEED_BOOT_MS);
       }
@@ -736,7 +761,10 @@ export function useHive(config: HarnessConfig | null): void {
           // the PTY; UI/card surfaces continue to show the readable `text`.
           () => submitToPty(
             target.ptyId!,
-            wrap ? wrap(next) : (next.instruction ?? next.text),
+            withStandingGoal(
+              target,
+              wrap ? wrap(next) : (next.instruction ?? next.text)
+            ),
             inferAgentProvider(target.command, target.provider)
           ),
           () => {

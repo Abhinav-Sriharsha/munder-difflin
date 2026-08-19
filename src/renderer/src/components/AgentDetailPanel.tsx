@@ -12,6 +12,7 @@ import { SidebarTabs } from './SidebarTabs';
 import { ThreadsPanel } from './ThreadsPanel';
 import { ToolWaterfall } from './ToolWaterfall';
 import { AgentControlStrip } from './AgentControlStrip';
+import { EditAgentModal } from './EditAgentModal';
 import { GitTab } from './GitTab';
 import { Icon } from './Icon';
 import { useStore, type Agent } from '@/store/store';
@@ -24,6 +25,7 @@ export interface AgentDetailPanelProps {
 export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
   const [openTerminalState, setOpenTerminalState] = useState<'idle' | 'opening' | 'ok' | 'error'>('idle');
   const [openTerminalError, setOpenTerminalError] = useState<string | undefined>();
+  const [editOpen, setEditOpen] = useState(false);
   const archiveAgent = useStore(s => s.archiveAgent);
   const updateAgent = useStore(s => s.updateAgent);
   const setFullscreen = useStore(s => s.setFullscreen);
@@ -117,6 +119,14 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
             }}>{agent.project}</span>
           </div>
         </div>
+        <PixelButton
+          variant="secondary"
+          size="sm"
+          onClick={() => setEditOpen(true)}
+          title="Edit identity, engine, and briefing"
+        >
+          edit
+        </PixelButton>
         {/* v0.3.4: the IDE lives at agent level (replaces the old files tab) —
             opens the full-window Monaco editor rooted at this agent's workspace. */}
         <PixelButton variant="secondary" size="sm" onClick={() => useStore.getState().setIdeOpen(true, agent.id)}>
@@ -201,6 +211,10 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
           <ToolWaterfall agentId={agent.id} />
         )}
       </div>
+
+      {editOpen && (
+        <EditAgentModal agent={agent} onClose={() => setEditOpen(false)} />
+      )}
     </PixelPanel>
   );
 }

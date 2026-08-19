@@ -63,7 +63,6 @@ export function usePtyParser(agentId: string) {
       updateAgent(agentId, {
         status: 'idle',
         action: 'awaiting',
-        description: 'on standby',
         carrying: undefined,
         currentStation: 'desk'
       });
@@ -124,7 +123,6 @@ export function usePtyParser(agentId: string) {
       updateAgent(agentId, {
         status: 'working',
         action: summary,
-        description: summary,
         currentStation: station,
         carrying
       });
@@ -155,7 +153,6 @@ export function usePtyParser(agentId: string) {
         updateAgent(agentId, {
           status: 'blocked',
           action: 'waiting on you',
-          description: 'waiting on you',
           currentStation: 'mailbox',
           blockReason: {
             summary: 'Waiting for your reply',
@@ -170,7 +167,6 @@ export function usePtyParser(agentId: string) {
         updateAgent(agentId, {
           status: 'waiting',
           action: 'waiting on god',
-          description: 'waiting on god',
           currentStation: 'desk',
           blockReason: undefined
         });
