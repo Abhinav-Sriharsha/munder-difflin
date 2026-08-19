@@ -13,7 +13,7 @@ const os = require('node:os');
 const path = require('node:path');
 const loadTs = require('./load-ts.cjs');
 
-const { expandTilde } = loadTs('src/main/fs.ts');
+const { expandTilde, statAbs } = loadTs('src/main/fs.ts');
 
 const HOME = os.homedir();
 
@@ -120,4 +120,25 @@ test('#140: both entry points agree on the same directory', () => {
   // different one — the failure this pair of fixes exists to prevent.
   const typed = '~/HarnessAgents';
   assert.equal(expandTilde(typed), normalizeHiveHome(typed).home);
+});
+
+test('statAbs expands bare ~, Windows-style ~\\, and whitespace paths', async () => {
+  const fileBasename = `.md-statabs-${process.pid}`;
+  const inHome = path.join(HOME, fileBasename);
+  fs.writeFileSync(inHome, 'x');
+  try {
+    const resSlash = await statAbs(`~/${fileBasename}`);
+    assert.equal(resSlash.exists, true);
+    assert.equal(resSlash.isFile, true);
+
+    const resWin = await statAbs(`~\\${fileBasename}`);
+    assert.equal(resWin.exists, true);
+    assert.equal(resWin.isFile, true);
+
+    const resPadded = await statAbs(` ~/${fileBasename} `);
+    assert.equal(resPadded.exists, true);
+    assert.equal(resPadded.isFile, true);
+  } finally {
+    fs.rmSync(inHome, { force: true });
+  }
 });
