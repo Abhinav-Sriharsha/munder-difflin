@@ -196,8 +196,19 @@ function shortRand(): string {
 
 /** Non-memory files `mempalace mine` must not ingest (Claude Code hooks config,
  *  cursor, raw inbox/outbox JSON). `mempalace mine` honors .gitignore, so we drop
- *  one in each agent dir; written on birth here and refreshed by the mine loop. */
-const MINE_IGNORE_LINES = ['settings.json', 'cursor.json', 'inbox/', 'outbox/'];
+ *  one in each agent dir; written on birth here and refreshed by the mine loop.
+ *
+ *  `.codex/` is here for a second reason as well, and it is the load-bearing one:
+ *  a Codex worker's CODEX_HOME lives INSIDE its agent dir (see installCodexHooks —
+ *  Codex can only be given hooks through a config.toml in its own home, so it
+ *  cannot share the user's ~/.codex). Codex then fills that folder with full
+ *  session transcripts, an 80MB+ logs sqlite and a plugin cache, and the hive's
+ *  git repo was faithfully versioning every revision of all of it. Twenty Codex
+ *  agents took the hive's .git to 7.5GB, at which point git's own auto-gc tried to
+ *  repack it and took 22GB of RAM doing so — the machine swapped, the app stopped
+ *  responding. None of it was ever wanted in history: it is Codex's private
+ *  scratch state, and it stays on disk (so resume still works) either way. */
+const MINE_IGNORE_LINES = ['settings.json', 'cursor.json', 'inbox/', 'outbox/', '.codex/'];
 
 /** Idempotently ensure `<agentDir>/.gitignore` excludes the non-memory files.
  *  Append-only: writes only the missing lines, leaving any existing entries. */
@@ -2027,11 +2038,44 @@ export class HiveManager {
     console.warn('[hive] untracked the cost ledger from the hive repo');
   }
 
+  /** Has the one-time Codex-home untrack pass run in this process yet? */
+  private untrackedCodexHomes = false;
+
+  /**
+   * Stop versioning Codex worker homes that are ALREADY in the index.
+   *
+   * Adding `.codex/` to each agent's .gitignore only keeps NEW paths out; git
+   * happily keeps recording a file it is already tracking, so a hive that
+   * predates that ignore line goes on committing every SQLite and transcript
+   * revision exactly as before — the .gitignore reads as a fix while the repo
+   * keeps growing. This closes that: once per process, refresh every agent's
+   * ignore file (agents that are not running never pass through spawn, and the
+   * mine loop only reaches them if mempalace is installed) and drop any tracked
+   * `.codex` path from the index. The files stay on disk, so `codex --resume`
+   * is unaffected; only their history stops.
+   */
+  private untrackCodexHomes(root: string): void {
+    if (this.untrackedCodexHomes) return;
+    this.untrackedCodexHomes = true;
+    const agentsDir = join(root, 'agents');
+    if (!existsSync(agentsDir)) return;
+    try {
+      for (const id of readdirSync(agentsDir)) ensureMineIgnore(join(agentsDir, id));
+    } catch { /* best-effort */ }
+    // Probe before mutating: `rm --cached` on a clean repo would still rewrite
+    // the index on every launch, and this runs inside the commit retry path.
+    const tracked = this.git(['ls-files', '--', 'agents/*/.codex'], root);
+    if (!tracked.ok || !tracked.out.trim()) return;
+    this.git(['rm', '-r', '--cached', '-q', '--ignore-unmatch', '--', 'agents/*/.codex'], root);
+    console.warn('[hive] untracked previously-committed Codex homes from the hive repo');
+  }
+
   /** Commit all hive changes. No-op if there is nothing staged. */
   commit(message: string): void {
     const root = this.root();
     if (!root || !existsSync(join(root, '.git'))) return;
     this.untrackCostLedger(root);
+    this.untrackCodexHomes(root);
     for (let attempt = 0; attempt < 5; attempt++) {
       this.clearStaleLock(root);
       const add = this.git(['add', '-A'], root);
