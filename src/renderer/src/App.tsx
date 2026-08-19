@@ -131,22 +131,22 @@ export function App() {
 
   // Shareable hires: a validated manifest arriving via the munderdifflin://
   // deep link (or file import) pre-fills the Add-Agent modal. Never spawns by itself.
-  const setPendingHire = useStore(s => s.setPendingHire);
+  const enqueuePendingHires = useStore(s => s.enqueuePendingHires);
   useEffect(() => {
     const unsub = window.cth.onHireImport?.((m) => {
-      setPendingHire(m);
+      enqueuePendingHires([m]);
       setAddAgentOpen(true);
     });
     // Pull anything that arrived before this subscription existed (cold-start
     // deep links; packaged renderers load too fast for push-on-load).
     void window.cth.drainPendingHires?.().then((queued) => {
       if (queued && queued.length > 0) {
-        setPendingHire(queued[queued.length - 1]);
+        enqueuePendingHires(queued);
         setAddAgentOpen(true);
       }
     });
     return unsub;
-  }, [setPendingHire, setAddAgentOpen]);
+  }, [enqueuePendingHires, setAddAgentOpen]);
   useEffect(() => window.cth.onHireError?.((info) => {
     console.error('[hire] import failed:', info.error);
   }), []);
