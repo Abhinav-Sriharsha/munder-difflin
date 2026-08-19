@@ -667,7 +667,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 background: 'var(--cth-coral-light)',
                 boxShadow: 'inset 0 0 0 1px var(--cth-coral)',
                 fontSize: 13,
-                color: 'var(--cth-ink-900)'
+                color: 'var(--cth-ink-900)',
+                overflowWrap: 'anywhere'
               }}>{error}</div>
             )}
 
