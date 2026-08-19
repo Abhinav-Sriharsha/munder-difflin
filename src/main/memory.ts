@@ -56,6 +56,16 @@ export interface MemoryStatus {
 
 const MINE_INTERVAL_MS = 180_000; // re-mine changed memories every 3 min
 const MINE_TIMEOUT_MS = 10 * 60_000; // hard cap per mine (first run downloads the embedding model)
+/** mempalace's device "auto" picks the CoreML execution provider on Apple
+ *  Silicon, and CoreML runs the quantized embeddinggemma ONNX graph partially
+ *  (330/1647 nodes) with fp16 partitions that overflow → EVERY vector comes
+ *  back NaN and chroma rejects every upsert ("Embeddings must not contain NaN
+ *  or Infinity values"), so no memory ever gets indexed. Reproduced + verified
+ *  2026-08-16: same input is NaN under CoreMLExecutionProvider and clean under
+ *  CPU. Pin cpu for BOTH the mine loop and the agents' own `mempalace search`
+ *  (a query embedded to NaN breaks recall the same way). CoreML only exists on
+ *  macOS, so other platforms keep mempalace's own default ("auto"). */
+const MEMPALACE_DEVICE = process.platform === 'darwin' ? 'cpu' : undefined;
 
 export class MemoryManager {
   private binCache: string | null | undefined;
@@ -139,14 +149,19 @@ export class MemoryManager {
   env(): Record<string, string> {
     const palace = this.palacePath();
     if (!this.active() || !palace) return {};
-    return { MEMPALACE_PALACE_PATH: palace, MEMPALACE_EMBEDDING_MODEL: this.model() };
+    return {
+      MEMPALACE_PALACE_PATH: palace,
+      MEMPALACE_EMBEDDING_MODEL: this.model(),
+      ...(MEMPALACE_DEVICE ? { MEMPALACE_EMBEDDING_DEVICE: MEMPALACE_DEVICE } : {})
+    };
   }
 
   private childEnv(): NodeJS.ProcessEnv {
     return {
       ...process.env,
       MEMPALACE_PALACE_PATH: this.palacePath() ?? '',
-      MEMPALACE_EMBEDDING_MODEL: this.model()
+      MEMPALACE_EMBEDDING_MODEL: this.model(),
+      ...(MEMPALACE_DEVICE ? { MEMPALACE_EMBEDDING_DEVICE: MEMPALACE_DEVICE } : {})
     };
   }
 
