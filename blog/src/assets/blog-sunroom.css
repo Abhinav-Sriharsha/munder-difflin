@@ -293,8 +293,8 @@ a.tag:hover { outline: 2px solid var(--berry); }
 .related .post-grid { padding: 12px 0 0; }
 
 /* footer */
-footer { background: #fff; border-top: 1px solid var(--line); margin-top: 40px; }
-footer .wrap { padding: 34px 24px; }
+footer.site-foot { background: #fff; border-top: 1px solid var(--line); margin-top: 40px; }
+footer.site-foot .wrap { padding: 34px 24px; }
 .foot-top { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
 .foot-brand .brand-logo { height: 34px; width: auto; }
 .foot-links { display: flex; flex-wrap: wrap; gap: 4px 18px; font-weight: 700; font-size: 14px; }

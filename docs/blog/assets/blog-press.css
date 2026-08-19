@@ -288,9 +288,9 @@ a.tag:hover { background: var(--ink); color: var(--paper); }
 .related h2 { font-family: var(--disp); font-weight: 900; font-size: 1.7rem; border-top: 4px solid var(--rule); padding-top: 16px; }
 .related .post-grid { padding: 0; }
 
-/* footer */
-footer { background: var(--ink); color: var(--paper); margin-top: 48px; }
-footer .wrap { padding: 40px 24px; }
+/* footer (site footer only — .post-foot must stay on the light page ground) */
+footer.site-foot { background: var(--ink); color: var(--paper); margin-top: 48px; }
+footer.site-foot .wrap { padding: 40px 24px; }
 .foot-top { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; }
 .foot-brand .brand-logo { height: 34px; width: auto; filter: invert(1) brightness(1.6); }
 .foot-links { display: flex; flex-wrap: wrap; gap: 4px 20px; }
