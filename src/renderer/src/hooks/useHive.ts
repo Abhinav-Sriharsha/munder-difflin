@@ -20,7 +20,7 @@ import { bridgeOf, providerPreset } from '../../../shared/agentProvider';
 import { isDurableRole, preferredAgentRole, roleForHiveSpawn } from '../../../shared/agentRole';
 import { inboxNudgeText } from '../../../shared/hiveNudge';
 import { acquireTerminal, resetTerminal, isTerminalAutomationSafe } from '@/components/terminalPool';
-import { canDeliverToAgent, deliverWithAcknowledgement } from './queueDelivery';
+import { canDeliverToAgent, deliverWithAcknowledgement, checkPrecondition } from './queueDelivery';
 import { OFFICE_CAST, DEFAULT_CHARACTER } from '@/scene/office/cast';
 
 const GOD_ID = 'god';
@@ -820,18 +820,9 @@ export function useHive(config: HarnessConfig | null): void {
       // there is still something in the inbox — the agent routinely drains it in
       // the very turn the nudge was queued from. Stale ones are DROPPED, not
       // deferred, so they cannot park at the queue head and starve the rest.
-      if (next.precondition === 'inbox-nonempty') {
-        let stillPending = true;
-        try {
-          stillPending = (await window.cth.hiveInbox(srcId)).length > 0;
-        } catch {
-          // Can't tell — let it through. A spurious nudge costs a turn; a
-          // swallowed one can leave real mail sitting unread indefinitely.
-        }
-        if (!stillPending) {
-          removeQueuedMessage(srcId, next.id);
-          return { sent: false };
-        }
+      if (await checkPrecondition(next, () => window.cth.hiveInbox(srcId)) === 'drop') {
+        removeQueuedMessage(srcId, next.id);
+        return { sent: false };
       }
       const flightKey = `${srcId}:${next.id}`;
       if (inFlight.has(flightKey)) return { sent: false };

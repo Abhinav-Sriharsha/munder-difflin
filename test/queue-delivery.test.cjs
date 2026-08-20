@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const loadTs = require('./load-ts.cjs');
 
-const { deliverWithAcknowledgement, canDeliverToAgent } =
+const { deliverWithAcknowledgement, canDeliverToAgent, checkPrecondition } =
   loadTs('src/renderer/src/hooks/queueDelivery.ts');
 
 const QUIESCE_MS = 12_000; // mirrors QUIESCE_IDLE_MS in useHive
@@ -67,4 +67,41 @@ test('a mid-turn agent still holds the prompt', () => {
   assert.equal(canDeliverToAgent('working', QUIESCE_MS * 100, QUIESCE_MS), false,
     'the quiescence fallback flips a finished turn to idle — the drain does not second-guess it');
   assert.equal(canDeliverToAgent('thinking', QUIESCE_MS * 100, QUIESCE_MS), false);
+});
+
+// --- delivery-time preconditions -------------------------------------------
+// A queued message is decided at enqueue time and typed an arbitrary interval
+// later. The inbox-wake nudge is only worth sending if the inbox is STILL
+// non-empty when its turn comes: an already-awake agent routinely drains the
+// whole inbox during the same turn the nudge was queued from, and delivering it
+// afterwards burns a full turn discovering there is nothing to read.
+
+const nudge = { precondition: 'inbox-nonempty' };
+const inboxOf = (...ids) => () => Promise.resolve(ids.map((id) => ({ id })));
+
+test('nudge is sent while its inbox still holds mail', async () => {
+  assert.equal(await checkPrecondition(nudge, inboxOf('m1')), 'send');
+});
+
+test('nudge is DROPPED when the inbox was drained before delivery', async () => {
+  // The regression: this is the state after the agent read and .done-ed its
+  // whole inbox in the same turn the nudge was queued from.
+  assert.equal(await checkPrecondition(nudge, inboxOf()), 'drop');
+});
+
+test('nudge is sent when the inbox cannot be read', async () => {
+  // Fails OPEN on purpose: a spurious nudge costs one turn, a swallowed one can
+  // leave real mail unread indefinitely.
+  const unreadable = () => Promise.reject(new Error('ipc down'));
+  assert.equal(await checkPrecondition(nudge, unreadable), 'send');
+});
+
+test('messages without a precondition never consult the inbox', async () => {
+  let consulted = false;
+  const verdict = await checkPrecondition({}, () => {
+    consulted = true;
+    return Promise.resolve([]);
+  });
+  assert.equal(verdict, 'send');
+  assert.equal(consulted, false);
 });

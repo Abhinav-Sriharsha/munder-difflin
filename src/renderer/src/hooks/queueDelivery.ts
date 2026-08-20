@@ -54,3 +54,39 @@ export function canDeliverToAgent(
   if (status !== 'looping') return false;
   return ptyQuietMs !== null && ptyQuietMs >= quiesceMs;
 }
+
+/** The subset of a QueuedMessage this module needs. Kept structural so the
+ *  gate is testable without dragging the store (and zustand) into the test. */
+export interface DeliveryGateMessage {
+  precondition?: 'inbox-nonempty';
+}
+
+export type PreconditionVerdict = 'send' | 'drop';
+
+/** Re-check a queued message's delivery-time precondition, immediately before it
+ *  is typed into a PTY.
+ *
+ *  A queue item is decided at enqueue time and delivered an arbitrary interval
+ *  later, so some messages describe a world that may no longer exist by the time
+ *  their turn comes. The inbox-wake nudge is the motivating case: an agent that
+ *  is already awake routinely drains its whole inbox during the same turn the
+ *  nudge was queued from, and delivering it afterwards spends a full turn
+ *  discovering there is nothing to read.
+ *
+ *  Returns 'drop', never 'defer': a stale message left at the head of the queue
+ *  would block every message behind it forever.
+ *
+ *  Fails OPEN. If the inbox cannot be read we send, because a spurious nudge
+ *  costs one turn whereas a swallowed one can leave real mail unread
+ *  indefinitely. */
+export async function checkPrecondition(
+  message: DeliveryGateMessage,
+  readInbox: () => Promise<{ id?: string }[]>
+): Promise<PreconditionVerdict> {
+  if (message.precondition !== 'inbox-nonempty') return 'send';
+  try {
+    return (await readInbox()).length > 0 ? 'send' : 'drop';
+  } catch {
+    return 'send';
+  }
+}
