@@ -4,14 +4,28 @@
  * Electron (real lifecycle, real ConPTY-patched node-pty, which is rebuilt for
  * Electron's ABI and therefore unloadable from plain Node).
  *
- * Reproduces the quit path that leaked agent trees on Windows: spawn a real
- * PTY whose child has a child of its own, record the live tree's PIDs to
- * --pid-file, then run PtyManager.killAll() and exit ~1.2s later — the same
- * bounded window teardownAndQuit/will-quit gives the analytics flush. Pre-fix,
- * ensureKilled's 4s unref'd taskkill timer could never fire inside that window,
- * so the tree survived the app; the synchronous win32 sweep must kill it here.
+ * Mirrors the app's REAL quit flow (src/main/index.ts) to pin two Windows quit
+ * bugs at once:
+ *
+ * 1. The tree leak: spawn a real PTY whose child has a child of its own,
+ *    record the live tree's PIDs to --pid-file, then run PtyManager.killAll()
+ *    on the quit path. Pre-fix, ensureKilled's 4s unref'd taskkill timer could
+ *    never fire before the process exited (~1.2s after killAll), so the tree
+ *    survived the app; the synchronous win32 sweep must kill it here.
+ *
+ * 2. The quit hang: in the real app, quitting teardownAndQuit-style (killAll +
+ *    app.quit() inside the confirm-close IPC invoke, window still open) with
+ *    will-quit's preventDefault-and-flush deferral left Electron's internal
+ *    is-quitting state wedged — the re-entrant app.quit() finisher was a
+ *    silent no-op and the main process idled forever with zero windows. The
+ *    fix is finishing with app.exit(0). This fixture runs the same flow
+ *    end-to-end (window, IPC-triggered teardown, will-quit latch, app.exit
+ *    finisher) and the outer test requires a clean exit 0 — though note the
+ *    wedge itself only reproduces with the full app (this minimal flow
+ *    recovers even with an app.quit() finisher), so the coverage here is the
+ *    fixed pattern completing, not a red/green repro of the hang.
  */
-const { app } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -56,8 +70,42 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // outer test until its own timeout. app.exit() on the happy path preempts this.
 setTimeout(() => bail(4, 'fixture timed out'), 45_000);
 
+// Mirror src/main/index.ts's quit-adjacent handler set. Their PRESENCE matters:
+// a registered window-all-closed listener suppresses Electron's own
+// default-quit path, which changes the internal quit state flow.
+let teardown = () => app.quit(); // rebound once the PtyManager exists
+app.on('before-quit', () => { /* app checks allowQuit + pty count here */ });
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') teardown();
+});
+
+// Mirror src/main/index.ts's will-quit flush: preventDefault ONCE, race the
+// flush (worst case here: it never settles) against a 1.2s cap, then exit.
+// app.exit(0), NOT app.quit() — see header point 2.
+let analyticsFlushed = false;
+app.on('will-quit', (e) => {
+  if (analyticsFlushed) return;
+  analyticsFlushed = true;
+  e.preventDefault();
+  const finish = () => app.exit(0);
+  Promise.race([
+    new Promise(() => { /* a flush that never settles */ }),
+    new Promise((r) => setTimeout(r, 1_200))
+  ]).then(finish, finish);
+});
+
 app.whenReady().then(async () => {
   if (!pidFile) return bail(2, 'missing --pid-file argument');
+
+  // Match the app's trigger conditions: a window OPEN when quit starts, with
+  // the quit invoked over IPC from that window — the "kill all & quit" confirm
+  // dialog runs teardownAndQuit inside app:confirmClose while the window is
+  // still up.
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: { nodeIntegration: true, contextIsolation: false }
+  });
+  await win.loadURL('data:text/html,<html><body>quit fixture</body></html>');
 
   const loadTs = require('../load-ts.cjs');
   const { PtyManager } = loadTs('src/main/pty.ts');
@@ -91,8 +139,14 @@ app.whenReady().then(async () => {
   if (pids.length < 2) return bail(2, `tree never grew a descendant (root ${rootPid})`);
   fs.writeFileSync(pidFile, JSON.stringify({ root: rootPid, pids }), 'utf8');
 
-  // The quit path under test: killAll, then exit inside the same ~1.2s window
-  // the real teardown allows will-quit's bounded analytics flush.
-  mgr.killAll();
-  setTimeout(() => app.exit(0), 1_200);
+  // The quit path under test, exactly as the app runs it: the renderer invokes
+  // a handle (app:confirmClose), and INSIDE that pending invoke main runs
+  // killAll + app.quit() with the window still open. The will-quit handler
+  // above supplies the bounded-flush deferral and the final app.exit(0).
+  const { ipcMain } = require('electron');
+  teardown = () => { mgr.killAll(); app.quit(); };
+  ipcMain.handle('fixture:confirmClose', () => teardown());
+  void win.webContents.executeJavaScript(
+    `require('electron').ipcRenderer.invoke('fixture:confirmClose')`
+  );
 }).catch((e) => bail(3, `fixture threw: ${e?.stack || e}`));

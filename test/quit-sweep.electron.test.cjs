@@ -1,15 +1,26 @@
 'use strict';
 /**
- * Regression test for the Windows quit-time process-tree leak (276f782):
- * PtyManager.killAll() deferred its `taskkill /T /F` backstop 4s on an unref'd
- * timer, but the quit path exits the main process ~1.2s after killAll, so the
- * sweep never ran and agent trees survived the app. The bug lived in the
- * ELECTRON lifecycle (early process exit killing unref'd timers) and node-pty
- * here is rebuilt for Electron's ABI — so this test launches the real Electron
- * binary with test/fixtures/quit-sweep-main.cjs as its main script. The fixture
- * spawns a real PTY tree, records its PIDs, runs killAll(), and exits on the
- * same ~1.2s schedule as teardownAndQuit; we then assert every recorded PID is
- * gone. Pre-fix code fails this test (the tree outlives Electron).
+ * Regression test for TWO Windows quit bugs, exercised through the app's real
+ * quit flow (see test/fixtures/quit-sweep-main.cjs for the full story):
+ *
+ * 1. The process-tree leak (276f782): PtyManager.killAll() deferred its
+ *    `taskkill /T /F` backstop 4s on an unref'd timer, but the quit path exits
+ *    the main process ~1.2s after killAll, so the sweep never ran and agent
+ *    trees survived the app. Pre-fix, the recorded PIDs outlive Electron and
+ *    the survivor assertion fails.
+ * 2. The quit hang: in the real app, quitting teardownAndQuit-style with a
+ *    window still open, plus will-quit's preventDefault-and-flush deferral,
+ *    left Electron's internal is-quitting state wedged — a re-entrant
+ *    app.quit() finisher was a silent no-op and the main process idled
+ *    forever. The fix finishes with app.exit(0); the fixture runs that same
+ *    flow and this test requires a clean exit 0 within the timeout. (The
+ *    wedge itself only reproduces with the full app, so this guards the fixed
+ *    pattern completing rather than red/green-reproducing the hang.)
+ *
+ * Both bugs live in the ELECTRON lifecycle (early exit killing unref'd timers;
+ * quit state machine interleaving) and node-pty here is rebuilt for Electron's
+ * ABI — so this test launches the real Electron binary with the fixture as its
+ * main script, then asserts the fixture exited 0 and every recorded PID died.
  *
  * Self-contained, no framework — run with `node test/quit-sweep.electron.test.cjs`
  * (mirrors test/proc-kill.test.cjs). Windows-only by nature; elsewhere it exits
