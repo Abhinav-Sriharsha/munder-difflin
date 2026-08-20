@@ -740,7 +740,7 @@ export class HiveManager {
                 // proxy's real target. Per-agent CRUSH_GLOBAL_DATA isolates session
                 // state from the user's global ~/.config/crush.
                 const crush = this.installCrushConfig(dir, loopback, desc.api);
-                env.CRUSH_GLOBAL_CONFIG = crush.config;
+                env.CRUSH_GLOBAL_CONFIG = dir;
                 env.CRUSH_GLOBAL_DATA = crush.data;
               } else {
                 env[desc.baseUrlEnv] = loopback;
