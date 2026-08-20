@@ -340,7 +340,7 @@ Dunder Mifflin.
 ## Acknowledgements
 
 - [LimeZu](https://limezu.itch.io/) for the *Modern Interiors* pixel-art tilesets (Complete Version licence).
-- [`shahar061/the-office`](https://github.com/shahar061/the-office) — office tileset/map vendoring.
-- [Pixi.js](https://pixijs.com/) · [xterm.js](https://xtermjs.org/) · [node-pty](https://github.com/microsoft/node-pty) · [electron-vite](https://electron-vite.org/) · [CodeMirror](https://codemirror.net/) — the libraries this is built on.
-- [Remotion](https://www.remotion.dev/) — the landing page's animated "how it works" clips (`landing-remotion/`).
-- *The Office* (US) — for Munder Difflin, Inc.
+- [`shahar061/the-office`](https://github.com/shahar061/the-office) for the office tileset/map vendoring.
+- [Pixi.js](https://pixijs.com/) · [xterm.js](https://xtermjs.org/) · [node-pty](https://github.com/microsoft/node-pty) · [electron-vite](https://electron-vite.org/) · [CodeMirror](https://codemirror.net/) for the libraries this is built on.
+- [Remotion](https://www.remotion.dev/) for the landing page's animated "how it works" clips (`landing-remotion/`).
+- *The Office* (US) for Munder Difflin, Inc.
