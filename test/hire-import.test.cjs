@@ -64,6 +64,12 @@ test('renderer wiring appends every cold-start and runtime arrival', () => {
   assert.doesNotMatch(app, /queued\[queued\.length\s*-\s*1\]/);
 });
 
+test('closing a hire review clears the remaining batch', () => {
+  const app = readFileSync('src/renderer/src/App.tsx', 'utf8');
+  assert.match(app, /const closeAddAgentReview = \(\) => \{[\s\S]*?clearPendingHires\(\);[\s\S]*?setAddAgentOpen\(false\);[\s\S]*?\}/);
+  assert.match(app, /<AddAgentModal[\s\S]*?onClose=\{closeAddAgentReview\}/);
+});
+
 test('review UI exposes progress and an explicit skip without auto-spawn', () => {
   const modal = readFileSync('src/renderer/src/components/AddAgentModal.tsx', 'utf8');
   assert.match(modal, /hireQueueProgress\(hireQueue\)/);
@@ -90,4 +96,15 @@ test('batch token caps persist atomically before review advances', () => {
     'the latest config must be returned to App before the next review');
   assert.doesNotMatch(submitFlow, /agentTokenCaps:\s*\{\s*\.\.\.\(config\.agentTokenCaps/,
     'renderer must never replace the cap map from a stale config snapshot');
+});
+
+test('Command Center sets and clears one cap through the atomic IPC', () => {
+  const panel = readFileSync('src/renderer/src/components/CommandCenterPanel.tsx', 'utf8');
+  const start = panel.indexOf('const setAgentCap =');
+  const end = panel.indexOf('\n\n  // The token meter', start);
+  const capFlow = panel.slice(start, end);
+
+  assert.ok(start >= 0 && end > start, 'Command Center cap handler is present');
+  assert.match(capFlow, /window\.cth\.setAgentTokenCap\(id, tokens\)/);
+  assert.doesNotMatch(capFlow, /updateConfig\(\{\s*agentTokenCaps/);
 });

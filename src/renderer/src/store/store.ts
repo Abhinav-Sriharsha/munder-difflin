@@ -7,6 +7,7 @@ import type { AgentProvider } from '@shared/agentProvider';
 import type { HireManifest } from '@shared/hire';
 import {
   EMPTY_HIRE_QUEUE,
+  clearHireQueue,
   enqueueHires,
   finishCurrentHire,
   type HireReviewQueue
@@ -282,6 +283,7 @@ interface State {
   hireQueue: HireReviewQueue;
   enqueuePendingHires: (manifests: readonly HireManifest[]) => void;
   finishPendingHire: () => void;
+  clearPendingHires: () => void;
   setFullscreen: (id: string | null) => void;
   setFullscreenFile: (path: string | null, view?: 'edit' | 'preview') => void;
   /** Open/close the IDE. `agentId` names the agent whose workspace it should
@@ -870,6 +872,9 @@ export const useStore = create<State>((set) => ({
   })),
   finishPendingHire: () => set((s) => ({
     hireQueue: finishCurrentHire(s.hireQueue)
+  })),
+  clearPendingHires: () => set((s) => ({
+    hireQueue: clearHireQueue(s.hireQueue)
   })),
   setFullscreen: (id) => set({ fullscreenAgentId: id }),
   setFullscreenFile: (path, view) => set({ fullscreenFilePath: path, fullscreenFileView: view ?? 'edit' }),

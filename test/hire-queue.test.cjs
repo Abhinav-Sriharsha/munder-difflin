@@ -6,6 +6,7 @@ const loadTs = require('./load-ts.cjs');
 
 const {
   EMPTY_HIRE_QUEUE,
+  clearHireQueue,
   enqueueHires,
   finishCurrentHire,
   hireQueueProgress
@@ -42,6 +43,18 @@ test('draining the queue resets progress for the next independent import', () =>
   assert.deepEqual(drained, EMPTY_HIRE_QUEUE);
   assert.deepEqual(hireQueueProgress(drained), null);
   assert.deepEqual(hireQueueProgress(next), { current: 1, total: 2 });
+});
+
+test('cancelling review discards the remaining batch and resets later progress', () => {
+  let queue = enqueueHires(EMPTY_HIRE_QUEUE, [hire('Jim'), hire('Pam'), hire('Dwight')]);
+  queue = finishCurrentHire(queue);
+
+  const cancelled = clearHireQueue(queue);
+  const fresh = enqueueHires(cancelled, [hire('Angela'), hire('Kevin')]);
+
+  assert.deepEqual(cancelled, EMPTY_HIRE_QUEUE);
+  assert.deepEqual(fresh.pending.map((m) => m.name), ['Angela', 'Kevin']);
+  assert.deepEqual(hireQueueProgress(fresh), { current: 1, total: 2 });
 });
 
 test('empty arrivals and advances do not invent queue state', () => {

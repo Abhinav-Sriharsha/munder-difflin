@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
 import { SpritePortrait } from './SpritePortrait';
@@ -317,7 +317,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
   // Advancing a batch keeps this modal mounted. Re-seed every form field when
   // the queue head changes so edits made while reviewing one hire cannot leak
   // into the next.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (pendingHire) applyManifest(pendingHire);
   // applyManifest intentionally closes over the config snapshot used by this
   // open modal; queue advances do not replace that snapshot.
@@ -326,9 +326,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
 
   const advanceHireReview = () => {
     const next = hireQueue.pending[1];
-    // Seed the next manifest in the same React update as the queue advance, so
-    // the banner/progress can never paint with the previous hire's edited form.
-    if (next) applyManifest(next);
+    // The pendingHire effect re-seeds every form field from the new queue head.
     finishPendingHire();
     if (!next) onClose();
   };

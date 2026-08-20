@@ -39,6 +39,7 @@ export function App() {
   const agentCount = agents.length;
   const addAgentOpen = useStore(s => s.addAgentOpen);
   const setAddAgentOpen = useStore(s => s.setAddAgentOpen);
+  const clearPendingHires = useStore(s => s.clearPendingHires);
   const godStatus = useStore(s => s.godStatus);
   const fullscreenAgentId = useStore(s => s.fullscreenAgentId);
   const appThemeNow = useAppTheme();
@@ -132,6 +133,10 @@ export function App() {
   // Shareable hires: a validated manifest arriving via the munderdifflin://
   // deep link (or file import) pre-fills the Add-Agent modal. Never spawns by itself.
   const enqueuePendingHires = useStore(s => s.enqueuePendingHires);
+  const closeAddAgentReview = () => {
+    clearPendingHires();
+    setAddAgentOpen(false);
+  };
   useEffect(() => {
     const unsub = window.cth.onHireImport?.((m) => {
       enqueuePendingHires([m]);
@@ -442,7 +447,7 @@ export function App() {
 
       {addAgentOpen && (
         <AddAgentModal
-          onClose={() => setAddAgentOpen(false)}
+          onClose={closeAddAgentReview}
           config={config}
           onConfigChange={setConfig}
         />

@@ -32,6 +32,11 @@ export function finishCurrentHire(queue: HireReviewQueue): HireReviewQueue {
   return { pending: queue.pending.slice(1), reviewed: queue.reviewed + 1 };
 }
 
+/** Cancel the current human-review run; unfinished manifests do not resume later. */
+export function clearHireQueue(_queue: HireReviewQueue): HireReviewQueue {
+  return EMPTY_HIRE_QUEUE;
+}
+
 export function hireQueueProgress(
   queue: HireReviewQueue
 ): { current: number; total: number } | null {
