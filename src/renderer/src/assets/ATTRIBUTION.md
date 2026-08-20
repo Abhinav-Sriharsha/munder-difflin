@@ -15,8 +15,9 @@ purchased on 2026-08-20 (see `tilesets/LIMEZUASSETS-LICENSE.txt`):
   link must stay in the README acknowledgements, in the app's about/credits surface, and on the
   website. Removing it breaks the licence.
 
-The four bundled tilesets are `interiors.png`, `room-builder.png`, `office-tileset.png` and
-`a5-office-floors-walls.png`. Nothing else in this directory is LimeZu art.
+The three bundled tilesets are `interiors.png`, `office-tileset.png` and
+`a5-office-floors-walls.png` — each one imported by `scene/office/themeRegistry.ts` and actually
+drawn on the office floor. Nothing else in this directory is LimeZu art.
 
 ## The Office cast is *not* LimeZu art
 
@@ -31,5 +32,6 @@ reading old commits or an old copy of this file, that is the change you are look
 
 ## Tiled map
 
-`maps/office.tmj`, `maps/lobby.tmj` and `maps/brooklyn99.tmj` are Tiled JSON maps built on the
-LimeZu tilesets above.
+`maps/office.tmj` and `maps/brooklyn99.tmj` are Tiled JSON maps built on the LimeZu tilesets
+above. Both are imported by `themeRegistry.ts`; a map that nothing imports is not shipped, and
+should be deleted rather than left to imply an asset is in use.
