@@ -73,6 +73,7 @@ const FEATURES: Feature[] = [
 // One-liner of what each engine is, shown under its row on the orchestrator step
 // so a non-technical user knows what they're picking (item 3).
 const PROVIDER_BLURB: Partial<Record<AgentProvider, string>> = {
+  gemini: 'Gemini CLI - Google Gemini',
   claude: 'Claude Code — Anthropic',
   codex: 'Codex — OpenAI',
   antigravity: 'Antigravity — Google Gemini',

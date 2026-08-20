@@ -26,6 +26,7 @@ export type AgentProvider =
   | 'codex'
   | 'grok'
   | 'kimi'
+  | 'gemini'
   | 'antigravity'
   | 'qwen'
   | 'opencode'
@@ -49,7 +50,7 @@ export type AgentProvider =
  *               and `inboxDelivery` is how mail reaches it ('terminal' work-order
  *               handoff today; 'serve' reserved for a future HTTP push path). */
 export type BridgeDescriptor =
-  | { kind: 'hooks'; shim: 'agy' | 'codex' | 'pi' | 'opencode' | 'grok' }
+  | { kind: 'hooks'; shim: 'agy' | 'codex' | 'pi' | 'opencode' | 'grok' | 'gemini' }
   | {
       kind: 'proxy';
       api: 'openai' | 'anthropic';
@@ -273,6 +274,29 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     // lifecycle hooks, but Munder Difflin does not yet install a Kimi hook bridge,
     // so mail must bounce rather than being delivered with no drain path.
     canReceiveInbox: false
+  },
+  {
+    // Google's official Gemini CLI. Unlike Antigravity (`agy`), this is the
+    // open-source `@google/gemini-cli` binary and uses Gemini's native settings
+    // hooks (BeforeTool/AfterTool/BeforeAgent/AfterAgent/SessionStart).
+    id: 'gemini',
+    label: 'Gemini CLI',
+    defaultCommand: 'gemini',
+    commandGroups: [],
+    // `--yolo` is deprecated upstream; approval-mode is the current spelling.
+    autoModeFlag: '--approval-mode=yolo',
+    autoFlag: '--approval-mode=yolo',
+    supportsModel: true,
+    modelFlag: '--model',
+    hiveAware: false,
+    bridge: { kind: 'hooks', shim: 'gemini' },
+    canReceiveInbox: true,
+    // Keep the TUI alive after processing the hive protocol seed.
+    initialPromptFlag: '-i',
+    recommendedOrchestratorModel: 'pro',
+    resumeFlag: '--resume',
+    installCommand: 'npm install -g @google/gemini-cli',
+    docsUrl: 'https://github.com/google-gemini/gemini-cli'
   },
   {
     id: 'antigravity',
@@ -513,6 +537,7 @@ export function isAgentProvider(value: unknown): value is AgentProvider {
     value === 'codex' ||
     value === 'grok' ||
     value === 'kimi' ||
+    value === 'gemini' ||
     value === 'antigravity' ||
     value === 'qwen' ||
     value === 'opencode' ||
@@ -563,6 +588,7 @@ export function inferAgentProvider(command: string | undefined, explicit?: unkno
   if (bin === 'codex') return 'codex';
   if (bin === 'grok') return 'grok';
   if (bin === 'kimi') return 'kimi';
+  if (bin === 'gemini') return 'gemini';
   if (bin === 'agy' || bin === 'antigravity') return 'antigravity';
   if (bin === 'qwen') return 'qwen';
   if (bin === 'opencode') return 'opencode';

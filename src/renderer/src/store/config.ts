@@ -208,6 +208,16 @@ export const ANTIGRAVITY_MODELS: ModelOption[] = [
   { id: 'GPT-OSS 120B (Medium)', label: 'GPT-OSS 120B' }
 ];
 
+/** Stable model aliases accepted by the official Google Gemini CLI. The aliases
+ *  intentionally follow the CLI instead of pinning preview model ids that drift. */
+export const GEMINI_MODELS: ModelOption[] = [
+  { id: undefined, label: 'CLI default' },
+  { id: 'auto', label: 'Auto' },
+  { id: 'pro', label: 'Pro' },
+  { id: 'flash', label: 'Flash' },
+  { id: 'flash-lite', label: 'Flash Lite' }
+];
+
 /** Models offered when an agent runs on qwen-code (`qwen`), the proxy-bridge CLI
  *  driving an OpenAI-compatible endpoint. Starting suggestions only (editable
  *  command field). // TODO-verify the live list (`qwen` model ids). */
@@ -319,6 +329,7 @@ export function modelsForProvider(provider: AgentProvider): ModelOption[] {
   if (provider === 'codex') return CODEX_MODELS;
   if (provider === 'grok') return GROK_MODELS;
   if (provider === 'kimi') return KIMI_MODELS;
+  if (provider === 'gemini') return GEMINI_MODELS;
   if (provider === 'antigravity') return ANTIGRAVITY_MODELS;
   if (provider === 'qwen') return QWEN_MODELS;
   if (provider === 'opencode') return OPENCODE_MODELS;
