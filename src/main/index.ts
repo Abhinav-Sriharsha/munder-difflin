@@ -413,21 +413,11 @@ const preservedWorktrees = new Map<string, PreservedWorktree>();
  * per dead PTY.
  *
  * Idempotent: guarded on map presence and the already-idempotent
- * `hive.setArchived`, so a double call is a harmless no-op. NOTE: an explicit
- * `ptyManager.kill()` does NOT reach here via onExit — kill() deletes the
- * session synchronously, so node-pty's later async exit callback fails the
- * session-identity guard and is swallowed. Every kill site must therefore call
- * teardownPty itself right after the kill (all of them do). Best-effort — every
- * step is wrapped so a teardown error can never crash the caller (an IPC
- * handler or node-pty's onExit).
+ * `hive.setArchived`, so the second call (kill() also makes node-pty fire
+ * onExit) is a harmless no-op. Best-effort — every step is wrapped so a teardown
+ * error can never crash the caller (an IPC handler or node-pty's onExit).
  */
 function teardownPty(id: string): void {
-  // Main cards an ephemeral worker on the floor when it spawns, so main has to
-  // un-card it too — otherwise a released worker leaves a ghost the renderer's
-  // nudge/drain loops keep polling. Read the flag before the branches below
-  // clear it. Renderer-owned agents are deliberately untouched: the renderer
-  // owns those cards and keeps a dead one so the user can Restart & Continue.
-  const wasWorker = liveWorkers.has(id);
   // 0) Revoke this id's broker capability (if any). Idempotent + harmless for a
   //    non-worker PTY; ensures a dead worker's token can never reach an integration.
   try { integrationBroker.revoke(id); } catch { /* best-effort */ }
@@ -467,9 +457,6 @@ function teardownPty(id: string): void {
   // A worker whose isolation failed (non-repo cwd) has no worktree to gate above —
   // still clear its tracking entry so the controller stops watching a dead PTY.
   if (liveWorkers.has(id)) liveWorkers.delete(id);
-  if (wasWorker) {
-    try { liveWebContents()?.send('hive:agentArchived', { id }); } catch { /* window gone */ }
-  }
   syncKeepAwake();
 }
 
@@ -4404,29 +4391,8 @@ async function processSpawnRequest(filePath: string): Promise<void> {
   const cwd = typeof raw.cwd === 'string' && raw.cwd.trim() ? expandTilde(raw.cwd) : '';
   if (!cwd || !existsSync(cwd)) { fail(`"cwd" missing or not found (${cwd || 'unset'})`); return; }
 
-  const cfgSpawn = readConfig();
-  let command = typeof raw.command === 'string' && raw.command.trim() ? raw.command.trim() : (cfgSpawn.defaultCommand ?? 'claude');
-  // Inherit the app's auto (skip-permissions) mode when the request takes no
-  // stance of its own: a headless worker has no human to click through tool
-  // prompts, so without the flag it stalls at the first ask until the idle
-  // reaper kills it. An explicit --permission-mode in the request always wins,
-  // and non-claude commands are left untouched.
-  if (cfgSpawn.autoMode && inferAgentProvider(command, raw.provider) === 'claude' && !command.includes('--permission-mode')) {
-    command += ' --permission-mode bypassPermissions';
-  }
-  // god authors `command` as a full command LINE ("claude --model … --permission-mode …"),
-  // but the PTY layer takes ONE executable name (resolveCommand) plus argv — the
-  // unsplit line made node-pty exec a binary literally named like the whole
-  // string → ENOENT → the worker died within ~1s of spawning while its request
-  // archived as .done (this killed both flag-carrying Ryan spawns on 2026-08-16;
-  // only the bare-`claude` one lived). Split it here — same quoting rules as the
-  // renderer's tokenizeCommand — and hand the flags over as argv.
-  const tokens: string[] = [];
-  const tokenRe = /"([^"]*)"|'([^']*)'|(\S+)/g;
-  let tok: RegExpExecArray | null;
-  while ((tok = tokenRe.exec(command)) !== null) tokens.push(tok[1] ?? tok[2] ?? tok[3]);
-  const bin = tokens[0] || command;
-  const cmdFlags = tokens.slice(1);
+  const command = typeof raw.command === 'string' && raw.command.trim() ? raw.command.trim() : (readConfig().defaultCommand ?? 'claude');
+  const bin = command.split(/\s+/)[0] || command;
   // Missing-CLI → FAIL FAST. A headless worker has no human to watch an installer,
   // so we never run the cc49e1e install banner here — we reject and tell god.
   if (!ptyManager.isCommandAvailable(bin)) { fail(`engine CLI "${bin}" is not installed`); return; }
@@ -4455,43 +4421,20 @@ async function processSpawnRequest(filePath: string): Promise<void> {
     brokerEnv.MD_BROKER_TOKEN = token;
   }
   const spawnOpts: AgentSpawnOptions = {
-    id: workerId, cwd, command: bin, cols: 120, rows: 32,
-    // A separate `model` field only applies when the command line didn't pick a
-    // model itself (spawnAgentCore likewise skips its default-model injection
-    // when argv already carries --model).
-    args: [...cmdFlags, ...(raw.model && !cmdFlags.includes('--model') ? ['--model', raw.model] : [])],
+    id: workerId, cwd, command, cols: 120, rows: 32,
+    args: raw.model ? ['--model', raw.model] : [],
     hive: meta, isolate, provider: raw.provider, env: brokerEnv
   };
 
-  let res: { ok: boolean; error?: string; worktreePath?: string };
+  let res: { ok: boolean; error?: string };
   try {
+    // Output routes to the primary window (no renderer evt here). Workers are
+    // headless-by-design — they reply to Slack + report to god, not a watching human.
     res = await spawnAgentCore(spawnOpts, liveWebContents());
   } catch (e) {
     res = { ok: false, error: String(e) };
   }
   if (!res.ok) { integrationBroker.revoke(workerId); fail(`spawn failed — ${res.error ?? 'unknown error'}`); return; }
-
-  // Card the worker on the floor. The renderer's roster is renderer-owned and is
-  // only mutated by renderer-initiated hires, so without this broadcast a worker
-  // spawned from a spawn-request is invisible in the GUI — and, far worse, it is
-  // invisible to the renderer loops that actually DRIVE an agent. The objective
-  // below is dispatched through the inbox, and the loop that turns inbox mail
-  // into a terminal nudge (useHive #3) plus the queue drain that types it in
-  // (#4) both iterate the renderer's agent list. An uncarded worker therefore
-  // sat at its prompt with its objective unread — the whole feature was inert.
-  // Same descriptor as the voice-hire path; the renderer's handler is idempotent
-  // and bails on a duplicate id, so this can never double-card an agent.
-  try {
-    liveWebContents()?.send('hive:agentSpawned', {
-      id: workerId,
-      name: meta.name,
-      provider: spawnOpts.provider ?? meta.provider ?? 'claude',
-      cwd: res.worktreePath ?? cwd,
-      command,
-      role: meta.role,
-      worktreePath: res.worktreePath
-    });
-  } catch { /* window torn down — the worker still runs headless */ }
 
   // Register for done-scan / idle-reap / token-cap / safe teardown (pty id == workerId).
   // tokenCap is optional plumbing (default unlimited) — only a positive finite cap is kept.
@@ -4588,21 +4531,8 @@ async function ephemeralWorkerTick(): Promise<void> {
     const defaultTokenCap = typeof cfg.defaultWorkerTokenCap === 'number' && cfg.defaultWorkerTokenCap > 0
       ? cfg.defaultWorkerTokenCap : 0;
 
-    // (1) Finish or reap. `releasing` guards the gap before teardown lands.
-    // ptyManager.kill(workerId) alone is NOT enough here (D10): kill() deletes
-    // its PTY session from the manager's map SYNCHRONOUSLY, but the process's
-    // real exit — and node-pty's onExit, which is what fires the exitHandler
-    // that calls teardownPty — only arrives ASYNCHRONOUSLY afterward. By the
-    // time it does, the map lookup that onExit uses to detect "was this id
-    // reclaimed by a respawn" already reads empty, so its stale-exit guard
-    // misfires and the exitHandler is skipped every time. Confirmed live: a
-    // reaped worker's process was gone (`ps` had nothing) while registry.json
-    // still read `archived: false` and fleet.json still listed it — which
-    // means the LIVE ROSTER god's own prompt is built from (rosterContext(),
-    // fed by fleet.json) kept instructing "route work to" a dead process,
-    // forever, after every reap. teardownPty is idempotent (guarded on map
-    // presence), so calling it explicitly here is safe even on the rare tick
-    // where the async path does still land.
+    // (1) Finish or reap. ptyManager.kill → teardownPty → gated worktree + archive
+    //     + liveWorkers.delete. `releasing` guards the gap before onExit fires.
     for (const [workerId, rec] of [...liveWorkers]) {
       if (rec.releasing) continue;
       if (workerSignaledDone(workerId, rec.spawnedAt)) {
@@ -4610,7 +4540,6 @@ async function ephemeralWorkerTick(): Promise<void> {
         rec.releasing = true;
         console.log(`[worker] ${workerId} signaled done — releasing`);
         ptyManager.kill(workerId);
-        teardownPty(workerId);
         continue;
       }
       // Token-cap reap (default-off plumbing). An effective cap > 0 → reap when the
@@ -4627,7 +4556,6 @@ async function ephemeralWorkerTick(): Promise<void> {
             rec.slack
           );
           ptyManager.kill(workerId);
-          teardownPty(workerId);
           continue;
         }
       }
@@ -4642,7 +4570,6 @@ async function ephemeralWorkerTick(): Promise<void> {
           rec.slack
         );
         ptyManager.kill(workerId);
-        teardownPty(workerId);
       }
     }
 
