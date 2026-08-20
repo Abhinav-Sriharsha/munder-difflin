@@ -325,10 +325,10 @@ source — forks compile with no key and send nothing) are documented in
 ## License
 
 > [!IMPORTANT]
-> **Asset licensing.** The bundled pixel art (tilesets and maps) is **Modern Interiors — RPG Tileset
+> **Asset licensing.** The bundled pixel art (tilesets and maps) is **Modern Interiors - RPG Tileset
 > [16X16]** by [LimeZu](https://limezu.itch.io/moderninteriors), used under the **Complete Version
 > licence**, which permits editing and use in commercial and non-commercial projects. **Credit to
-> LimeZu is required by that licence** and must stay in place. The Office cast is not LimeZu art — it
+> LimeZu is required by that licence** and must stay in place. The Office cast is not LimeZu art. It
 > is drawn procedurally in `portraitArt.ts`. See
 > [`src/renderer/src/assets/ATTRIBUTION.md`](./src/renderer/src/assets/ATTRIBUTION.md).
 
@@ -339,7 +339,7 @@ Dunder Mifflin.
 
 ## Acknowledgements
 
-- [LimeZu](https://limezu.itch.io/) — *Modern Interiors* pixel-art tilesets (Complete Version licence).
+- [LimeZu](https://limezu.itch.io/) for the *Modern Interiors* pixel-art tilesets (Complete Version licence).
 - [`shahar061/the-office`](https://github.com/shahar061/the-office) — office tileset/map vendoring.
 - [Pixi.js](https://pixijs.com/) · [xterm.js](https://xtermjs.org/) · [node-pty](https://github.com/microsoft/node-pty) · [electron-vite](https://electron-vite.org/) · [CodeMirror](https://codemirror.net/) — the libraries this is built on.
 - [Remotion](https://www.remotion.dev/) — the landing page's animated "how it works" clips (`landing-remotion/`).

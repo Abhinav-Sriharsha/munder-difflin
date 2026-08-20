@@ -79,7 +79,7 @@ data-flow overview.
 ## A note on assets
 
 The bundled tilesets are LimeZu's *Modern Interiors*, used under the **Complete
-Version licence** — see [`ATTRIBUTION.md`](./src/renderer/src/assets/ATTRIBUTION.md).
+Version licence**. See [`ATTRIBUTION.md`](./src/renderer/src/assets/ATTRIBUTION.md).
 That licence requires credit to LimeZu, so don't remove the acknowledgement from
 the README, the app, or the website. The Office cast is drawn procedurally in
 `portraitArt.ts` and carries no third-party licence.

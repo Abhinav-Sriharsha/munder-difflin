@@ -2,7 +2,7 @@
 COMPLETE VERSION LICENSE
 
 Pack:   Modern Interiors - RPG Tileset [16X16]
-Author: LimeZu — https://limezu.itch.io/moderninteriors
+Author: LimeZu (https://limezu.itch.io/moderninteriors)
 Tier:   Complete Version (purchased 2026-08-20)
 
 CAN:
@@ -13,4 +13,4 @@ YOU CAN'T RESELL OR DISTRIBUTE THE ASSET TO OTHERS
 YOU CAN'T EDIT AND RESELL THE ASSET TO OTHERS
 
 CREDITS:
-CREDITS ARE REQUIRED — LINK TO https://limezu.itch.io/
+CREDITS ARE REQUIRED. LINK TO https://limezu.itch.io/
