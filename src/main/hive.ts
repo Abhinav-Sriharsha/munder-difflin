@@ -1145,6 +1145,8 @@ export class HiveManager {
     // Native-separator path helpers — see the 🪟 note above.
     const inDir = (...parts: string[]): string => join(dir, ...parts);
     const inRoot = (...parts: string[]): string => join(root, ...parts);
+    const ctxLine = 'LIVE CONTEXT: each agent row in the LIVE ROSTER carries a `ctx NN%` tag — its live context-window occupancy. Treat it as the real headroom signal when routing: prefer an agent with a LOW `ctx` for a big task; treat a HIGH `ctx` (near 100%) as busy rather than idle, even if the cumulative token count looks modest.';
+
     const memoryLine = semanticMemory
       // The palace location is named, not spelled as `$MEMPALACE_PALACE_PATH`:
       // `mempalace` reads that env var itself, and the POSIX `$` form was noise
@@ -1184,6 +1186,7 @@ export class HiveManager {
       knowledgeLine,
       godLine,
       slackLine,
+      ctxLine,
       `Env vars available to you: AGENT_ID, AGENT_NAME, HIVE_ROOT, AGENT_DIR.`
     ].filter(Boolean).join('\n');
   }
@@ -1880,10 +1883,20 @@ export class HiveManager {
    * told to read fleet.json, but "told to" is not "always knows" — so we push the
    * truth in on every turn instead. One line, so the cost is negligible.
    *
+   * `ctxOf` (optional, supplied by HookServer) lets the caller layer the LIVE
+   * context-window occupancy on top of the disk snapshot — each agent gets a
+   * `ctx NN%` so god can see at a glance whose context is nearly full when it
+   * routes work. fleet.json only carries cumulative `tokens`, which is a spend
+   * figure, not how full the CURRENT window is; the real occupancy lives in
+   * HookServer.contextById (from the statusLine shim). Omitted when the callback
+   * is absent or an agent has no Status tick yet.
+   *
    * Returns null when there is nothing to say (no hive, no snapshot, no agents),
    * so the hook stays a no-op rather than injecting noise.
    */
-  rosterContext(): string | null {
+  rosterContext(
+    ctxOf?: (agentId: string) => { tokens: number; limit: number } | undefined
+  ): string | null {
     const root = this.root();
     if (!root) return null;
     try {
@@ -1909,6 +1922,7 @@ export class HiveManager {
       // remainder is still counted, and fleet.json is one Read away.
       const MAX = 24;
       const shown = agents.slice(0, MAX);
+      let anyCtx = false;
       const rows = shown.map((a) => {
         const bits = [a.role ?? 'agent',
           typeof a.lastActiveSecAgo === 'number' ? `active ${ago(a.lastActiveSecAgo)}` : 'no activity yet'];
@@ -1917,6 +1931,16 @@ export class HiveManager {
         if (a.inboxBacklog) bits.push(`inbox ${a.inboxBacklog}`);
         if (a.breaker && a.breaker !== 'ok' && a.breaker !== 'none') bits.push(`breaker ${a.breaker}`);
         if (a.isGod) bits.push('you');
+        // Live context-window occupancy from the statusLine shim — lets god see
+        // which agents are near-full when routing, instead of guessing from the
+        // cumulative token count. Clamp to 0-100; a fresh meter can briefly
+        // report more than 100% before a window rotation.
+        const cw = ctxOf?.(a.id);
+        if (cw && cw.limit > 0) {
+          const pct = Math.max(0, Math.min(100, Math.round((cw.tokens / cw.limit) * 100)));
+          bits.push(`ctx ${pct}%`);
+          anyCtx = true;
+        }
         return `${a.id}${a.name ? ` "${a.name}"` : ''} (${bits.join(', ')})`;
       });
       const more = agents.length > shown.length ? ` +${agents.length - shown.length} more` : '';
@@ -1926,6 +1950,9 @@ export class HiveManager {
         + `${agents.length} ACTIVE agent(s): ${rows.join('; ')}.${more} `
         + 'This is the CURRENT floor and it SUPERSEDES any roster earlier in this conversation — '
         + 'agents you remember that are absent here have been archived or killed, so do not message them. '
+        + (anyCtx
+          ? ' `ctx NN%` = live window occupancy; absent = not yet reported (unknown, not empty).'
+          : '')
         + 'Route work to someone on this list before spawning anyone new.';
     } catch { return null; }
   }
