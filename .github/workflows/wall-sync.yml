@@ -5,7 +5,19 @@ name: wall-sync
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # HOURLY (was every 30 min). ONE CADENCE across the whole metrics stack —
+    # the local dashboard runner is hourly too, and the two must not drift apart.
+    #
+    # :50 is chosen so this lands just BEFORE the dashboard's hourly pass at :07,
+    # not after it. The dashboard reports wall_published / wall_pending by
+    # comparing Razorpay truth against the published wall, so it should read a
+    # wall that was reconciled minutes ago rather than most of an hour ago.
+    # Off :00 on purpose: GitHub's scheduled-workflow queue is busiest there and
+    # starts get delayed most.
+    #
+    # Additions still wait on a review PR, so wall_pending legitimately stays
+    # non-zero until the founder merges — that is the gate working, not drift.
+    - cron: "50 * * * *"
   workflow_dispatch: {}
 
 concurrency:
