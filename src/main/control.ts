@@ -79,7 +79,13 @@ export class ControlRegistry {
     const t = text.trim();
     if (!t) return;
     const q = this.ensure(id).steerQueue;
-    if (q.length >= MAX_PENDING_STEERS) q.shift(); // keep the newest note, drop the oldest
+    if (q.length >= MAX_PENDING_STEERS) {
+      // Drop the oldest so the newest instruction still reaches the next hook
+      // boundary. Log a breadcrumb so a note silently falling off the front is
+      // diagnosable — a full queue means the agent has been unreachable for a long time.
+      console.warn(`[control] ${id}: steer queue full (${MAX_PENDING_STEERS}) — dropping oldest note`);
+      q.shift(); // keep the newest note, drop the oldest
+    }
     q.push(t.slice(0, 10000)); // hook additionalContext cap
   }
   /** Request a graceful stop at the next hook boundary. */
