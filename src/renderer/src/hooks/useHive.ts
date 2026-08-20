@@ -676,19 +676,17 @@ export function useHive(config: HarnessConfig | null): void {
       for (const a of agents) {
         try {
           const inbox = await window.cth.hiveInbox(a.id);
-          // Dedup by the newest message id, not the count — a count can oscillate
-          // as messages drain and re-arrive, which would re-nudge for the same set.
-          const newest = inbox.length
-            ? inbox.map((m) => m.id).sort().slice(-1)[0]
-            : '';
-          if (newest && nudged.current[a.id] !== newest) {
+          // Nudge on any id we have not nudged for yet (#130's per-id Set).
+          // Draining shrinks the set and introduces nothing new, so it stays
+          // quiet; a genuinely new message fires regardless of how its id sorts.
+          const seen = nudged.current[a.id] ?? (nudged.current[a.id] = new Set());
+          const fresh = inbox.filter((m) => m.id && !seen.has(m.id));
+          if (fresh.length) {
             useStore.getState().enqueueMessage(
               a.id,
               'You have new hive inbox message(s) — read your inbox, act on them now, and move handled ones to inbox/.done/. Act autonomously; only message god if you genuinely need a decision.'
             );
-            nudged.current[a.id] = newest;
-          } else if (!newest) {
-            nudged.current[a.id] = '';
+            for (const m of fresh) seen.add(m.id);
           }
         } catch { /* ignore */ }
       }
