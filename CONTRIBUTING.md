@@ -84,11 +84,13 @@ data-flow overview.
 
 ## A note on assets
 
-The bundled pixel art is under the **LimeZu FREE VERSION license
-(non-commercial only)** — see [`ATTRIBUTION.md`](./src/renderer/src/assets/ATTRIBUTION.md).
+The bundled tilesets are LimeZu's *Modern Interiors*, used under the **Complete
+Version licence**. See [`ATTRIBUTION.md`](./src/renderer/src/assets/ATTRIBUTION.md).
+That licence requires credit to LimeZu, so don't remove the acknowledgement from
+the README, the app, or the website. The Office cast is drawn procedurally in
+`portraitArt.ts` and carries no third-party licence.
 If you contribute new art, it must be either your own work or compatibly
-licensed, and you must add it to `ATTRIBUTION.md`. Don't add commercial-only or
-unlicensed assets.
+licensed, and you must add it to `ATTRIBUTION.md`. Don't add unlicensed assets.
 
 ## Questions
 
