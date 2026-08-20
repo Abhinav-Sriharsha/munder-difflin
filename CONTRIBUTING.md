@@ -45,13 +45,15 @@ npm run dev        # live-reloading Electron build
 ## Before you open a PR
 
 1. **Keep the type-checker green:** `npm run typecheck` (runs both the node and
-   web TS projects). This is the de-facto CI gate — there is no test suite yet.
-2. **Confirm a production build works:** `npm run build`.
-3. **Match the aesthetic.** Any new UI **must** derive from the design tokens in
+   web TS projects). This is the de-facto CI gate.
+2. **Run the tests:** `npm run test:focused` (the core suite), or
+   `node --test test/*.test.cjs` to run everything in `test/`.
+3. **Confirm a production build works:** `npm run build`.
+4. **Match the aesthetic.** Any new UI **must** derive from the design tokens in
    [`DESIGN.md`](./DESIGN.md) / `src/renderer/src/design/tokens.ts` — no ad-hoc
    colors, spacing, or fonts. `tokens.ts` and `tokens.css` are mirrored; if you
    change one, change both.
-4. **For anything visual, include a screenshot or short clip** in the PR.
+5. **For anything visual, include a screenshot or short clip** in the PR.
 
 ## Project layout
 
