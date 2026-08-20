@@ -631,7 +631,7 @@ export class HiveManager {
       lastSeen: Date.now()
     };
     if (meta.isGod) reg.godId = meta.id;
-    this.writeJson(join(root, 'registry.json'), reg);
+    this.atomicWriteJson(join(root, 'registry.json'), reg);
 
     this.appendLog({ kind: 'spawn', agentId: meta.id, name: meta.name, isGod: !!meta.isGod });
     // Only logs on an invalid cwd (rare) — not a per-spawn line, so no log spam.
@@ -853,7 +853,7 @@ export class HiveManager {
       if (!agent || agent.archived === archived) return;
       agent.archived = archived;
       agent.lastSeen = Date.now();
-      this.writeJson(join(root, 'registry.json'), reg);
+      this.atomicWriteJson(join(root, 'registry.json'), reg);
       this.appendLog({ kind: 'archive', agentId: id, archived });
       this.commit(`hive: ${archived ? 'archive' : 'unarchive'} ${id}`);
     } catch { /* best-effort — never crash a lifecycle handler */ }
@@ -875,7 +875,7 @@ export class HiveManager {
       if (!agent || agent.sessionId === sessionId) return; // unknown agent or unchanged → no write
       agent.sessionId = sessionId;
       agent.lastSeen = Date.now();
-      this.writeJson(join(root, 'registry.json'), reg);
+      this.atomicWriteJson(join(root, 'registry.json'), reg);
       this.appendLog({ kind: 'session', agentId, sessionId });
       this.commit(`hive: session ${agentId}`);
     } catch { /* best-effort — never crash a hook handler */ }
@@ -1082,7 +1082,7 @@ export class HiveManager {
     if (fresh.length === 0) return { block: false };
 
     cursor.lastProcessed = fresh[fresh.length - 1].id;
-    this.writeJson(cursorPath, cursor);
+    this.atomicWriteJson(cursorPath, cursor);
     this.appendLog({ kind: 'drain', agentId, count: fresh.length });
 
     const lines = fresh.map((m) => `- [from ${m.from}, ${m.act}] ${m.subject}: ${m.body}`).join('\n');

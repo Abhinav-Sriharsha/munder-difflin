@@ -1732,8 +1732,6 @@ function dispatchWebhookWork(arg: {
   origin: 'webhook' | 'org';
 }): boolean {
   try {
-    const ledger = hive.tasks() as { tasks?: HiveTask[] };
-    const existing = Array.isArray(ledger?.tasks) ? ledger.tasks : [];
     const card: HiveTask = {
       id: arg.taskId,
       title: arg.title,
@@ -1744,7 +1742,11 @@ function dispatchWebhookWork(arg: {
       createdAt: new Date().toISOString(),
       ...(arg.tokenHash ? { webhook: { tokenHash: arg.tokenHash } } : {})
     };
-    hive.writeTasks([...existing, card]);
+    // addTask appends against the latest on-disk ledger and is idempotent by task
+    // id, so a concurrent card writer (Slack, god, voice, another webhook) can't
+    // have its card lost to our stale whole-ledger overwrite. (writeTasks(...existing)
+    // recreated exactly that race.) A fresh taskId never collides, so this always adds.
+    hive.addTask(card);
   } catch (e) {
     console.error('[webhook] could not create task card:', e instanceof Error ? e.message : e);
     return false;
