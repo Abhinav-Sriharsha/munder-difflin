@@ -88,6 +88,23 @@ function sh(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], ...opts }).trim();
 }
 
+// One supporter per line, matching the file's existing hand-written style.
+// This is not cosmetic: JSON.stringify(list, null, 2) explodes every entry to
+// five lines, so adding ONE name produced a 119-line diff and the review PR —
+// the whole point of the addition gate — became unreadable. One line in, one
+// line of diff.
+function serializeWall(entries) {
+  if (!entries.length) return "[]\n";
+  const row = (e) =>
+    `  { "name": ${JSON.stringify(e.name)}, "date": ${JSON.stringify(e.date)}, "payment_id": ${JSON.stringify(e.payment_id)} }`;
+  return `[\n${entries.map(row).join(",\n")}\n]\n`;
+}
+
+// What has already hit the remote when something later blows up. The catch
+// below reports this instead of claiming "no changes made" — a removal push
+// and a branch push both happen BEFORE the PR step that failed today.
+const landed = [];
+
 async function main() {
   // 1. Truth from Razorpay (fail-closed: any throw aborts before any write).
   const payments = (await paginate("/v1/payments", { from: MD_EPOCH }))
@@ -150,10 +167,11 @@ async function main() {
   // 4. Removals: straight to the default branch. Speed is safety here.
   if (removals.length) {
     const afterRemoval = sortByPayment([...kept]);
-    writeFileSync(WALL_FILE, JSON.stringify(afterRemoval, null, 2) + "\n");
+    writeFileSync(WALL_FILE, serializeWall(afterRemoval));
     sh("git", ["add", WALL_FILE]);
     sh("git", ["commit", "-m", `wall: remove ${removals.length} refunded/disputed plaque(s)\n\n${removals.map((e) => e.payment_id).join("\n")}`]);
     sh("git", ["push", "origin", `HEAD:${baseBranch}`]);
+    landed.push(`removed ${removals.length} entr(ies), pushed to ${baseBranch}`);
     console.log(`removed ${removals.length} entr(ies) and pushed to ${baseBranch}`);
   }
 
@@ -161,11 +179,12 @@ async function main() {
   if (additions.length || heldOut.length) {
     const prList = sortByPayment([...kept, ...additions]);
     sh("git", ["checkout", "-B", PR_BRANCH]);
-    writeFileSync(WALL_FILE, JSON.stringify(prList, null, 2) + "\n");
+    writeFileSync(WALL_FILE, serializeWall(prList));
     sh("git", ["add", WALL_FILE]);
     const title = `wall: ${additions.length} new Founding Supporter(s)`;
     sh("git", ["commit", "--allow-empty", "-m", title]);
     sh("git", ["push", "-f", "origin", PR_BRANCH]);
+    landed.push(`pushed branch ${PR_BRANCH} with ${additions.length} addition(s)`);
 
     const bodyFile = path.join(mkdtempSync(path.join(tmpdir(), "wall-")), "pr-body.md");
     const body = [
@@ -185,14 +204,40 @@ async function main() {
       sh("gh", ["pr", "edit", existing, "--title", title, "--body-file", bodyFile]);
       console.log(`updated PR #${existing}`);
     } else {
-      sh("gh", ["pr", "create", "--base", baseBranch, "--head", PR_BRANCH, "--title", title, "--body-file", bodyFile]);
-      console.log("opened wall additions PR");
+      try {
+        sh("gh", ["pr", "create", "--base", baseBranch, "--head", PR_BRANCH, "--title", title, "--body-file", bodyFile]);
+        console.log("opened wall additions PR");
+        landed.push("opened wall additions PR");
+      } catch (err) {
+        // The repo setting "Allow GitHub Actions to create and approve pull
+        // requests" is OFF by default, and NO workflow `permissions:` block can
+        // override it. The branch is already pushed and correct, so say exactly
+        // that and hand over a one-click link rather than dying anonymously.
+        if (!/not permitted to create or approve pull requests/i.test(String(err.message ?? err))) throw err;
+        const repo = process.env.GITHUB_REPOSITORY ?? "";
+        const url = repo ? `https://github.com/${repo}/compare/${baseBranch}...${PR_BRANCH}?expand=1` : "(set GITHUB_REPOSITORY for a link)";
+        throw new Error(
+          `branch ${PR_BRANCH} is pushed and ready, but this repo forbids Actions from opening PRs.\n` +
+            `  Fix once:  Settings -> Actions -> General -> Workflow permissions ->\n` +
+            `             tick "Allow GitHub Actions to create and approve pull requests"\n` +
+            `  Or open it by hand now: ${url}`,
+        );
+      }
     }
     sh("git", ["checkout", baseBranch]);
   }
 }
 
 main().catch((err) => {
-  console.error(`wall-sync failed (no changes made): ${err.message ?? err}`);
+  console.error(`wall-sync failed: ${err.message ?? err}`);
+  // Never claim "no changes made" without checking. Removals go straight to the
+  // default branch and the additions branch is pushed before the PR is opened,
+  // so a late failure can leave real state behind on the remote.
+  if (landed.length) {
+    console.error("changes that DID land before the failure:");
+    for (const step of landed) console.error(`  - ${step}`);
+  } else {
+    console.error("no changes were made.");
+  }
   process.exit(1);
 });
