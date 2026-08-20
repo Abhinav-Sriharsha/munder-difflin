@@ -860,6 +860,55 @@ export class HiveManager {
   }
 
   /**
+   * Change an agent's display name without changing its durable identity.
+   * The registry key, agent directory, session id, and every mailbox path remain
+   * keyed by `id`; only the human-facing name is updated.
+   *
+   * `fleet.json` is patched in the same operation so god's next prompt receives
+   * the new name immediately rather than waiting for the periodic fleet refresh.
+   */
+  renameAgent(id: string, name: string): { ok: boolean; name?: string; error?: string } {
+    const root = this.root();
+    if (!root) return { ok: false, error: 'hive disabled (no harnessHome)' };
+
+    const nextName = name.trim();
+    if (!nextName) return { ok: false, error: 'Name is required' };
+
+    try {
+      const reg = this.registry();
+      const agent = reg.agents[id];
+      if (!agent) return { ok: false, error: 'Agent not found' };
+      if (agent.name === nextName) return { ok: true, name: nextName };
+
+      const previousName = agent.name;
+      agent.name = nextName;
+      this.writeJson(join(root, 'registry.json'), reg);
+
+      // fleet.json is ephemeral and may not exist yet. When it does, keep its
+      // display name in lockstep with the registry so rosterContext() is fresh.
+      const fleetPath = join(root, 'fleet.json');
+      if (existsSync(fleetPath)) {
+        try {
+          const fleet = this.readJson<{ agents?: Array<{ id?: string; name?: string }> }>(fleetPath, {});
+          if (Array.isArray(fleet.agents)) {
+            const row = fleet.agents.find((candidate) => candidate.id === id);
+            if (row) {
+              row.name = nextName;
+              this.writeJson(fleetPath, fleet);
+            }
+          }
+        } catch { /* periodic snapshot will repair a malformed/stale fleet file */ }
+      }
+
+      this.appendLog({ kind: 'rename', agentId: id, previousName, name: nextName });
+      this.commit(`hive: rename ${id}`);
+      return { ok: true, name: nextName };
+    } catch {
+      return { ok: false, error: 'Could not rename agent' };
+    }
+  }
+
+  /**
    * Persist the agent's Claude Code session_id (Lane A #6.6a). Captured from hook
    * payloads; written only when it actually changes (a new session), so this is a
    * no-op on the vast majority of hook events. The id is the `--resume` key for

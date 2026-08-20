@@ -106,6 +106,30 @@ test('each agent line carries its live context-window occupancy (ctx NN%)', asyn
   assert.ok(!line.includes('\n'), 'still a single compact line');
 });
 
+test('renaming changes only the display name and reaches god immediately', async (t) => {
+  const { home, hive } = await floor(t);
+  snapshot(hive);
+  const agentDir = path.join(home, 'hive', 'agents', 'jim-1');
+  const before = hive.registry().agents['jim-1'];
+
+  const result = hive.renameAgent('jim-1', '  Kevin  ');
+
+  assert.deepEqual(result, { ok: true, name: 'Kevin' });
+  assert.deepEqual(hive.registry().agents['jim-1'], { ...before, name: 'Kevin' },
+    'registry metadata must be unchanged apart from the display name');
+  assert.equal(fs.existsSync(agentDir), true, 'the id-derived agent directory must not move');
+  assert.match(hive.rosterContext(), /jim-1 "Kevin"/);
+  assert.doesNotMatch(hive.rosterContext(), /jim-1 "Jim"/);
+});
+
+test('rename rejects empty and unknown agents without changing the registry', async (t) => {
+  const { hive } = await floor(t);
+
+  assert.equal(hive.renameAgent('jim-1', '   ').ok, false);
+  assert.equal(hive.renameAgent('missing', 'Kevin').ok, false);
+  assert.equal(hive.registry().agents['jim-1'].name, 'Jim');
+});
+
 test('god gets the roster on SessionStart and on every prompt — nobody else does', async (t) => {
   const { hive, fire } = await floor(t);
   snapshot(hive);

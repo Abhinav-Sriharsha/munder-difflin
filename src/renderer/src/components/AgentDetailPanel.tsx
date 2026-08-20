@@ -15,6 +15,7 @@ import { AgentControlStrip } from './AgentControlStrip';
 import { EditAgentModal } from './EditAgentModal';
 import { GitTab } from './GitTab';
 import { Icon } from './Icon';
+import { AgentNameEditor } from './AgentNameEditor';
 import { useStore, type Agent } from '@/store/store';
 import { usePtyParser } from '@/hooks/usePtyParser';
 
@@ -28,6 +29,7 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
   const [editOpen, setEditOpen] = useState(false);
   const archiveAgent = useStore(s => s.archiveAgent);
   const updateAgent = useStore(s => s.updateAgent);
+  const renameAgent = useStore(s => s.renameAgent);
   const setFullscreen = useStore(s => s.setFullscreen);
   const fullscreenAgentId = useStore(s => s.fullscreenAgentId);
   const sidebarTab = useStore(s => s.sidebarTab);
@@ -103,12 +105,14 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
           <SpritePortrait character={agent.character} scale={1} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: 'var(--cth-font-display)',
-            fontSize: 10, lineHeight: '14px',
-            color: 'var(--cth-ink-900)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-          }}>{agent.name.toUpperCase()}</div>
+          <div style={{ display: 'flex', minWidth: 0, lineHeight: '14px' }}>
+            <AgentNameEditor
+              name={agent.name}
+              onCommit={(name) => renameAgent(agent.id, name)}
+              uppercase
+              fontSize={10}
+            />
+          </div>
           <div style={{
             display: 'flex', gap: 6, alignItems: 'center', marginTop: 1
           }}>

@@ -3231,6 +3231,12 @@ ipcMain.handle('roster:write', (_evt, snap: unknown) => roster.write(snap));
 
 // ─── IPC: hive (multi-agent coordination) ───────────────────────────────────
 ipcMain.handle('hive:registry', () => hive.registry());
+ipcMain.handle('hive:renameAgent', (_evt, id: unknown, name: unknown) => {
+  if (typeof id !== 'string' || typeof name !== 'string') {
+    return { ok: false, error: 'Invalid rename request' };
+  }
+  return hive.renameAgent(id, name);
+});
 ipcMain.handle('hive:board', () => hive.board());
 ipcMain.handle('hive:tasks', () => hive.tasks());
 ipcMain.handle('hive:log', (_evt, n: unknown) => hive.logTail(typeof n === 'number' ? n : 200));

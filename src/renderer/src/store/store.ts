@@ -197,6 +197,9 @@ interface State {
   /** Copy durable hive roles onto roster descriptions (and the reverse is a
    *  no-op when the roster already has a real job string). */
   syncDescriptionsFromRoles: (roles: Record<string, string>) => void;
+  /** Persist a display-name change to both the hive registry and renderer roster.
+   *  The agent id and all id-derived paths remain unchanged. */
+  renameAgent: (id: string, name: string) => Promise<{ ok: boolean; error?: string }>;
   setAgentNote: (id: string, note: string) => void;
   pushFeed: (id: string, line: string) => void;
   addAgent: (agent: Agent) => void;
@@ -650,6 +653,28 @@ export const useStore = create<State>((set) => ({
       if (restorableAgents !== s.restorableAgents) persistRestorable(restorableAgents);
       return { agents, archivedAgents, restorableAgents };
     }),
+  renameAgent: async (id, name) => {
+    try {
+      const result = await window.cth.hiveRenameAgent(id, name);
+      if (!result.ok || !result.name) return { ok: false, error: result.error ?? 'Could not rename agent' };
+      const nextName = result.name;
+
+      set((s) => {
+        const rename = (agents: Agent[]): Agent[] =>
+          agents.map((agent) => agent.id === id ? { ...agent, name: nextName } : agent);
+        const agents = rename(s.agents);
+        const archivedAgents = rename(s.archivedAgents);
+        const restorableAgents = rename(s.restorableAgents);
+        persistAgents(agents, s.selectedId);
+        persistArchived(archivedAgents);
+        persistRestorable(restorableAgents);
+        return { agents, archivedAgents, restorableAgents };
+      });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Could not rename agent' };
+    }
+  },
   setAgentNote: (id, note) =>
     set((s) => {
       const agents = s.agents.map((a) => a.id === id ? { ...a, note } : a);
