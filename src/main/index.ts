@@ -5015,20 +5015,33 @@ app.on('before-quit', (e) => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    ptyManager.killAll();
-    app.quit();
+    // Full teardown, not a bare killAll: this path must also stop the proxy
+    // sidecars and helper servers — on Windows a child is NOT killed when its
+    // parent exits, so anything skipped here outlives the app.
+    teardownAndQuit();
   }
 });
 
 // Final analytics flush (session_ended + drain the send queue), bounded so a
 // hung network can never wedge quit: preventDefault ONCE, race the flush
-// against a short timeout, then re-enter quit with the latch set.
+// against a short timeout, then exit hard.
+//
+// finish MUST be app.exit(), not a re-entrant app.quit(): when the quit was
+// initiated while a window was still open (the "kill all & quit" confirm path
+// calls teardownAndQuit → app.quit() and the window closes DURING that quit),
+// Electron is left with its internal is-quitting state set after this
+// preventDefault, and the later app.quit() is silently a no-op — no before-quit,
+// no will-quit, no quit; the main process idles forever with zero windows. On
+// Windows that stranded the whole Electron process group (main + GPU + network
+// service) after every agents-running quit. By this point teardown has already
+// run and the flush has finished or timed out, so an unconditional exit is
+// exactly what's left to do.
 let analyticsFlushed = false;
 app.on('will-quit', (e) => {
   if (analyticsFlushed) return;
   analyticsFlushed = true;
   e.preventDefault();
-  const finish = (): void => app.quit();
+  const finish = (): void => app.exit(0);
   Promise.race([
     analytics.endSession(),
     new Promise<void>((r) => setTimeout(r, 1200))
