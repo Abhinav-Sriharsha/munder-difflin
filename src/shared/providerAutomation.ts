@@ -244,5 +244,8 @@ export function terminalReadyToReceive(
   elapsedMs: number,
   provider: AgentProvider
 ): boolean {
+  if (provider === 'antigravity') {
+    return elapsedMs >= terminalReadySettleMs(provider);
+  }
   return hasOutput !== false && elapsedMs >= terminalReadySettleMs(provider);
 }
