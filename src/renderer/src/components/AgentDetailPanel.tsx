@@ -214,8 +214,6 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
               : compactHeader ? '' : t('agentDetail.open')}
           </span>
         </PixelButton>
-          </span>
-        </PixelButton>
         {isReal && (
           <PixelButton variant="destructive" size="sm" onClick={onKill}>
             <Icon name="x" />
@@ -245,7 +243,6 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
             isFullscreenedHere ? (
               <EmptyTab title={t('agentDetail.inFullscreen')}>
                 {t('agentDetail.fullscreenDesc')}
-              </EmptyTab>
               </EmptyTab>
             ) : (
             <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>

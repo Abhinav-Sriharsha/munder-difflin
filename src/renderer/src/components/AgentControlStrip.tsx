@@ -100,8 +100,6 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
             {t('agentControl.stopAfterStep')}
           </span>
         </PixelButton>
-          </span>
-        </PixelButton>
         {/* Sits with them at the founder's call. It is a different KIND of
             control — the two above restrain the agent, this one restrains
             Michael — so the tooltip carries that distinction now that the

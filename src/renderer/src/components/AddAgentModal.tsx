@@ -124,7 +124,6 @@ const SECTIONS: { key: SectionKey; labelKey: string; hintKey: string }[] = [
   { key: 'engine',    labelKey: 'addAgent.sections.engine.label',    hintKey: 'addAgent.sections.engine.hint' },
   { key: 'briefing',  labelKey: 'addAgent.sections.briefing.label',  hintKey: 'addAgent.sections.briefing.hint' }
 ];
-];
 
 function basename(path: string): string {
   return path.split('/').filter(Boolean).pop() ?? path;
@@ -542,7 +541,6 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                   📋 {tr('addAgent.hireImported')} <strong>{hireMeta.name}</strong>
                   {hireMeta.author ? <> · {tr('addAgent.byAuthor', { author: hireMeta.author })}</> : null}
                   {reviewProgress ? <> · {tr('addAgent.hireProgress', { current: reviewProgress.current, total: reviewProgress.total })}</> : null}
-                </span>
                 </span>
                 <span>{tr('addAgent.reviewFields')}</span>
                 {hireMeta.commandFlags && hireMeta.commandFlags.length > 0 && (

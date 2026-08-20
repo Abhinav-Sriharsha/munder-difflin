@@ -220,7 +220,6 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
             >
               <Icon name="code" /> {t('commandCenter.ide')}
             </span>
-            </span>
           </PixelButton>
         </div>
       </div>

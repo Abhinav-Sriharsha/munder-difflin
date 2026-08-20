@@ -85,7 +85,6 @@ const PROVIDER_BLURB_KEYS: Partial<Record<AgentProvider, string>> = {
   qwen: 'onboarding.providerBlurb.qwen',
   cursor: 'onboarding.providerBlurb.cursor'
 };
-};
 
 export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const { t } = useTranslation();
