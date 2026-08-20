@@ -732,6 +732,11 @@ export class HiveManager {
               // idle inbox-wake nudge is the guaranteed drain fallback.
               env.OPENCODE_CONFIG_DIR = this.installOpenCodePlugin(dir);
             }
+            else if (desc.shim === 'gemini') {
+              // Point only this worker at a per-agent system settings file so
+              // the bridge is trusted and ~/.gemini/settings.json stays untouched.
+              env.GEMINI_CLI_SYSTEM_SETTINGS_PATH = this.installGeminiHooks(dir);
+            }
             else if (desc.shim === 'grok') this.installGrokHooks();
           } else if (desc.kind === 'proxy') {
             // Stable per-spawn session id, stamped on every synthesized payload so
@@ -1694,6 +1699,45 @@ export class HiveManager {
         writeFileSync(p, JSON.stringify(existing, null, 2), 'utf8');
       } catch { /* best-effort per file */ }
     }
+  }
+
+  /** Official Google Gemini CLI lifecycle bridge. Gemini's hook payload is
+   *  already snake_case; the shim maps event names into HookServer's common
+   *  vocabulary and translates deny/steering replies back to Gemini.
+   *
+   *  The system settings path is per agent. Gemini merges object and array
+   *  settings across layers, so auth and user settings remain in their normal
+   *  GEMINI_CLI_HOME while this trusted bridge stays isolated. */
+  private installGeminiHooks(dir: string): string {
+    const home = join(dir, '.gemini-hive');
+    const settingsPath = join(home, 'system-settings.json');
+    try {
+      mkdirSync(home, { recursive: true });
+      const shim = join(home, 'gemini-hook.cjs');
+      writeFileSync(shim, GEMINI_HOOK_SHIM, 'utf8');
+      const hook = (name: string, matcher?: string) => ({
+        ...(matcher ? { matcher } : {}),
+        sequential: true,
+        hooks: [{
+          name: `munder-hive-${name}`,
+          type: 'command',
+          command: this.nodeRunUnquoted(shim),
+          timeout: 30000
+        }]
+      });
+      const settings = {
+        hooksConfig: { enabled: true, notifications: false },
+        hooks: {
+          SessionStart: [hook('session-start')],
+          BeforeAgent: [hook('before-agent')],
+          BeforeTool: [hook('before-tool', '.*')],
+          AfterTool: [hook('after-tool', '.*')],
+          AfterAgent: [hook('after-agent')]
+        }
+      };
+      writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+    } catch (e) { console.error('[hive] installGeminiHooks failed:', e); }
+    return settingsPath;
   }
 
   /** Codex lifecycle-hook bridge → full hive parity for a `codex` worker (live
@@ -2713,6 +2757,60 @@ server.listen(0, '127.0.0.1', function () {
   const addr = server.address();
   const port = (addr && typeof addr === 'object') ? addr.port : 0;
   try { process.stdout.write(JSON.stringify({ port: port }) + '\\n'); } catch (e) {}
+});
+`;
+
+// Official Gemini CLI bridge. Gemini already sends snake_case payload fields;
+// normalize its event names, then translate HookServer decisions back into
+// Gemini's documented hook output contract.
+const GEMINI_HOOK_SHIM = `#!/usr/bin/env node
+'use strict';
+const net = require('net');
+const agentId = process.env.AGENT_ID || null;
+let data = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (d) => { data += d; });
+process.stdin.on('end', () => {
+  const sock = process.env.HIVE_SOCK;
+  if (!agentId || !sock) { process.exit(0); }
+  let gemini = {};
+  try { gemini = JSON.parse(data || '{}'); } catch (_) {}
+  const names = {
+    SessionStart: 'SessionStart',
+    BeforeAgent: 'UserPromptSubmit',
+    BeforeTool: 'PreToolUse',
+    AfterTool: 'PostToolUse',
+    AfterAgent: 'Stop'
+  };
+  const payload = {
+    ...gemini,
+    hook_event_name: names[gemini.hook_event_name] || gemini.hook_event_name || 'Unknown',
+    agent_id: agentId
+  };
+  let resp = '';
+  const done = () => {
+    let out = null;
+    try {
+      const r = JSON.parse(resp || '{}');
+      if (r.continue === false) out = { continue: false, stopReason: r.stopReason };
+      else if (r.decision === 'block') out = { decision: 'deny', reason: r.reason };
+      else if (r.hookSpecificOutput && r.hookSpecificOutput.permissionDecision === 'deny') {
+        out = { decision: 'deny', reason: r.hookSpecificOutput.permissionDecisionReason };
+      } else if (r.hookSpecificOutput && r.hookSpecificOutput.additionalContext) {
+        out = { hookSpecificOutput: { additionalContext: r.hookSpecificOutput.additionalContext } };
+      }
+    } catch (_) {}
+    if (out) { try { process.stdout.write(JSON.stringify(out)); } catch (_) {} }
+    process.exit(0);
+  };
+  try {
+    const c = net.createConnection(sock, () => c.write(JSON.stringify(payload) + '\\n'));
+    c.setEncoding('utf8');
+    c.on('data', (d) => { resp += d; });
+    c.on('end', done);
+    c.on('error', () => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  } catch (_) { process.exit(0); }
 });
 `;
 

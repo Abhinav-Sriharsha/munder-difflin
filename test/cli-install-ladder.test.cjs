@@ -18,7 +18,7 @@ const script = (provider, npmAvailable, platform) =>
   buildMissingCliScript(provider, provider, npmAvailable, platform);
 
 test('with npm present the ladder is unchanged — npm install, for every provider', () => {
-  for (const provider of ['claude', 'codex', 'opencode', 'crush', 'copilot']) {
+  for (const provider of ['claude', 'codex', 'gemini', 'opencode', 'crush', 'copilot']) {
     const info = installInfoForProvider(provider);
     const rung = chooseInstallRung(info, true);
     assert.equal(rung.kind, 'npm', provider);

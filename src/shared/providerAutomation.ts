@@ -89,6 +89,11 @@ const CONTEXT_COMMANDS: Record<AgentProvider, ProviderContextCommands> = {
   // a compaction"). Nothing to type, so: null.
   antigravity: { compact: null, clear: '/clear', compactTakesFocus: false },
 
+  // Google Gemini CLI's command reference documents `/compress` as replacing
+  // the chat context with a summary and `/clear` as starting a clean context.
+  // `/compress` has no focus-argument contract, so never append user prose.
+  gemini: { compact: '/compress', clear: '/clear', compactTakesFocus: false },
+
   // qwen-code's bundled cli.js, verbatim:
   //   compressCommand = { name:"compress", altNames:["summarize"],
   //     description "Compresses the context by replacing it with a summary." }
@@ -225,6 +230,7 @@ export function terminalReadySettleMs(provider: AgentProvider): number {
   switch (provider) {
     case 'kimi': return 650;
     case 'grok': return 500;
+    case 'gemini': return 500;
     case 'codex': return 500;
     default: return 400;
   }
