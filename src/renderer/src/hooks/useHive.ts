@@ -678,8 +678,17 @@ export function useHive(config: HarnessConfig | null): void {
         try {
           const inbox = await window.cth.hiveInbox(a.id);
           // Nudge on any id we have not nudged for yet (#130's per-id Set).
-          // Draining shrinks the set and introduces nothing new, so it stays
-          // quiet; a genuinely new message fires regardless of how its id sorts.
+          // Draining shrinks the set and introduces nothing new, so this POLL
+          // stays quiet; a genuinely new message fires regardless of how its id
+          // happens to sort.
+          //
+          // That reasoning covers the poll only — it does NOT survive the gap
+          // between enqueue and delivery, which is why the nudge carries an
+          // 'inbox-nonempty' precondition that the drain re-checks before typing.
+          // Without it: mail lands and queues a nudge, the already-awake agent
+          // drains the whole inbox in that same turn, and the nudge is typed into
+          // an empty inbox afterwards — a wasted turn, and the most expensive one
+          // on the floor when the agent is god.
           const seen = nudged.current[a.id] ?? (nudged.current[a.id] = new Set());
           const fresh = inbox.filter((m) => m.id && !seen.has(m.id));
           if (fresh.length) {
@@ -690,7 +699,11 @@ export function useHive(config: HarnessConfig | null): void {
             // one nudge pending per agent (see enqueueMessage), so a suppressed
             // copy's ids stay unnamed — hence the text points at the pending
             // inbox as the authority rather than at the list.
-            useStore.getState().enqueueMessage(a.id, inboxNudgeText(fresh.map((m) => m.id)));
+            useStore.getState().enqueueMessage(
+              a.id,
+              inboxNudgeText(fresh.map((m) => m.id)),
+              { precondition: 'inbox-nonempty' }
+            );
             for (const m of fresh) seen.add(m.id);
           }
         } catch { /* ignore */ }
@@ -801,6 +814,25 @@ export function useHive(config: HarnessConfig | null): void {
       // erases the user's text and never closes the user's menu.
       if (!isTerminalAutomationSafe(target.ptyId, now)) return { sent: false };
       if (now - (lastFlush.current[target.id] ?? 0) < FLUSH_COOLDOWN_MS) return { sent: false };
+      // Last gate before we type: re-check the message's delivery-time
+      // precondition. A queue item is decided at enqueue time and delivered an
+      // arbitrary interval later, and the inbox nudge is only worth sending if
+      // there is still something in the inbox — the agent routinely drains it in
+      // the very turn the nudge was queued from. Stale ones are DROPPED, not
+      // deferred, so they cannot park at the queue head and starve the rest.
+      if (next.precondition === 'inbox-nonempty') {
+        let stillPending = true;
+        try {
+          stillPending = (await window.cth.hiveInbox(srcId)).length > 0;
+        } catch {
+          // Can't tell — let it through. A spurious nudge costs a turn; a
+          // swallowed one can leave real mail sitting unread indefinitely.
+        }
+        if (!stillPending) {
+          removeQueuedMessage(srcId, next.id);
+          return { sent: false };
+        }
+      }
       const flightKey = `${srcId}:${next.id}`;
       if (inFlight.has(flightKey)) return { sent: false };
       inFlight.add(flightKey);

@@ -129,6 +129,18 @@ export interface QueuedMessage {
    *  ONLY the pause gate in the drain loop — idle/draft/picker safety still hold,
    *  so it delivers the moment the terminal is actually free. */
   manual?: boolean;
+  /** Delivery-time precondition, re-checked by the drain immediately before the
+   *  message is typed; a message whose precondition no longer holds is DROPPED
+   *  rather than deferred (deferring would park it at the queue head forever and
+   *  starve everything behind it).
+   *
+   *  Exists because a queued message is evaluated at enqueue time but delivered
+   *  an arbitrary interval later, and some messages are only worth sending if the
+   *  world they described still exists. 'inbox-nonempty' is the inbox-wake nudge:
+   *  the agent can drain its whole inbox in the same turn the nudge was queued
+   *  from, and delivering it afterwards costs a full turn to discover nothing is
+   *  there. Declarative (a string, not a closure) so it survives persistQueues. */
+  precondition?: 'inbox-nonempty';
 }
 
 // 'files' retired in v0.3.4 (the per-agent IDE button superseded it) — a
@@ -274,7 +286,7 @@ interface State {
   /** Park a message for an agent. Returns nothing; the flush loop delivers it.
    *  `meta.instruction`, when set, is what gets typed into the PTY instead of
    *  `text` (UI/card surfaces still show `text`). */
-  enqueueMessage: (agentId: string, text: string, meta?: { slack?: { channel: string; thread_ts: string }; instruction?: string }) => void;
+  enqueueMessage: (agentId: string, text: string, meta?: { slack?: { channel: string; thread_ts: string }; instruction?: string; precondition?: QueuedMessage['precondition'] }) => void;
   /** Drop a single queued message (user removed it, or it was just delivered). */
   removeQueuedMessage: (agentId: string, messageId: string) => void;
   /** "Send now" while floor auto-delivery is paused: marks the message manual
@@ -843,7 +855,8 @@ export const useStore = create<State>((set) => ({
       const msg: QueuedMessage = {
         id: newQueuedId(), text: trimmed, ts: Date.now(),
         ...(meta?.slack ? { slack: meta.slack } : {}),
-        ...(meta?.instruction ? { instruction: meta.instruction } : {})
+        ...(meta?.instruction ? { instruction: meta.instruction } : {}),
+        ...(meta?.precondition ? { precondition: meta.precondition } : {})
       };
       const messageQueues = { ...s.messageQueues, [agentId]: [...(s.messageQueues[agentId] ?? []), msg] };
       persistQueues(messageQueues);
