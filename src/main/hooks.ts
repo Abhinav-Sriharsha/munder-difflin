@@ -70,7 +70,11 @@ export class HookServer {
     private breaker?: CircuitBreaker,
     /** Standing goal text for an agent (from the durable roster). Optional so
      *  tests can omit it; when set, injected on SessionStart / UserPromptSubmit. */
-    private getStandingGoal?: (agentId: string) => string | null
+    private getStandingGoal?: (agentId: string) => string | null,
+    /** Optional observer of every hook boundary (agentId, event, message). The
+     *  worker inbox-wake watchdog (workerWake.ts) feeds on this to learn when an
+     *  agent is parked on a permission/HITL prompt so it never types into it. */
+    private onEvent?: (agentId: string | undefined, event: string, message: string | undefined) => void
   ) {}
 
   start(): void {
@@ -118,6 +122,7 @@ export class HookServer {
   private handle(p: HookPayload): unknown {
     const agentId = p.agent_id ?? undefined;
     const event = p.hook_event_name ?? 'Unknown';
+    this.onEvent?.(agentId, event, p.message);
     if (agentId && typeof p.transcript_path === 'string' && p.transcript_path) {
       this.transcriptPaths.set(agentId, p.transcript_path);
     }

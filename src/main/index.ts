@@ -60,6 +60,7 @@ import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, IN
 import { RosterStore } from './roster';
 import { buildWorkerLaunch } from './workerLaunch';
 import { ControlRegistry } from './control';
+import { WorkerWakeWatchdog, WORKER_WAKE_NUDGE, type WorkerWakeFacts } from './workerWake';
 import { fetchHireManifest, readHireManifestFiles } from './hire';
 import { parseHireDeepLink, type HireManifest } from '../shared/hire';
 import { ClosingTimeController } from './closingTime';
@@ -281,6 +282,11 @@ function standingGoalFromRoster(agentId: string): string | null {
   }
   return null;
 }
+// Worker inbox-wake watchdog (#151): finds idle workers with undrained inbox mail
+// and types the same guarded nudge the renderer would have (so a throttled
+// background window can't leave a worker parked on an unread inbox forever).
+// HookServer feeds it the hook stream so a permission/HITL prompt blocks nudges.
+const workerWake = new WorkerWakeWatchdog();
 // HookServer needs BOTH: Oscar's control registry (HITL pause/gate/steer/halt via
 // hook returns) AND Jim's breaker (feed recordToolUse on each PostToolUse).
 const hookServer = new HookServer(
@@ -289,7 +295,8 @@ const hookServer = new HookServer(
   () => readConfig(),
   control,
   breaker,
-  standingGoalFromRoster
+  standingGoalFromRoster,
+  (agentId, event, message) => workerWake.noteHook(agentId, event, message)
 );
 const memory = new MemoryManager(
   () => readConfig().harnessHome,
@@ -434,6 +441,8 @@ function teardownPty(id: string): void {
   const agentId = ptyToAgent.get(id);
   if (agentId) {
     ptyToAgent.delete(id);
+    // Drop watchdog state so a dead agent can't get nudged or leak its grace.
+    try { workerWake.forget(agentId, id); } catch { /* best-effort */ }
     // Drop breaker state so a dead agent can't leak/zombie a tripped level.
     try { breaker.forget(agentId); } catch { /* best-effort */ }
     // W1 — kill this agent's proxy-bridge sidecar (qwen), if any, so a dead
@@ -2744,7 +2753,12 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   }
   // Remember which agent owns this PTY so closing the tab can archive it. A
   // live terminal means active — ensureAgent above already cleared `archived`.
-  if (opts.hive?.id) ptyToAgent.set(opts.id, opts.hive.id);
+  if (opts.hive?.id) {
+    ptyToAgent.set(opts.id, opts.hive.id);
+    // Worker inbox-wake watchdog (#151): boot grace starts at spawn so the
+    // initial orientation prompt is never mistaken for an idle agent.
+    workerWake.noteSpawn(opts.id);
+  }
   // Pre-accept Claude Code's bypass-mode warning + folder-trust dialog so the
   // agent (spawned with --permission-mode bypassPermissions) doesn't stall on an
   // interactive prompt it can't answer and exit code 1. Best-effort, never blocks.
@@ -4744,6 +4758,64 @@ function bootstrapHiveServices(): void {
   armAlwaysOnBeats();
 }
 
+/** Cadence of the worker inbox-wake watchdog (#151). Well under the renderer's
+ *  own nudge cooldown so a throttled window is caught within ~15s of a stall. */
+const WORKER_WAKE_POLL_MS = 15_000;
+let workerWakeTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Type the renderer's guarded nudge into one worker's PTY — text first, Enter a
+ *  tick later (the exact submitToPty pattern: a single-chunk write would land the
+ *  "\r" inside the input box and never submit). Best-effort + never throws. */
+function nudgeWorker(ptyId: string): void {
+  const wrote = ptyManager.write(ptyId, WORKER_WAKE_NUDGE);
+  if (!wrote.ok) { console.warn(`[worker-wake] write failed for ${ptyId}: ${wrote.error}`); return; }
+  setTimeout(() => {
+    try {
+      const submitted = ptyManager.write(ptyId, '\r');
+      if (!submitted.ok) console.warn(`[worker-wake] submit failed for ${ptyId}: ${submitted.error}`);
+    } catch (e) { console.error('[worker-wake] submit threw:', e); }
+  }, 140);
+}
+
+/** Main-process inbox-wake beat (issue #151, fix A): the renderer's idle nudge
+ *  (useHive.ts) is the only path that wakes a worker parked on an undrained
+ *  inbox — and it lives on a setInterval in the renderer, which a throttled or
+ *  occluded window stops honoring. This beat is the renderer-INDEPENDENT fallback:
+ *  it gathers live-worker facts (PTY quiescence, inbox depth, control flags) and
+ *  lets WorkerWakeWatchdog.decide apply the exact renderer guards (idle-only,
+ *  post-boot-grace, not paused/halted, no pending HITL, cooldown), then types the
+ *  same nudge the renderer would have. God is never a candidate (its heartbeat
+ *  path already re-engages it). */
+function runWorkerWakeBeat(): void {
+  if (!hive.enabled()) return;
+  const reg = hive.registry();
+  if (!reg?.agents || !reg.godId) return;
+  const now = Date.now();
+  const facts: WorkerWakeFacts[] = [];
+  for (const [agentId, a] of Object.entries(reg.agents)) {
+    if (agentId === reg.godId || a?.archived) continue;
+    const ptyId = ptyForAgent(agentId);
+    if (!ptyId) continue;
+    const snap = control.snapshot(agentId);
+    facts.push({
+      agentId,
+      isGod: agentId === reg.godId,
+      ptyId,
+      lastOutputAt: ptyManager.lastOutputAt(ptyId) ?? 0,
+      inboxCount: hive.inbox(agentId).length,
+      autoDeliveryPaused: snap.autoDeliveryPaused,
+      paused: snap.paused,
+      halted: snap.halted
+    });
+  }
+  for (const agentId of workerWake.decide(facts, now)) {
+    const ptyId = ptyForAgent(agentId);
+    if (!ptyId) continue;
+    console.log(`[worker-wake] nudging ${agentId} on ${ptyId}`);
+    nudgeWorker(ptyId);
+  }
+}
+
 /** (Re)arm the always-on beats (decoupled from the optional heartbeat): the live
  *  fleet snapshot Michael reads (~8s) + the breaker/cost-ledger beat (~30s).
  *  Guarded (clear-then-set) so a re-bootstrap (changeHome recovery) OR a
@@ -4755,6 +4827,9 @@ function armAlwaysOnBeats(): void {
   fleetTimer = setInterval(writeFleetSnapshot, 8_000);
   if (breakerBeatTimer) clearInterval(breakerBeatTimer);
   breakerBeatTimer = setInterval(() => { try { runBreakerBeat(300_000); } catch (e) { console.error('[breaker beat]', e); } }, 30_000);
+  if (workerWakeTimer) clearInterval(workerWakeTimer);
+  workerWakeTimer = setInterval(() => { try { runWorkerWakeBeat(); } catch (e) { console.error('[worker-wake beat]', e); } }, WORKER_WAKE_POLL_MS);
+  runWorkerWakeBeat(); // catch-up on arm — power-resume re-arms and drains the backlog
 }
 
 /** Wall-clock instant we last observed the machine suspend or lock, so a resume
