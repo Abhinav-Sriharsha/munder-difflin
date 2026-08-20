@@ -1100,6 +1100,8 @@ export class HiveManager {
     // Native-separator path helpers — see the 🪟 note above.
     const inDir = (...parts: string[]): string => join(dir, ...parts);
     const inRoot = (...parts: string[]): string => join(root, ...parts);
+    const ctxLine = 'LIVE CONTEXT: each agent row in the LIVE ROSTER carries a `ctx NN%` tag — its live context-window occupancy. Treat it as the real headroom signal when routing: prefer an agent with a LOW `ctx` for a big task; treat a HIGH `ctx` (near 100%) as busy rather than idle, even if the cumulative token count looks modest.';
+
     const memoryLine = semanticMemory
       // The palace location is named, not spelled as `$MEMPALACE_PALACE_PATH`:
       // `mempalace` reads that env var itself, and the POSIX `$` form was noise
@@ -1139,6 +1141,7 @@ export class HiveManager {
       knowledgeLine,
       godLine,
       slackLine,
+      ctxLine,
       `Env vars available to you: AGENT_ID, AGENT_NAME, HIVE_ROOT, AGENT_DIR.`
     ].filter(Boolean).join('\n');
   }
@@ -1864,6 +1867,7 @@ export class HiveManager {
       // remainder is still counted, and fleet.json is one Read away.
       const MAX = 24;
       const shown = agents.slice(0, MAX);
+      let anyCtx = false;
       const rows = shown.map((a) => {
         const bits = [a.role ?? 'agent',
           typeof a.lastActiveSecAgo === 'number' ? `active ${ago(a.lastActiveSecAgo)}` : 'no activity yet'];
@@ -1880,6 +1884,7 @@ export class HiveManager {
         if (cw && cw.limit > 0) {
           const pct = Math.max(0, Math.min(100, Math.round((cw.tokens / cw.limit) * 100)));
           bits.push(`ctx ${pct}%`);
+          anyCtx = true;
         }
         return `${a.id}${a.name ? ` "${a.name}"` : ''} (${bits.join(', ')})`;
       });
@@ -1890,6 +1895,9 @@ export class HiveManager {
         + `${agents.length} ACTIVE agent(s): ${rows.join('; ')}.${more} `
         + 'This is the CURRENT floor and it SUPERSEDES any roster earlier in this conversation — '
         + 'agents you remember that are absent here have been archived or killed, so do not message them. '
+        + (anyCtx
+          ? ' `ctx NN%` = live window occupancy; absent = not yet reported (unknown, not empty).'
+          : '')
         + 'Route work to someone on this list before spawning anyone new.';
     } catch { return null; }
   }
