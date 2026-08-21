@@ -190,9 +190,11 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
             onClick={() => { void toggleFloorDelivery(); }}
           >
             <span
-              title={floorDeliveryPaused
-                ? 'Automatic queue delivery is PAUSED for every agent — messages stay queued until resumed'
-                : 'Automatic queue delivery is ON for every agent — click to pause the whole floor'}
+              className="cth-tip cth-tip-wrap"
+              data-tip={floorDeliveryPaused
+                ? 'Queued messages are being held for EVERY agent on the floor. Nothing is lost; it is delivered when you switch this back on.'
+                : 'Queued messages are delivered to every agent automatically. Click to hold the whole floor.'}
+              aria-label={floorDeliveryPaused ? 'Resume automatic delivery for the whole floor' : 'Hold automatic delivery for the whole floor'}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
               <Icon name={floorDeliveryPaused ? 'pause' : 'play'} />
@@ -206,7 +208,12 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
             const s = useStore.getState();
             s.setIdeOpen(true, s.selectedId);
           }}>
-            <span title="Open the IDE — file editor + git diff" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span
+              className="cth-tip cth-tip-wrap"
+              data-tip="Open the IDE: browse and edit files in the selected agent's workspace, and see uncommitted changes as a diff."
+              aria-label="Open the IDE"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
               <Icon name="code" /> IDE
             </span>
           </PixelButton>

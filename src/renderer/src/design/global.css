@@ -128,6 +128,20 @@ canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
 .cth-tip:hover::after,
 .cth-tip:focus-visible::after { opacity: 1; }
 
+/* Left-anchored variant, for a tip on a control that is NOT near the right edge
+   — the default right:0 would run the bubble off toward the sidebar. */
+.cth-tip-left::after { left: 0; right: auto; }
+
+/* Wrapping variant. `nowrap` is right for a two-word title-bar hint and wrong
+   for a sentence that has to say what a button actually does: at 60+ characters
+   a nowrap bubble is wider than the panel it explains. */
+.cth-tip-wrap::after {
+  white-space: normal;
+  width: max-content;
+  max-width: 260px;
+  line-height: 15px;
+}
+
 /* Settings (gear) button in the title bar — a clear bordered chip with a
    neo-brutalist hover (lemon fill + offset shadow) so it reads as a button. */
 .cth-settings-btn { transition: background 80ms steps(2), box-shadow 80ms steps(2), transform 80ms steps(2); }
