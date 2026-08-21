@@ -4767,7 +4767,7 @@ function bootstrapHiveServices(): void {
   hive.ensureHive();
   // Tell the hive what it is running inside, BEFORE anything spawns: the prompt
   // builder reads this, so an agent spawned earlier would never learn it.
-  hive.setRuntimeInfo({ version: app.getVersion(), packaged: app.isPackaged });
+  hive.setRuntimeInfo({ version: app.getVersion(), packaged: app.isPackaged, appPath: app.getAppPath() });
   hive.setOrchestratorMaySpawn(readConfig().orchestratorMaySpawn === true);
   // An app-start marker in the event log. log.jsonl had twelve event kinds and
   // none of them meant "the app restarted", so a relaunch, and more importantly a
@@ -4779,6 +4779,13 @@ function bootstrapHiveServices(): void {
     kind: 'app-start',
     version: app.getVersion(),
     packaged: app.isPackaged,
+    // WHICH bundle, not just which version. Version plus packaged is not enough
+    // to tell two builds apart: a stale copy in /Applications and a fresh one in
+    // dist/ can report the same version and both be packaged, and picking the
+    // wrong one by habit looks exactly like the new build being broken. Cost us
+    // twice before this line existed.
+    appPath: app.getAppPath(),
+    exePath: process.execPath,
     electron: process.versions.electron,
     platform: process.platform
   });

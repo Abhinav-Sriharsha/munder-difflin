@@ -313,11 +313,11 @@ export class HiveManager {
    *  022. No agent could observe that, several published conclusions had to be
    *  withdrawn, and log.jsonl carried no app-start marker to notice the switch
    *  from either. */
-  private _runtime: { version: string; packaged: boolean } | null = null;
-  setRuntimeInfo(info: { version: string; packaged: boolean } | null): void {
+  private _runtime: { version: string; packaged: boolean; appPath?: string } | null = null;
+  setRuntimeInfo(info: { version: string; packaged: boolean; appPath?: string } | null): void {
     this._runtime = info;
   }
-  runtimeInfo(): { version: string; packaged: boolean } | null {
+  runtimeInfo(): { version: string; packaged: boolean; appPath?: string } | null {
     return this._runtime;
   }
 
@@ -1266,7 +1266,7 @@ export class HiveManager {
     // us) was invisible to every investigation.
     const rt = this.runtimeInfo();
     const runtimeLine = rt
-      ? `RUNNING BUILD: Munder Difflin v${rt.version}, ${rt.packaged ? 'packaged app' : 'local dev build'}. Say this version if asked which one is running, and do not assume behaviour from an older one. A local dev build inherits the launching shell's environment (umask included) where a packaged app does not, so file modes and inherited env can legitimately differ between the two. \`log.jsonl\` records an \`app-start\` event on every launch, which is how you spot a restart or a build switch.`
+      ? `RUNNING BUILD: Munder Difflin v${rt.version}, ${rt.packaged ? 'packaged app' : 'local dev build'}${rt.appPath ? `, from ${rt.appPath}` : ''}. Say this version if asked which one is running, and do not assume behaviour from an older one. A local dev build inherits the launching shell's environment (umask included) where a packaged app does not, so file modes and inherited env can legitimately differ between the two. \`log.jsonl\` records an \`app-start\` event on every launch, which is how you spot a restart or a build switch.`
       : '';
     // Item 11: god could not find the spawn queue. The mechanism has worked since
     // v0.4.4, but nothing told him it existed — the prompt said "spawn" without
