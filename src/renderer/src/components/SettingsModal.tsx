@@ -210,6 +210,16 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
     try { await window.cth.updateConfig({ autoMode: next } as Partial<HarnessConfig>); }
     catch { setAutoModeOn(!next); }
   };
+  // Default OFF, so an absent value must read as off. Note this is `=== true`,
+  // the mirror image of autoMode's `!== false` above, because the two defaults
+  // are opposite.
+  const [orchSpawnOn, setOrchSpawnOn] = useState<boolean>(cfgX.orchestratorMaySpawn === true);
+  const toggleOrchSpawn = async () => {
+    const next = !orchSpawnOn;
+    setOrchSpawnOn(next);
+    try { await window.cth.updateConfig({ orchestratorMaySpawn: next } as Partial<HarnessConfig>); }
+    catch { setOrchSpawnOn(!next); }
+  };
   const [defaultModelSel, setDefaultModelSel] = useState<string>(cfgX.defaultModel ?? 'claude-fable-5');
   const [defaultModelNote, setDefaultModelNote] = useState('');
   const saveDefaultModel = async (id: string) => {
@@ -1130,6 +1140,28 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           </div>
                           <PixelButton variant={autoModeOn ? 'primary' : 'secondary'} size="sm" onClick={toggleAutoMode}>
                             {autoModeOn ? 'autonomous' : 'ask-first'}
+                          </PixelButton>
+                        </div>
+                      </div>
+
+                      <div style={{ height: 1, background: 'var(--cth-ink-300)', margin: '12px 0' }} />
+
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                              {orchSpawnOn
+                                ? 'Michael may hire agents on his own'
+                                : 'Only you hire agents'}
+                            </span>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              Every agent Michael starts spends tokens you did not approve, so this is
+                              off unless you turn it on. Requests he makes while it is off wait in the
+                              queue rather than failing.
+                            </span>
+                          </div>
+                          <PixelButton variant={orchSpawnOn ? 'primary' : 'secondary'} size="sm" onClick={toggleOrchSpawn}>
+                            {orchSpawnOn ? 'allowed' : 'off'}
                           </PixelButton>
                         </div>
                       </div>

@@ -3014,6 +3014,10 @@ ipcMain.handle('config:update', (_evt, patch: Partial<HarnessConfig>) => {
   const next = writeConfig(patch);
   // Live opt-in/out from Settings → Privacy (TELEMETRY.md).
   if (typeof patch?.telemetryEnabled === 'boolean') analytics.setEnabled(patch.telemetryEnabled);
+  // Keep the hive's mirror of the spawn gate current. The queue itself reads
+  // config per tick so it gates immediately; this is for the PROMPT, which is
+  // built per spawn, so flipping the toggle reaches god the next time he starts.
+  if (typeof patch?.orchestratorMaySpawn === 'boolean') hive.setOrchestratorMaySpawn(patch.orchestratorMaySpawn);
   if (!hiveWasEnabled && hive.enabled()) {
     console.log('[hive] harnessHome configured — bootstrapping hive services');
     try { bootstrapHiveServices(); } catch (e) { console.error('[hive] bootstrap after onboarding:', e); }
@@ -4623,7 +4627,18 @@ async function ephemeralWorkerTick(): Promise<void> {
 
     // (2) Process new requests, honoring the concurrency cap (backpressure: leave
     //     the rest in the queue for a later tick).
-    const dir = spawnRequestsDir();
+    //
+    //     Gated on config.orchestratorMaySpawn (default OFF): letting the
+    //     orchestrator spin up agents unprompted is a SPEND decision, so the
+    //     operator opts in. The gate sits HERE, on intake, and not on the watcher
+    //     itself, because step (1) above owns the lifecycle of workers that are
+    //     already running — reaping, teardown, the Slack failure notice — and
+    //     turning the toggle off mid-flight must not strand them.
+    //
+    //     Declining also means declining to CONSUME. A request dropped in while
+    //     this is off stays in the queue and runs when it is turned on, rather
+    //     than being eaten and failed for a reason god never asked about.
+    const dir = readConfig().orchestratorMaySpawn ? spawnRequestsDir() : null;
     if (dir && existsSync(dir)) {
       let files: string[] = [];
       try { files = readdirSync(dir).filter(f => f.endsWith('.json')).sort(); } catch { /* dir vanished */ }
@@ -4737,6 +4752,23 @@ ipcMain.handle('workers:stop', (_evt, workerId: string): { ok: boolean; error?: 
 function bootstrapHiveServices(): void {
   if (!hive.enabled()) return;
   hive.ensureHive();
+  // Tell the hive what it is running inside, BEFORE anything spawns: the prompt
+  // builder reads this, so an agent spawned earlier would never learn it.
+  hive.setRuntimeInfo({ version: app.getVersion(), packaged: app.isPackaged });
+  hive.setOrchestratorMaySpawn(readConfig().orchestratorMaySpawn === true);
+  // An app-start marker in the event log. log.jsonl had twelve event kinds and
+  // none of them meant "the app restarted", so a relaunch, and more importantly a
+  // switch between a packaged build and a local one, was invisible to every agent
+  // reading the feed. That gap cost a multi-hour investigation whose answer was
+  // exactly this: a local build inherits the launching shell's umask, a
+  // Finder-launched app does not.
+  hive.appendLog({
+    kind: 'app-start',
+    version: app.getVersion(),
+    packaged: app.isPackaged,
+    electron: process.versions.electron,
+    platform: process.platform
+  });
   control.replaceAutoDeliveryPauses(readConfig().autoDeliveryPausedAgents ?? []);
   archiveOrphanedAgents(); // #57/#58: archive stale archived:false entries with no live PTY
   hive.startRouter();

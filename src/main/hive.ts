@@ -303,6 +303,36 @@ export class HiveManager {
     return this._otelEndpoint;
   }
 
+  /** What the app running this hive actually IS: its version, and whether it is a
+   *  packaged build or a local dev run.
+   *
+   *  Agents could not see this before, and it cost real time. A multi-agent
+   *  investigation into anomalous file modes ran for hours before the explanation
+   *  turned out to be that the operator had quit a downloaded build and started a
+   *  local one, which inherits the launching shell's umask instead of Finder's
+   *  022. No agent could observe that, several published conclusions had to be
+   *  withdrawn, and log.jsonl carried no app-start marker to notice the switch
+   *  from either. */
+  private _runtime: { version: string; packaged: boolean } | null = null;
+  setRuntimeInfo(info: { version: string; packaged: boolean } | null): void {
+    this._runtime = info;
+  }
+  runtimeInfo(): { version: string; packaged: boolean } | null {
+    return this._runtime;
+  }
+
+  /** Whether config.orchestratorMaySpawn is on, mirrored here so the prompt
+   *  builder can decide whether to tell god the spawn queue is available. Set at
+   *  bootstrap and on every config write; hive.ts deliberately does not import
+   *  the config module. */
+  private _maySpawn = false;
+  setOrchestratorMaySpawn(on: boolean): void {
+    this._maySpawn = on;
+  }
+  orchestratorMaySpawn(): boolean {
+    return this._maySpawn;
+  }
+
   // — paths —
   root(): string | null {
     const home = this.getHome();
@@ -1216,6 +1246,25 @@ export class HiveManager {
     const knowledgeLine = knowledgeGraph
       ? `Enterprise knowledge: this organisation has a private Knowledge Graph of its own documents, policies, and business context. When a task needs that context — company-specific facts, house style, internal processes — query it instead of guessing: run \`"${hiveNode}" "${kgCli}" search "<query>"\` for ranked passages, \`"${hiveNode}" "${kgCli}" list\` to see what is available, and \`"${hiveNode}" "${kgCli}" get <id>\` for a full document. (That first path is the harness's bundled Node — use it instead of bare \`node\`, which may not be on your PATH.)`
       : '';
+    // Item 13: state the build. Agents had no way to tell which version, or even
+    // which KIND of build, they were running inside, so anything that varies
+    // between a packaged app and a local dev run (umask being the one that bit
+    // us) was invisible to every investigation.
+    const rt = this.runtimeInfo();
+    const runtimeLine = rt
+      ? `RUNNING BUILD: Munder Difflin v${rt.version}, ${rt.packaged ? 'packaged app' : 'local dev build'}. Say this version if asked which one is running, and do not assume behaviour from an older one. A local dev build inherits the launching shell's environment (umask included) where a packaged app does not, so file modes and inherited env can legitimately differ between the two. \`log.jsonl\` records an \`app-start\` event on every launch, which is how you spot a restart or a build switch.`
+      : '';
+    // Item 11: god could not find the spawn queue. The mechanism has worked since
+    // v0.4.4, but nothing told him it existed — the prompt said "spawn" without
+    // saying how, COMMANDS.md and PROTOCOL.md did not mention it, and the only
+    // description lived in a source comment. So he fell back to writing a hire
+    // manifest, which needs a human to click confirm, and it looked like nothing
+    // happened. Gated on the toggle: advertising a disabled path is worse than
+    // saying nothing, and COMMANDS.md documents it either way for the case where
+    // the operator turns it on after god was already running.
+    const spawnQueueLine = meta.isGod && this.orchestratorMaySpawn()
+      ? `SPAWNING A WORKER: you can start an ephemeral worker yourself by writing ONE JSON file into ${inRoot('spawn-requests')}/<id>.json. Required: \`objective\` (what the worker must do) and \`cwd\` (the repo it runs in). Optional: \`name\`, \`command\`, \`provider\`, \`model\`, \`isolate\` (default true = its own git worktree), \`tokenCap\`, and \`slack\` ({channel, thread_ts}) to route its failures back to a thread. The harness polls that directory, spawns \`worker-<id>\`, and moves the request to \`spawn-requests/.done/\` on success or \`.failed/\` with a reason. This is the ONLY way you can spawn; a hire manifest under research/hires/ needs the human to confirm it in the UI, so it is not a route you can complete on your own. Reuse an existing agent first, as above — a worker is a fresh spend every time.`
+      : '';
     const godLine = meta.isGod
       ? 'You are the GOD / ORCHESTRATOR of this hive — your job is to ORCHESTRATE, not to implement: maintain live situational awareness and delegate the work. (1) AWARENESS — always know what is going on: keep an accurate picture of every agent (active vs archived/idle), the task board, and all in-flight work; drain your inbox continually and triage every other agent\'s requests, answering clarifications so the team runs autonomously. (2) DELEGATE — decompose work and fan it out to the hive agents via their inboxes (route messages and assign owners; do not do their jobs); do NOT take on grunt implementation yourself. Stay aware of who is already on the floor and delegate OPPORTUNISTICALLY: BEFORE you spawn anything, CHECK THE LIVE ROSTER (active agents in registry.json + their state in fleet.json) and prefer routing to an EXISTING agent that fits — above all when the request names one ("ask Pam to…", "have Jim…"), route to that agent instead of reflexively creating a new one. Reuse an idle or already-running agent whose role matches; only spawn a fresh agent when no existing one is a sensible fit, and say that you checked. One capable owner beats a duplicate. (3) OWN ONLY THE IMPORTANT, high-leverage things — task decomposition, dispatch decisions, sign-offs, conflict resolution, branch integration, and final QA — and remain the sole scribe of board.md. You are otherwise fully autonomous — there is NO separate approval queue. For the genuinely critical (destructive actions, spending real money, scope changes, unresolvable conflicts), ask the human directly in your own session and let the tool-permission prompt gate the action; the human approves natively, including remotely from their phone via /remote-control. Keep the team unblocked. When you DISPATCH a task, write it as a 4-part contract so the agent can run autonomously: (1) OBJECTIVE — the concrete goal; (2) OUTPUT — the expected deliverable/format; (3) TOOLS — what to use or avoid, and any references to read instead of re-deriving; (4) BOUNDARIES — scope limits + the definition of done. Pass references (file paths, message ids, board sections), not pasted content — keep dispatches short.'
         + ` MONITOR the floor by reading ${inRoot('fleet.json')} (live per-agent tokens, cost, status, last tool, breaker level, inbox backlog) and ${inRoot('registry.json')} — note that running 'claude agents' will NOT list your hive's sibling agents. A full Claude Code command reference is at ${inRoot('COMMANDS.md')} (slash commands act ONLY on your own session; CLI commands run in your shell and can target the fleet). You periodically receive scheduler / "Heartbeat" standup requests — on each, review every agent via fleet.json, re-engage anyone stalled, over-budget, or breaker-armed, and keep board.md and tasks.json accurate. In tasks.json, ALWAYS set each task's "assignee" to the worker's agent id the moment you dispatch it, and NEVER clear it on status changes — a done card must still say who did the work (the human reads the board by who-did-what). HUMAN FEEDBACK is first-class in the ledger: when a task can only proceed with the human's input — a QUESTION to answer OR an ACTION only the human can perform (create an account, approve a purchase, provide credentials/screenshots, test on their device) — set its status to "blocked" and append the concrete ask to the card's "humanQA" array (push {"q":"...","askedAt":"<iso>"}; phrase actions as clear to-dos; keep every past entry — the history documents the card's decisions). The harness surfaces open questions on the office floor's ASK ME board; the human's answer lands in the same entry ("a") AND arrives as an inbox message to you — read it, act on it, and unblock the card so work continues. Do NOT park human questions in separate files (no HumanQuestion.md) and never sit waiting on the human in your own session. Steward the token budget.`
@@ -1239,6 +1288,8 @@ export class HiveManager {
       memoryLine,
       knowledgeLine,
       godLine,
+      spawnQueueLine,
+      runtimeLine,
       slackLine,
       ctxLine,
       `Env vars available to you: AGENT_ID, AGENT_NAME, HIVE_ROOT, AGENT_DIR.`
@@ -2331,6 +2382,36 @@ sessions (they're spawned independently) — \`fleet.json\` is your source of tr
 look at one agent, read its \`agents/<id>/memory.md\` and \`inbox/\`, or send it a \`query\`. A full
 Claude Code command reference (slash = your own session only; CLI = your shell, can target the fleet)
 is in \`COMMANDS.md\` in the hive root.
+
+## Spawning a worker (orchestrator)
+You can start an ephemeral worker yourself. Write ONE JSON file into \`spawn-requests/<id>.json\` in
+the hive root:
+
+\`\`\`json
+{
+  "objective": "what the worker must do (required)",
+  "cwd": "/absolute/path/to/the/repo (required)",
+  "name": "display name (optional)",
+  "command": "engine CLI (optional; defaults to the configured one)",
+  "provider": "claude | codex | cursor | antigravity | … (optional)",
+  "model": "model override (optional)",
+  "isolate": true,
+  "tokenCap": 0,
+  "slack": { "channel": "C…", "thread_ts": "…" }
+}
+\`\`\`
+
+The harness polls that directory, spawns \`worker-<id>\`, and moves the request to
+\`spawn-requests/.done/\` once it starts or to \`spawn-requests/.failed/\` with a reason. \`isolate\`
+defaults to true, giving the worker its own git worktree. \`slack\` routes its failures back to a
+thread. This is the ONLY spawn route you can complete on your own: a hire manifest under
+\`research/hires/\` needs the human to confirm it in the UI.
+
+**It can be switched off.** The operator controls this under Settings → Autonomy & Budgets, and it is
+OFF by default, because every worker you start spends tokens nobody approved. While it is off your
+request is NOT failed or deleted, it waits in \`spawn-requests/\` and runs if the operator turns it on.
+If a request of yours has sat there without moving, that is why, and it is a decision to raise with the
+human rather than retry. Route work to an agent already on the floor first either way.
 
 ## Semantic memory (optional — when \`mempalace\` is installed)
 When \`MEMPALACE_PALACE_PATH\` is set in your environment, the hive shares a

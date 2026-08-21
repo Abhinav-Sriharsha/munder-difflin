@@ -184,6 +184,16 @@ export interface HarnessConfig {
   registeredRepos: string[];
   /** When true, new agents are spawned with --permission-mode bypassPermissions. */
   autoMode: boolean;
+  /** May the orchestrator ("Michael") spin up agents on its own?
+   *
+   *  Default FALSE. Spawning an agent is a SPEND decision, so it should not
+   *  happen unprompted. The ability itself shipped in v0.4.4 with no gate at all,
+   *  so this closes an existing default-on behaviour rather than gating a new
+   *  feature: an operator who wants it must now say so.
+   *
+   *  Off does not FAIL a queued spawn request, it declines to consume one. The
+   *  request sits in HIVE_ROOT/spawn-requests until the toggle is turned on. */
+  orchestratorMaySpawn: boolean;
   /** The command we run when spawning a new agent. */
   defaultCommand: string;
   /** Default model for newly spawned agents (e.g. 'claude-sonnet-4-6[1m]'); unset = CLI default. */
@@ -407,6 +417,7 @@ const DEFAULTS: HarnessConfig = {
   recentHives: [],
   registeredRepos: [],
   autoMode: true,
+  orchestratorMaySpawn: false,
   defaultCommand: 'claude',
   godProvider: 'claude',
   godModel: 'claude-opus-4-8',
