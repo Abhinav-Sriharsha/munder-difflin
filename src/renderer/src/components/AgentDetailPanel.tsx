@@ -144,9 +144,17 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
           </span>
         </PixelButton>
         <PixelButton variant="secondary" size="sm" onClick={openTerminal} disabled={openTerminalState === 'opening'}>
-          <span title={`open Terminal.app at ${agent.cwd}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {/* "open" said nothing about WHAT opens, sitting in a row where IDE
+              and Talk both also open something. The label names the thing you
+              get; the tip names the folder you get it in. */}
+          <span
+            className="cth-tip cth-tip-wrap"
+            data-tip={`Open your system terminal app in ${agent.cwd} — a normal shell in this agent's folder, separate from the agent's own terminal.`}
+            aria-label="Open a system terminal in this agent's folder"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
             <Icon name="terminal" />
-            {openTerminalState === 'opening' ? '...' : openTerminalState === 'ok' ? 'ok' : openTerminalState === 'error' ? 'err' : 'open'}
+            {openTerminalState === 'opening' ? '...' : openTerminalState === 'ok' ? 'ok' : openTerminalState === 'error' ? 'err' : 'terminal'}
           </span>
         </PixelButton>
         {isReal && (

@@ -980,11 +980,13 @@ function Header({ agent }: { agent: Agent }) {
         {agent.isGod && <CostHud compact />}
         <PixelButton variant="secondary" size="sm" onClick={openTerminal} disabled={openState === 'opening'}>
           <span
-            title={`Open your terminal app at ${agent.worktreePath || agent.cwd}`}
+            className="cth-tip cth-tip-wrap"
+            data-tip={`Open your system terminal app in ${agent.worktreePath || agent.cwd} — a normal shell in this agent's folder, separate from the agent's own terminal.`}
+            aria-label="Open a system terminal in this agent's folder"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
           >
             <Icon name="terminal" />
-            {openState === 'opening' ? '...' : openState === 'ok' ? 'ok' : openState === 'error' ? 'err' : 'open'}
+            {openState === 'opening' ? '...' : openState === 'ok' ? 'ok' : openState === 'error' ? 'err' : 'terminal'}
           </span>
         </PixelButton>
         {/* The badge is a STATUS, not a button, but it sits in a row of them.
