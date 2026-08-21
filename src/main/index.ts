@@ -4305,6 +4305,17 @@ interface SpawnRequest {
   slack?: { channel: string; thread_ts: string };     // reply target + where failures surface
   isolate?: boolean;                                   // default true (fresh worktree)
   tokenCap?: number;                                   // optional per-worker token cap (advisory P1)
+  // Appearance on the office floor. Both optional and both validated renderer-side
+  // against the real cast and accent lists, so a bad value degrades to the default
+  // rather than breaking the card.
+  //
+  // Naming a worker after a cast member ALREADY gets you their avatar: the floor
+  // card infers it from the name. These two exist for the case that inference
+  // cannot express, an agent called something else that should still look like a
+  // particular character, and picking the accent instead of taking the one hashed
+  // from the worker id.
+  character?: string;
+  accent?: string;
 }
 
 /** Polling cadence — matches the hive router. */
@@ -4475,7 +4486,9 @@ async function processSpawnRequest(filePath: string): Promise<void> {
       cwd: res.worktreePath ?? cwd,
       command: launch.command,
       role: meta.role,
-      worktreePath: res.worktreePath
+      worktreePath: res.worktreePath,
+      character: typeof raw.character === 'string' ? raw.character : undefined,
+      accent: typeof raw.accent === 'string' ? raw.accent : undefined
     });
   } catch { /* window torn down */ }
 

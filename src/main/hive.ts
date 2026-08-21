@@ -2397,7 +2397,9 @@ the hive root:
   "model": "model override (optional)",
   "isolate": true,
   "tokenCap": 0,
-  "slack": { "channel": "C…", "thread_ts": "…" }
+  "slack": { "channel": "C…", "thread_ts": "…" },
+  "character": "meredith",
+  "accent": "coral"
 }
 \`\`\`
 
@@ -2406,6 +2408,10 @@ The harness polls that directory, spawns \`worker-<id>\`, and moves the request 
 defaults to true, giving the worker its own git worktree. \`slack\` routes its failures back to a
 thread. This is the ONLY spawn route you can complete on your own: a hire manifest under
 \`research/hires/\` needs the human to confirm it in the UI.
+
+\`character\` and \`accent\` set how the worker looks on the office floor, and both are optional.
+Naming a worker after a cast member already gets you that avatar, so you only need \`character\` when
+the name and the face should differ. An unrecognised value falls back rather than failing the spawn.
 
 **It can be switched off.** The operator controls this under Settings → Autonomy & Budgets, and it is
 OFF by default, because every worker you start spends tokens nobody approved. While it is off your

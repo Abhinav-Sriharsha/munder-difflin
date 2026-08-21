@@ -997,10 +997,21 @@ export function useHive(config: HarnessConfig | null): void {
       if (!rec?.id) return;
       // addAgent is idempotent, but bail early if the renderer already carded it.
       if (useStore.getState().agents.some((a) => a.id === rec.id)) return;
-      const key = (rec.name || rec.id).toLowerCase();
+      // An explicit character wins; otherwise infer it from the name, which is
+      // what makes "spawn one called Meredith" land on the Meredith avatar with
+      // nothing else asked for. The explicit field covers what inference cannot
+      // express: an agent named something else that should still look like a
+      // particular character. Unknown values fall through to the inference rather
+      // than breaking the card.
+      const castMember = (q?: string) =>
+        q ? OFFICE_CAST.find((m) => m.name === q || m.displayName.toLowerCase() === q)?.name : undefined;
       const character =
-        OFFICE_CAST.find((m) => m.name === key || m.displayName.toLowerCase() === key)?.name ??
+        castMember(rec.character?.trim().toLowerCase()) ??
+        castMember((rec.name || rec.id).toLowerCase()) ??
         DEFAULT_CHARACTER;
+      // Accent is otherwise hashed from the worker id, which is stable but not
+      // choosable. An unrecognised accent keeps the hash.
+      const askedAccent = SPAWN_ACCENTS.find((a) => a === rec.accent?.trim().toLowerCase());
       let h = 0;
       for (const ch of rec.id) h = (h + ch.charCodeAt(0)) % SPAWN_ACCENTS.length;
       const project = (rec.cwd || '').split(/[\\/]/).filter(Boolean).pop() || 'hive';
@@ -1008,7 +1019,7 @@ export function useHive(config: HarnessConfig | null): void {
         id: rec.id,
         name: rec.name || rec.id,
         character,
-        accent: SPAWN_ACCENTS[h],
+        accent: askedAccent ?? SPAWN_ACCENTS[h],
         description: rec.role || 'a fresh harness',
         project,
         tmuxTarget: '',
