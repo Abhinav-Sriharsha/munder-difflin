@@ -2062,7 +2062,7 @@ export class HiveManager {
         + 'This is the CURRENT floor and it SUPERSEDES any roster earlier in this conversation — '
         + 'agents you remember that are absent here have been archived or killed, so do not message them. '
         + (anyCtx
-          ? ' `ctx NN%` = live window occupancy; absent = not yet reported (unknown, not empty).'
+          ? '`ctx NN%` = live window occupancy; absent = not yet reported (unknown, not empty). '
           : '')
         + 'Route work to someone on this list before spawning anyone new.';
     } catch { return null; }
