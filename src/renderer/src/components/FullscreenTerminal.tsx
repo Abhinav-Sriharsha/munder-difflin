@@ -16,7 +16,7 @@ import { useStore, type Agent } from '@/store/store';
 import { usePtyParser } from '@/hooks/usePtyParser';
 import { useRestoreTeam } from '@/hooks/useRestoreTeam';
 import { useTerminalFontSize } from './terminalFontSize';
-import { useHasTerminalDraft, disposeTerminal, reflowTerminal } from './terminalPool';
+import { useHasTerminalDraft, disposeTerminal, reflowTerminal, notifyThemeChangeAll } from './terminalPool';
 import { useAppTheme, toggleAppTheme } from '@/design/theme';
 import type { HarnessConfig } from '@/store/config';
 
@@ -296,7 +296,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
         <span style={{
           fontFamily: 'var(--cth-font-display)', fontSize: 12, lineHeight: '20px',
           color: 'var(--cth-ink-900)'
-        }}>MUNDER DIFFLIN · FULLSCREEN</span>
+        }}>MUNDER DIFFLIN · FOCUS MODE</span>
         {/* Same top-right controls as the main title bar — fullscreen covers
             it, so theme / exit-fullscreen / IDE must live here too. */}
         <div className="cth-titlebar-nodrag" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -322,6 +322,10 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
             onClick={() => {
               const next = toggleAppTheme();
               void window.cth.updateConfig({ terminalTheme: next });
+              // Focus mode has its OWN theme button, so notifying only from the
+              // title-bar toggle meant a flip made from in here never reached a
+              // running TUI. Both entry points must tell them.
+              notifyThemeChangeAll(next === 'dark' ? 'dark' : 'light');
             }}
             title={appThemeNow === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'}
             aria-label="Toggle dark mode"

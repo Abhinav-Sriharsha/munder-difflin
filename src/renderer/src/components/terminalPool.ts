@@ -96,7 +96,11 @@ type ThemeMap = Record<string, string>;
  *  xterm's own cells flip, and everything the program painted explicitly does
  *  not. */
 export function notifyThemeChangeAll(theme: 'light' | 'dark'): void {
-  for (const ptyId of pool.keys()) notifyThemeChange(ptyId, theme);
+  const all = [...pool.keys()];
+  const told = all.filter((id) => pool.get(id)?.themeNotify);
+  console.log(`[theme] -> ${theme}: notified ${told.length}/${all.length} terminal(s)`
+    + (told.length ? ` (${told.join(', ')})` : ' — none opted into DEC 2031'));
+  for (const ptyId of all) notifyThemeChange(ptyId, theme);
 }
 
 function notifyThemeChange(ptyId: string, theme: 'light' | 'dark'): void {
@@ -296,7 +300,13 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
   // which is why flipping the app theme left OpenCode's boxes in the old colours.
   // Return false so xterm still applies the mode itself; we are only listening.
   term.parser.registerCsiHandler({ prefix: '?', final: 'h' }, (params) => {
-    if (params.includes(2031)) entry.themeNotify = true;
+    if (params.includes(2031)) {
+      entry.themeNotify = true;
+      // Deliberately logged. Whether a TUI opts in is the difference between "the
+      // theme fix works" and "we are talking to something that is not listening",
+      // and that is not observable from the outside.
+      console.log(`[theme] ${ptyId} enabled theme-change notifications (DEC 2031)`);
+    }
     return false;
   });
   term.parser.registerCsiHandler({ prefix: '?', final: 'l' }, (params) => {
