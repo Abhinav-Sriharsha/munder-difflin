@@ -86,6 +86,10 @@ export interface Agent {
   /** Michael's prep assistant — send-only; enriches prompts and forwards them to
    *  the god. Excluded from broadcast fan-out and from the restorable-dead sweep. */
   isAssistant?: boolean;
+  /** The human has this agent 1:1 and Michael has been told to leave it alone.
+   *  Mirrors `RegistryAgent.onHold`; main owns the record, this is the copy the
+   *  title bar renders from. */
+  onHold?: boolean;
   /** When git isolation is enabled, the dedicated worktree path the agent runs
    *  in (its own `agent/<id>` branch); undefined for shared-cwd agents. */
   worktreePath?: string;

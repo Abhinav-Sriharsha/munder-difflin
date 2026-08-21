@@ -149,6 +149,11 @@ export interface RegistryAgent extends AgentMeta {
    *  (not deleted) so its history/memory survive; only agents with a live PTY
    *  are 'active'. Broadcast fan-out + roster reads skip archived agents. */
   archived?: boolean;
+  /** The human has this agent 1:1 and Michael must leave it alone until they
+   *  flip it back. Held agents stay ACTIVE and keep their terminal — this is
+   *  "do not dispatch to them", not "they are gone", which is why it is its own
+   *  flag rather than a reuse of `archived` or a breaker level. */
+  onHold?: boolean;
   /** Most recent Claude Code session_id seen for this agent (Lane A #6.6a),
    *  captured from hook payloads. Doubles as the `--resume` key (idempotent
    *  resume after a crash/restart) AND the cost accounting/dedup key on every
@@ -916,6 +921,43 @@ export class HiveManager {
    * `fleet.json` is patched in the same operation so god's next prompt receives
    * the new name immediately rather than waiting for the periodic fleet refresh.
    */
+  /**
+   * Put an agent on hold, or take it off, and tell Michael immediately.
+   *
+   * `fleet.json` is patched in the same operation for the same reason
+   * `renameAgent` does it: god's roster is injected from that file on its next
+   * prompt, and waiting up to 8s for the periodic refresh means one more
+   * dispatch can still land on someone the human has just claimed.
+   */
+  setAgentHold(id: string, hold: boolean): { ok: boolean; onHold?: boolean; error?: string } {
+    const root = this.root();
+    if (!root) return { ok: false, error: 'hive disabled (no harnessHome)' };
+    try {
+      const reg = this.registry();
+      const agent = reg.agents[id];
+      if (!agent) return { ok: false, error: 'Agent not found' };
+      if (!!agent.onHold === hold) return { ok: true, onHold: hold };
+
+      agent.onHold = hold;
+      this.writeJson(join(root, 'registry.json'), reg);
+
+      const fleetPath = join(root, 'fleet.json');
+      if (existsSync(fleetPath)) {
+        try {
+          const fleet = this.readJson<{ agents?: Array<{ id?: string; onHold?: boolean }> }>(fleetPath, {});
+          if (Array.isArray(fleet.agents)) {
+            const row = fleet.agents.find((candidate) => candidate.id === id);
+            if (row) { row.onHold = hold; this.writeJson(fleetPath, fleet); }
+          }
+        } catch { /* fleet is a cache — the registry above is the record */ }
+      }
+      this.appendLog({ kind: 'agent-hold', id, onHold: hold });
+      return { ok: true, onHold: hold };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
   renameAgent(id: string, name: string): { ok: boolean; name?: string; error?: string } {
     const root = this.root();
     if (!root) return { ok: false, error: 'hive disabled (no harnessHome)' };
@@ -2108,6 +2150,7 @@ export class HiveManager {
           id: string; name?: string; role?: string; isGod?: boolean;
           breaker?: string; tokens?: number; usd?: number;
           lastTool?: string | null; lastActiveSecAgo?: number | null; inboxBacklog?: number;
+          onHold?: boolean;
         }>;
       };
       const agents = Array.isArray(snap.agents) ? snap.agents : [];
@@ -2124,6 +2167,7 @@ export class HiveManager {
       const MAX = 24;
       const shown = agents.slice(0, MAX);
       let anyCtx = false;
+      let anyHold = false;
       const rows = shown.map((a) => {
         const bits = [a.role ?? 'agent',
           typeof a.lastActiveSecAgo === 'number' ? `active ${ago(a.lastActiveSecAgo)}` : 'no activity yet'];
@@ -2132,6 +2176,10 @@ export class HiveManager {
         if (a.inboxBacklog) bits.push(`inbox ${a.inboxBacklog}`);
         if (a.breaker && a.breaker !== 'ok' && a.breaker !== 'none') bits.push(`breaker ${a.breaker}`);
         if (a.isGod) bits.push('you');
+        // First in the row after the role would be louder, but this reads in
+        // the same scan as `breaker` and `inbox`, and god already treats those
+        // as routing signals.
+        if (a.onHold) { bits.push('ON HOLD — 1:1 with the human'); anyHold = true; }
         // Live context-window occupancy from the statusLine shim — lets god see
         // which agents are near-full when routing, instead of guessing from the
         // cumulative token count. Clamp to 0-100; a fresh meter can briefly
@@ -2153,6 +2201,13 @@ export class HiveManager {
         + 'agents you remember that are absent here have been archived or killed, so do not message them. '
         + (anyCtx
           ? '`ctx NN%` = live window occupancy; absent = not yet reported (unknown, not empty). '
+          : '')
+        + (anyHold
+          ? 'An agent marked `ON HOLD — 1:1 with the human` is UNAVAILABLE: the human is working '
+            + 'with them directly. Do NOT message them, do NOT dispatch to them, and do NOT count '
+            + 'them when picking an owner. Route to someone else, or say the work is waiting. They '
+            + 'are still running and their terminal is alive, so this is not a reason to archive '
+            + 'them or spawn a replacement. The human flips it off when they are done. '
           : '')
         + 'Route work to someone on this list before spawning anyone new.';
     } catch { return null; }

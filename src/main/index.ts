@@ -1185,7 +1185,8 @@ function writeFleetSnapshot(): void {
           usd: u ? Number(u.usd.toFixed(4)) : 0,
           lastTool: spans.length ? spans[spans.length - 1].tool : null,
           lastActiveSecAgo: u ? Math.round((now - u.ts) / 1000) : null,
-          inboxBacklog: hive.inboxBacklog(id)
+          inboxBacklog: hive.inboxBacklog(id),
+          onHold: !!a.onHold
         };
       });
     hive.writeFleetSnapshot({ ts: now, agents });
@@ -3243,6 +3244,12 @@ ipcMain.handle('hive:renameAgent', (_evt, id: unknown, name: unknown) => {
     return { ok: false, error: 'Invalid rename request' };
   }
   return hive.renameAgent(id, name);
+});
+ipcMain.handle('hive:setAgentHold', (_evt, id: unknown, hold: unknown) => {
+  if (typeof id !== 'string' || typeof hold !== 'boolean') {
+    return { ok: false, error: 'Invalid hold request' };
+  }
+  return hive.setAgentHold(id, hold);
 });
 ipcMain.handle('hive:board', () => hive.board());
 ipcMain.handle('hive:tasks', () => hive.tasks());

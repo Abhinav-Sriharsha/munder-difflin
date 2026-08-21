@@ -164,3 +164,61 @@ test('a corrupt fleet.json degrades to no injection instead of throwing into a h
   const res = await fire('god-1', 'SessionStart');
   assert.doesNotMatch(context(res), /LIVE ROSTER/);
 });
+
+// --- 1:1 hold ---------------------------------------------------------------
+// The human takes an agent aside. It keeps running and keeps its terminal, but
+// Michael has to stop routing to it — otherwise the human and the orchestrator
+// are driving the same agent at once, which is how a 1:1 turns into a fight
+// over the same terminal.
+
+test('a held agent is marked in the roster and Michael is told to route around it', async (t) => {
+  const { hive } = await floor(t);
+  snapshot(hive);
+  assert.doesNotMatch(hive.rosterContext(), /ON HOLD/,
+    'nothing says hold until something is held');
+
+  assert.deepEqual(hive.setAgentHold('jim-1', true), { ok: true, onHold: true });
+
+  const line = hive.rosterContext();
+  assert.match(line, /jim-1 "Jim" \([^)]*ON HOLD/, 'the mark belongs on that agent, not the line');
+  assert.match(line, /Do NOT message them/);
+  assert.match(line, /do NOT dispatch to them/);
+  assert.ok(!line.includes('\n'), 'still one compact line');
+});
+
+test('the hold reaches Michael without waiting for the next fleet snapshot', async (t) => {
+  const { home, hive } = await floor(t);
+  snapshot(hive);
+  hive.setAgentHold('jim-1', true);
+  // The registry is the record, but the roster is injected from fleet.json, and
+  // the periodic writer is 8s away. One more dispatch fits in 8s.
+  const fleet = JSON.parse(fs.readFileSync(path.join(home, 'hive', 'fleet.json'), 'utf8'));
+  assert.equal(fleet.agents.find((a) => a.id === 'jim-1').onHold, true);
+});
+
+test('releasing clears the mark and the whole instruction block', async (t) => {
+  const { hive } = await floor(t);
+  snapshot(hive);
+  hive.setAgentHold('jim-1', true);
+  assert.deepEqual(hive.setAgentHold('jim-1', false), { ok: true, onHold: false });
+
+  const line = hive.rosterContext();
+  assert.doesNotMatch(line, /ON HOLD/);
+  assert.doesNotMatch(line, /Do NOT message them/,
+    'the guidance must go with the last hold, or it reads as always-on and gets ignored');
+});
+
+test('holding is idempotent and a bad id is refused', async (t) => {
+  const { hive } = await floor(t);
+  assert.deepEqual(hive.setAgentHold('jim-1', true), { ok: true, onHold: true });
+  assert.deepEqual(hive.setAgentHold('jim-1', true), { ok: true, onHold: true });
+  assert.equal(hive.setAgentHold('nobody-here', true).ok, false);
+});
+
+test('the hold survives a restart, because the registry is the record', async (t) => {
+  const { home, hive } = await floor(t);
+  hive.setAgentHold('jim-1', true);
+  const reg = JSON.parse(fs.readFileSync(path.join(home, 'hive', 'registry.json'), 'utf8'));
+  assert.equal(reg.agents['jim-1'].onHold, true,
+    'a hold that evaporated on restart would hand the agent back to Michael silently');
+});

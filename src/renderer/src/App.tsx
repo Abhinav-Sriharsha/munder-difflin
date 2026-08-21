@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore, selectedAgent } from '@/store/store';
 import { startMockLoop, stopMockLoop } from '@/store/mockEvents';
 import type { HarnessConfig } from '@/store/config';
@@ -48,6 +48,16 @@ export function App() {
   const setSidebarWidth = useStore(s => s.setSidebarWidth);
   const ideOpen = useStore(s => s.ideOpen);
   const setIdeOpen = useStore(s => s.setIdeOpen);
+
+  // Whoever the title bar's 1:1 hold acts on: the focused agent when focus mode
+  // is on, otherwise the selection. Michael himself is excluded — putting the
+  // orchestrator on hold would tell him to stop routing to himself.
+  const selectedId = useStore(s => s.selectedId);
+  const holdTarget = useMemo(() => {
+    const id = fullscreenAgentId ?? selectedId;
+    const a = agents.find((x) => x.id === id);
+    return a && !a.isGod ? a : null;
+  }, [agents, fullscreenAgentId, selectedId]);
 
   const [config, setConfig] = useState<HarnessConfig | null>(null);
   // Whether the user has passed the launch-time hive picker this session. Starts
@@ -333,6 +343,40 @@ export function App() {
         </button>
         {/* v0.3.4: the IDE button moved to agent level — every agent's header
             (sidebar detail, god Command Center, fullscreen) carries it. */}
+        {/* 1:1 hold. Acts on whoever is on screen — the focused agent, else the
+            selection — and the tooltip names them, because a title-bar control
+            that silently picks its own target is how you put the wrong agent on
+            hold. Held agents keep running; all this changes is that Michael is
+            told to stop routing work to them. */}
+        {holdTarget && (
+          <button
+            className="cth-titlebar-nodrag cth-tip"
+            onClick={() => {
+              const next = !holdTarget.onHold;
+              void window.cth.hiveSetAgentHold(holdTarget.id, next).then((r) => {
+                // Only mirror it locally once main has actually written the
+                // registry. Flipping the button optimistically would show a
+                // hold that Michael never heard about.
+                if (r.ok) useStore.getState().updateAgent(holdTarget.id, { onHold: next });
+              });
+            }}
+            data-tip={holdTarget.onHold
+              ? `${holdTarget.name} is on hold — release to Michael`
+              : `Hold ${holdTarget.name} for a 1:1`}
+            aria-label="Toggle 1:1 hold"
+            aria-pressed={!!holdTarget.onHold}
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, padding: 0,
+              background: holdTarget.onHold ? 'var(--cth-mint-light)' : 'var(--cth-paper-100)',
+              boxShadow: `inset 0 0 0 1px ${holdTarget.onHold ? 'var(--cth-mint)' : 'var(--cth-ink-300)'}`,
+              border: 'none', borderRadius: 2, cursor: 'pointer',
+              color: 'var(--cth-ink-900)'
+            }}
+          >
+            <HoldGlyph on={!!holdTarget.onHold} />
+          </button>
+        )}
         <button
           className="cth-titlebar-nodrag cth-settings-btn cth-tip"
           onClick={() => { setSettingsSection(undefined); setSettingsOpen(true); }}
@@ -527,6 +571,16 @@ function ExpandGlyph() {
   return (
     <Glyph>
       <path d="M6.2 3H3v3.2M9.8 3H13v3.2M6.2 13H3V9.8M9.8 13H13V9.8" />
+    </Glyph>
+  );
+}
+
+/** Two bars, the universal pause. "This agent is parked, not gone." Filled when
+ *  the hold is ON so the state reads at a glance without hunting for a colour. */
+function HoldGlyph({ on }: { on: boolean }) {
+  return (
+    <Glyph>
+      <path d="M6 3.5v9M10 3.5v9" strokeWidth={on ? 3 : 1.6} />
     </Glyph>
   );
 }
