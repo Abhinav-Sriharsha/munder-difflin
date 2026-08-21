@@ -75,7 +75,10 @@ export interface TerminalEntry {
 
 const pool = new Map<string, TerminalEntry>();
 
+import { parseHexColor, oscColorBody } from './termColor';
+
 type ThemeMap = Record<string, string>;
+
 
 /** Get (or lazily create) the persistent terminal for a pty. Theme/font are
  *  only used at creation; an attaching view re-applies its own afterwards. */
@@ -234,6 +237,32 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
     if (copySelection()) { term.clearSelection(); return; }
     pasteClipboard();
   });
+
+  // Answer the terminal-colour queries (OSC 10 foreground, OSC 11 background).
+  //
+  // A TUI that wants to match the terminal asks for its colours with
+  // `ESC ] 11 ; ? BEL` and styles itself from the reply. We registered NO OSC
+  // handler at all, so the query went unanswered and the app fell back to its own
+  // default, which for OpenCode is LIGHT. That is why OpenCode painted near-white
+  // panels inside a dark window even with its theme set to `system`, and why it
+  // showed up across agents rather than on one engine: any TUI that asks gets the
+  // same silence.
+  //
+  // COLORFGBG (set at spawn) is the older, coarser channel and only carries
+  // "light or dark". This carries the ACTUAL colour, so a TUI can match the
+  // window rather than guess a side.
+  const oscColorReply = (index: 10 | 11) => (data: string): boolean => {
+    if (data !== '?') return false;          // only the QUERY form; a SET is not ours to handle
+    if (entry.exited) return true;           // swallow it rather than write to a dead pty
+    const map = (term.options.theme ?? theme) as ThemeMap | undefined;
+    const hex = index === 11 ? map?.background : map?.foreground;
+    const rgb = hex && parseHexColor(hex);
+    if (!rgb) return false;                  // unknown colour: stay silent rather than lie
+    window.cth.writePty(ptyId, `\x1b]${index};${oscColorBody(rgb)}\x1b\\`);
+    return true;
+  };
+  term.parser.registerOscHandler(10, oscColorReply(10));
+  term.parser.registerOscHandler(11, oscColorReply(11));
 
   // Keystrokes → pty. A small line buffer surfaces the last submitted prompt.
   // It lives on the entry (see TerminalEntry.lineBuf) so every prompt-clearing
