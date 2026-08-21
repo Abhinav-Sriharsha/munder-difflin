@@ -53,6 +53,7 @@ import { registerRealtimeActionIpc } from './realtimeActions';
 import { initCompletionWatcher } from './realtimeCompletionWatcher';
 import type { TaskCard, InboxMessage } from './realtimeCompletionWatcher';
 import { TelemetryCollector } from './telemetry';
+import { CostLedgerTotals } from './costLifetime';
 import { analytics } from './analytics';
 import { IntegrationBroker } from './integrationBroker';
 import * as integrations from './integrations';
@@ -1106,6 +1107,11 @@ function runBreakerBeat(progressWindowMs: number): void {
   }
 }
 
+/** Lifetime spend, folded from cost-ledger.jsonl. `telemetry`'s usd counter is
+ *  cumulative-since-process-start and restarts at ~0 on every app restart, so
+ *  it cannot answer "what has this agent cost us". See costLifetime.ts. */
+const costTotals = new CostLedgerTotals();
+
 /** Build + write the live fleet snapshot Michael reads (`<hive>/fleet.json`).
  *  Always-on (independent of the heartbeat) since `claude agents` can't see the
  *  hive's sibling sessions. PII-free; never throws (called from a timer). */
@@ -1116,12 +1122,19 @@ function writeFleetSnapshot(): void {
     const snap = telemetry.snapshot();
     const usageById = new Map(snap.usage.map((u) => [u.agentId, u]));
     const now = Date.now();
+    // Async + incremental; returns immediately and never throws into the timer.
+    const hiveRoot = hive.root();
+    if (hiveRoot) void costTotals.refresh(join(hiveRoot, 'cost-ledger.jsonl'));
     const agents = Object.entries(reg.agents)
       .filter(([, a]) => !a.archived)
       .map(([id, a]) => {
         const u = usageById.get(id);
         const spans = snap.spans[id] ?? [];
         const tokens = u ? u.input + u.output + u.cacheRead + u.cacheCreation : 0;
+        // `usd` is LIFETIME (reset-corrected). Until the first fold completes we
+        // fall back to the session figure rather than publishing a cold $0.
+        const lifetime = costTotals.usdFor(id);
+        const sessionUsd = u ? Number(u.usd.toFixed(4)) : 0;
         return {
           id,
           name: a.name,
@@ -1130,7 +1143,8 @@ function writeFleetSnapshot(): void {
           isGod: !!a.isGod,
           breaker: breaker.levelFor(id),
           tokens,
-          usd: u ? Number(u.usd.toFixed(4)) : 0,
+          usd: lifetime === null ? sessionUsd : Number(lifetime.toFixed(4)),
+          sessionUsd,
           lastTool: spans.length ? spans[spans.length - 1].tool : null,
           lastActiveSecAgo: u ? Math.round((now - u.ts) / 1000) : null,
           inboxBacklog: hive.inboxBacklog(id)
