@@ -287,7 +287,7 @@ export function App() {
             terminal header — and the theme darkens the whole app, terminals
             included (design/theme.ts + tokens.css dark block). */}
         <button
-          className="cth-titlebar-nodrag"
+          className="cth-titlebar-nodrag cth-tip"
           onClick={() => {
             const next = toggleAppTheme();
             // Mirror into the harness config: every agent (re)spawned from now
@@ -296,7 +296,7 @@ export function App() {
             // harness agents — the user's global Claude theme is never touched.
             void window.cth.updateConfig({ terminalTheme: next });
           }}
-          title={appThemeNow === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'}
+          data-tip={appThemeNow === 'dark' ? 'Light theme' : 'Dark theme'}
           aria-label="Toggle dark mode"
           style={{
             marginLeft: 'auto',
@@ -313,9 +313,9 @@ export function App() {
         {/* v0.3.4: the IDE button moved to agent level — every agent's header
             (sidebar detail, god Command Center, fullscreen) carries it. */}
         <button
-          className="cth-titlebar-nodrag cth-settings-btn"
+          className="cth-titlebar-nodrag cth-settings-btn cth-tip"
           onClick={() => { setSettingsSection(undefined); setSettingsOpen(true); }}
-          title="Settings"
+          data-tip="Settings"
           aria-label="Settings"
           style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -333,7 +333,7 @@ export function App() {
             is drawn in — at 16-18px a pixel-grid glyph reads as a rendering
             artifact next to the OS window controls, not as a style choice. */}
         <button
-          className="cth-titlebar-nodrag"
+          className="cth-titlebar-nodrag cth-tip"
           onClick={() => {
             if (fullscreenAgentId) { useStore.getState().setFullscreen(null); return; }
             const all = useStore.getState().agents;
@@ -342,7 +342,7 @@ export function App() {
               ?? all.find((x) => x.ptyId);
             if (target) useStore.getState().setFullscreen(target.id);
           }}
-          title={fullscreenAgentId ? 'Exit focus mode (Esc)' : 'Focus mode for the selected agent'}
+          data-tip={fullscreenAgentId ? 'Exit focus mode (Esc)' : 'Focus mode'}
           aria-label="Toggle focus mode"
           style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',

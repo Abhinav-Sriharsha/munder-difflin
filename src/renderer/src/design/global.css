@@ -97,6 +97,37 @@ canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
 .cth-titlebar-drag { -webkit-app-region: drag; }
 .cth-titlebar-nodrag { -webkit-app-region: no-drag; }
 
+/* In-app tooltip for title-bar controls.
+   The native `title` attribute does not reliably render on buttons inside the
+   hiddenInset title bar, so those labels were correct in the markup and simply
+   invisible in the running app. CSS-only on purpose: no state, no re-render, and
+   nothing for the drag region to swallow. Usage: className="cth-tip"
+   data-tip="…". Keep aria-label for screen readers; drop `title` so a native
+   tooltip can never double up on this one. */
+.cth-tip { position: relative; }
+.cth-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  white-space: nowrap;
+  padding: 3px 7px 2px;
+  font-family: var(--cth-font-ui);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--cth-cream-100);
+  background: var(--cth-ink-900);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-700);
+  opacity: 0;
+  pointer-events: none;
+  /* Delay matches the native tooltip feel, so it does not flash while the
+     pointer is just crossing the title bar on its way somewhere else. */
+  transition: opacity 90ms ease-out 400ms;
+  z-index: 100;
+}
+.cth-tip:hover::after,
+.cth-tip:focus-visible::after { opacity: 1; }
+
 /* Settings (gear) button in the title bar — a clear bordered chip with a
    neo-brutalist hover (lemon fill + offset shadow) so it reads as a button. */
 .cth-settings-btn { transition: background 80ms steps(2), box-shadow 80ms steps(2), transform 80ms steps(2); }
