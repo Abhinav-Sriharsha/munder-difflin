@@ -29,3 +29,18 @@ export function oscColorBody(rgb: [number, number, number]): string {
   const wide = (v: number) => v.toString(16).padStart(2, '0').repeat(2);
   return `rgb:${wide(rgb[0])}/${wide(rgb[1])}/${wide(rgb[2])}`;
 }
+
+/**
+ * Is this background colour a dark one?
+ *
+ * Used to answer "which theme are we?" for a program that just enabled DEC 2031,
+ * where the only thing we hold is the palette itself. Rec. 601 luma, which is
+ * good enough for a light/dark split and does not need the full sRGB transfer
+ * curve.
+ */
+export function isDarkBackground(hex: string): boolean {
+  const rgb = parseHexColor(hex);
+  if (!rgb) return true; // unknown: assume dark, the safer default for a terminal
+  const [r, g, b] = rgb;
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 128;
+}

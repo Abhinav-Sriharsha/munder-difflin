@@ -81,7 +81,7 @@ export interface TerminalEntry {
 
 const pool = new Map<string, TerminalEntry>();
 
-import { parseHexColor, oscColorBody } from './termColor';
+import { parseHexColor, oscColorBody, isDarkBackground } from './termColor';
 
 type ThemeMap = Record<string, string>;
 
@@ -302,6 +302,12 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
   term.parser.registerCsiHandler({ prefix: '?', final: 'h' }, (params) => {
     if (params.includes(2031)) {
       entry.themeNotify = true;
+      // The protocol expects the CURRENT theme the moment a program opts in, not
+      // only on the next change. Without this a CLI set to follow the terminal has
+      // nothing to go on at startup and falls back to its own default, which is
+      // how a light window ended up with black message highlights.
+      const bg = (term.options.theme as ThemeMap | undefined)?.background;
+      notifyThemeChange(ptyId, bg && !isDarkBackground(bg) ? 'light' : 'dark');
       // Deliberately logged. Whether a TUI opts in is the difference between "the
       // theme fix works" and "we are talking to something that is not listening",
       // and that is not observable from the outside.

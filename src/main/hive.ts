@@ -1002,7 +1002,15 @@ export class HiveManager {
       // Match the TUI's truecolor palette to the harness terminal theme —
       // PER SESSION, so the user's global Claude theme (their own terminals
       // outside the app) is never touched.
-      ...(theme ? { theme } : {}),
+      //
+      // 'auto', not the literal light/dark. Pinning the value matched the theme at
+      // SPAWN and then ignored every change: Claude Code supports DEC 2031 theme
+      // notifications, but a pinned theme has nothing to reconsider, so flipping
+      // the app left a running agent painting its message blocks in the old
+      // palette (black highlight on a cream terminal). 'auto' is the value that
+      // listens. The terminal reports the current theme the moment the CLI enables
+      // 2031, so startup still matches without pinning anything.
+      ...(theme ? { theme: 'auto' } : {}),
       // W3 — default skills/MCP bundle. Written into the PER-SESSION settings file
       // only (never ~/.claude), so the user's own MCP servers are never clobbered;
       // Claude merges this additively. Omitted entirely when empty so a settings

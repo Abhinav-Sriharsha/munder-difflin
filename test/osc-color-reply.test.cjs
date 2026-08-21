@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const loadTs = require('./load-ts.cjs');
 
-const { parseHexColor, oscColorBody } =
+const { parseHexColor, oscColorBody, isDarkBackground } =
   loadTs('src/renderer/src/components/termColor.ts');
 
 // A TUI asks the terminal for its colours with OSC 10/11 and styles itself from
@@ -37,4 +37,24 @@ test('the reply widens each byte the way xterm does', () => {
   // conventional widening, so 0x1a becomes 0x1a1a.
   assert.equal(oscColorBody(parseHexColor('#1a2b3c')), 'rgb:1a1a/2b2b/3c3c');
   assert.equal(oscColorBody(parseHexColor('#000')), 'rgb:0000/0000/0000');
+});
+
+// --- light/dark split for the DEC 2031 report ----------------------------
+// A program that enables 2031 expects the CURRENT theme immediately. All we hold
+// at that moment is the palette, so the answer is derived from its background.
+
+test('the app palettes classify correctly', () => {
+  assert.equal(isDarkBackground('#FCFAF0'), false, 'the cream light background');
+  assert.equal(isDarkBackground('#1A1A1F'), true, 'the ink dark background');
+});
+
+test('an unreadable background assumes dark', () => {
+  // Dark is the safer default for a terminal: a light-styled TUI on a dark
+  // background is unreadable, the reverse is merely ugly.
+  assert.equal(isDarkBackground('not a colour'), true);
+});
+
+test('the split sits where you would expect it', () => {
+  assert.equal(isDarkBackground('#000000'), true);
+  assert.equal(isDarkBackground('#ffffff'), false);
 });
