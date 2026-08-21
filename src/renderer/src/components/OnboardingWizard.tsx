@@ -6,6 +6,10 @@ import { SpritePortrait } from './SpritePortrait';
 import { ProviderLogo } from './ProviderLogo';
 import { AGENT_PROVIDER_PRESETS, modelsForProvider, type AgentProvider, type HarnessConfig } from '@/store/config';
 import { canReceiveInbox, providerPreset } from '@shared/agentProvider';
+import {
+  classifyEngineAvailability, engineAvailabilityBadge, engineAvailabilityMessage, engineBlocksOnboarding
+} from '@shared/engineAvailability';
+import type { ToolStatus } from '@shared/toolCatalog';
 
 export interface OnboardingWizardProps {
   onComplete: (config: HarnessConfig) => void;
@@ -99,6 +103,23 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
 
+  // Which engine CLIs are actually on this machine. The picker used to record the
+  // choice blind; the first check happened when Michael spawned, and for a
+  // provider with no installer that meant a first run where nothing ever booted.
+  // `undefined` = probe not back yet (or failed): rows show no badge and nothing
+  // is blocked, because a broken probe must not lock a new user out.
+  const [engines, setEngines] = useState<ToolStatus[] | undefined>();
+  const [probing, setProbing] = useState(false);
+  const probeEngines = async () => {
+    setProbing(true);
+    try { setEngines(await window.cth.toolsStatus()); }
+    catch { /* leave undefined: unknown, never blocking */ }
+    finally { setProbing(false); }
+  };
+  useEffect(() => { void probeEngines(); }, []);
+  const selectedEngine = classifyEngineAvailability(engines, godProvider);
+  const engineBlocked = engineBlocksOnboarding(selectedEngine);
+
   // Permissions & reliability toggles. These apply IMMEDIATELY on change (their
   // own IPC / OS state) — they are NOT part of finish()'s config write. First-run
   // defaults: notifications off (config default), login-item off (fresh install);
@@ -163,6 +184,13 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
     setError(undefined);
     const harnessHome = home.trim(); // whitespace-only is not a folder
     if (!harnessHome) { setError('Pick a harness home folder first.'); setBusy(false); setStep('home'); return; }
+    // The orchestrator step already refuses to advance on this, but a late probe
+    // result can change the answer after the user has moved on. Never write a
+    // godProvider that is known to be unable to boot.
+    if (engineBlocked) {
+      setError(`${providerPreset(godProvider).label} is not installed. Install it and press "check again", or pick another engine.`);
+      setBusy(false); setStep('orchestrator'); return;
+    }
     const ensure = await window.cth.ensureHarnessHome(harnessHome);
     if (!ensure.ok) {
       setError(ensure.error ?? 'could not create harness home');
@@ -393,10 +421,12 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                       one that runs your whole office. We recommend Claude Code on Opus 4.8 (1M).
                       You can add or switch the others later.</>
                     ) : (
-                      <>Each option is a <strong>CLI engine</strong> you have installed (Claude Code,
-                      Codex, Antigravity/Gemini, or a local proxy like Qwen).
+                      <>Each option is a <strong>CLI engine</strong> (Claude Code, Codex,
+                      Antigravity/Gemini, or a local proxy like Qwen). Engines marked
+                      INSTALLED are already on this machine; INSTALLS ON FIRST RUN means the app
+                      sets it up when Michael first starts.
                       <strong> Your clone</strong> (Michael) is the engine that orchestrates the whole
-                      hive. Recommended: Claude Code · Opus 4.8 · 1M — other providers can be wired
+                      hive. Recommended: Claude Code · Opus 4.8 · 1M. Other providers can be wired
                       per agent later.</>
                     )}
                   </span>
@@ -442,6 +472,21 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                             </span>
                           )}
                         </span>
+                        {(() => {
+                          const a = classifyEngineAvailability(engines, p.id);
+                          const badge = engineAvailabilityBadge(a);
+                          if (!badge) return null;
+                          const bad = a.state === 'not-installable';
+                          return (
+                            <span title={a.path ?? undefined} style={{
+                              fontSize: 10, padding: '1px 5px', lineHeight: '16px',
+                              background: a.state === 'installed' ? 'var(--cth-mint-light)' : bad ? 'var(--cth-paper-100)' : 'var(--cth-cream-200)',
+                              color: bad ? 'var(--cth-ink-500)' : 'var(--cth-ink-900)',
+                              boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
+                              fontFamily: 'var(--cth-font-display)', flexShrink: 0
+                            }}>{badge}</span>
+                          );
+                        })()}
                         {p.id === 'claude' && (
                           <span style={{
                             fontSize: 10, padding: '1px 5px', lineHeight: '16px',
@@ -454,6 +499,25 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     );
                   })}
                 </div>
+                {engineBlocked && (
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', gap: 8, padding: 10,
+                    background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 2px var(--cth-ink-900)',
+                    fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-900)'
+                  }}>
+                    <span>{engineAvailabilityMessage(selectedEngine, providerPreset(godProvider).label)}</span>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <PixelButton variant="secondary" size="sm" onClick={() => { void probeEngines(); }} disabled={probing}>
+                        {probing ? 'checking...' : 'check again'}
+                      </PixelButton>
+                      {selectedEngine.docsUrl && (
+                        <PixelButton variant="ghost" size="sm" onClick={() => { void window.cth.openExternal(selectedEngine.docsUrl!); }}>
+                          install instructions
+                        </PixelButton>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>Model</div>
                   <select
@@ -697,10 +761,17 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                         setError('Pick a harness home folder first.');
                         return;
                       }
+                      // Same idea for the engine: refuse here, with the reason on
+                      // screen, instead of letting a pick that cannot boot through
+                      // to a Michael that never starts.
+                      if (step === 'orchestrator' && engineBlocked) {
+                        setError(`${providerPreset(godProvider).label} is not installed. Install it and press "check again", or pick another engine.`);
+                        return;
+                      }
                       setError(undefined);
                       setStep(nextStep(step));
                     }}
-                    disabled={step === 'persona' && !audience}
+                    disabled={(step === 'persona' && !audience) || (step === 'orchestrator' && engineBlocked)}
                   >
                     {step === 'welcome' ? 'set it up' : 'next'}
                   </PixelButton>
