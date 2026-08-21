@@ -342,8 +342,8 @@ export function App() {
               ?? all.find((x) => x.ptyId);
             if (target) useStore.getState().setFullscreen(target.id);
           }}
-          title={fullscreenAgentId ? 'Exit fullscreen (Esc)' : 'Fullscreen terminal — selected agent'}
-          aria-label="Toggle fullscreen terminal"
+          title={fullscreenAgentId ? 'Exit focus mode (Esc)' : 'Focus mode for the selected agent'}
+          aria-label="Toggle focus mode"
           style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, padding: 0,

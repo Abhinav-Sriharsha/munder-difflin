@@ -171,8 +171,8 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
         {sidebarTab === 'terminal' && (
           isReal && agent.ptyId ? (
             isFullscreenedHere ? (
-              <EmptyTab title="In fullscreen">
-                This terminal is open in fullscreen. Press Esc or exit fullscreen to bring it back here.
+              <EmptyTab title="In focus mode">
+                This terminal is open in focus mode. Press Esc or exit focus mode to bring it back here.
               </EmptyTab>
             ) : (
             <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>

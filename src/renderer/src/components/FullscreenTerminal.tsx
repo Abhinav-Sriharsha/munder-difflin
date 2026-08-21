@@ -343,8 +343,8 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
           </button>
           <button
             onClick={() => setFullscreen(null)}
-            title="Exit fullscreen (Esc)"
-            aria-label="Exit fullscreen"
+            title="Exit focus mode (Esc)"
+            aria-label="Exit focus mode"
             style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               width: 28, height: 28, padding: 0,
