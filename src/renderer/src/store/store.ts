@@ -16,6 +16,7 @@ import { DEFAULT_ORG_TRIGGER, type OrgTriggerConfig, type WebhookTrigger } from 
 import { isCompactionCommand } from '@shared/providerAutomation';
 import { preferredAgentRole } from '@shared/agentRole';
 import { isInboxNudge } from '@shared/hiveNudge';
+import { refocusAfterRemoval, focusOnLoad } from './focusMode';
 
 export type ToolKind =
   | 'Read' | 'Edit' | 'Write' | 'Bash' | 'WebFetch' | 'WebSearch'
@@ -322,6 +323,7 @@ const LS_ARCHIVED = 'cth.archivedAgents';
 const LS_RESTORABLE = 'cth.restorableAgents';
 const LS_SELECTED = 'cth.selectedId';
 const LS_QUEUES = 'cth.messageQueues';
+const LS_FOCUS_MODE = 'cth.prefersFocusMode';
 
 // Fields that are large or transient — not worth persisting across reloads.
 // contextTokens/contextLimit describe a LIVE session; persisting them showed a
@@ -576,6 +578,21 @@ const initialSidebarTab: SidebarTab = (() => {
   return 'terminal';
 })();
 
+/** Does the user want focus mode as their default view?
+ *
+ *  Persisted as a BOOLEAN, deliberately not as the focused agent's id. The id is
+ *  meaningless across a restart: that agent may have been closed, or its PTY may
+ *  not come back, and restoring a stale one lands us straight in the dangling
+ *  reference `refocusAfterRemoval` exists to prevent. The preference is "I work
+ *  in focus mode", so on load we resolve it against whoever is selected now. */
+const initialPrefersFocusMode = (() => {
+  try {
+    return window.localStorage.getItem(LS_FOCUS_MODE) === '1';
+  } catch { /* noop */ }
+  return false;
+})();
+
+
 const initialAgents = loadPersistedAgents();
 const initialArchivedAgents = loadPersistedArchived();
 const initialRestorableAgents = loadPersistedRestorable();
@@ -615,7 +632,7 @@ export const useStore = create<State>((set) => ({
   ccTabRequest: null,
   requestCommandCenterTab: (tab) =>
     set((s) => ({ ccTabRequest: { tab, seq: (s.ccTabRequest?.seq ?? 0) + 1 } })),
-  fullscreenAgentId: null,
+  fullscreenAgentId: focusOnLoad(initialPrefersFocusMode, initialSelectedId),
   fullscreenFilePath: null,
   fullscreenFileView: 'edit',
   ideInitialFile: null,
@@ -738,9 +755,10 @@ export const useStore = create<State>((set) => ({
       const { [id]: _gone, ...feeds } = s.feeds;
       const { [id]: _queueGone, ...messageQueues } = s.messageQueues;
       const selectedId = s.selectedId === id ? (agents[0]?.id ?? null) : s.selectedId;
+      const fullscreenAgentId = refocusAfterRemoval(s.fullscreenAgentId, agents, selectedId);
       persistAgents(agents, selectedId);
       if (_queueGone) persistQueues(messageQueues);
-      return { agents, feeds, selectedId, messageQueues };
+      return { agents, feeds, selectedId, messageQueues, fullscreenAgentId };
     }),
   archiveAgent: (id) =>
     set((s) => {
@@ -761,10 +779,11 @@ export const useStore = create<State>((set) => ({
       const { [id]: _feedGone, ...feeds } = s.feeds;
       const { [id]: _queueGone, ...messageQueues } = s.messageQueues;
       const selectedId = s.selectedId === id ? (agents[0]?.id ?? null) : s.selectedId;
+      const fullscreenAgentId = refocusAfterRemoval(s.fullscreenAgentId, agents, selectedId);
       persistAgents(agents, selectedId);
       persistArchived(archivedAgents);
       if (_queueGone) persistQueues(messageQueues);
-      return { agents, archivedAgents, feeds, selectedId, messageQueues };
+      return { agents, archivedAgents, feeds, selectedId, messageQueues, fullscreenAgentId };
     }),
   removeArchivedAgent: (id) =>
     set((s) => {
@@ -912,9 +931,10 @@ export const useStore = create<State>((set) => ({
       const selectedId = agents.some((a) => a.id === s.selectedId)
         ? s.selectedId
         : (agents[0]?.id ?? null);
+      const fullscreenAgentId = refocusAfterRemoval(s.fullscreenAgentId, agents, selectedId);
       persistAgents(agents, selectedId);
       persistRestorable(restorableAgents);
-      return { agents, feeds, selectedId, restorableAgents };
+      return { agents, feeds, selectedId, restorableAgents, fullscreenAgentId };
     }),
   setAddAgentOpen: (open) => set({ addAgentOpen: open }),
   hireQueue: EMPTY_HIRE_QUEUE,
@@ -927,7 +947,13 @@ export const useStore = create<State>((set) => ({
   clearPendingHires: () => set((s) => ({
     hireQueue: clearHireQueue(s.hireQueue)
   })),
-  setFullscreen: (id) => set({ fullscreenAgentId: id }),
+  setFullscreen: (id) => {
+    // Entering focus mode makes it the default view; leaving it clears that.
+    // Only an explicit toggle writes the preference, so an agent closing under
+    // you never silently changes how the app opens next time.
+    try { window.localStorage.setItem(LS_FOCUS_MODE, id ? '1' : '0'); } catch { /* noop */ }
+    set({ fullscreenAgentId: id });
+  },
   setFullscreenFile: (path, view) => set({ fullscreenFilePath: path, fullscreenFileView: view ?? 'edit' }),
   // Closing CLEARS the target: the id is scoped to one IDE session, and a stale
   // one left behind would silently win over the selection on the next open from
