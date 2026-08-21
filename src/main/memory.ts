@@ -13,10 +13,11 @@
  *
  * Runs in the Electron main process.
  */
-import { existsSync, statSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { ensureKilled } from './procKill';
+import { quarantineDirsToReap } from './palaceReap';
 
 /** Non-memory files `mempalace mine` must not ingest: the Claude Code hooks
  *  config (a large JSON blob that swamps the wake-up digest), the cursor, raw
@@ -61,7 +62,17 @@ export interface MemoryStatus {
   bin: string | null;
 }
 
-const MINE_INTERVAL_MS = 180_000; // re-mine changed memories every 3 min
+// Re-mine changed memories every 10 min, up from 3.
+//
+// Every `mempalace mine` opens the palace, and every open runs MemPalace's
+// quarantine gate — which on a palace stuck in the rename loop means another
+// full-size copy of the segment left on disk. The gate is not ours to fix, but
+// how often we invoke it is. Mining is already skipped for agents whose
+// memory.md has not changed, so this only affects an agent editing its notes
+// repeatedly: its changes are batched into one mine instead of three. A memory
+// written now is searchable within ten minutes rather than three, which no one
+// is waiting on. `reapPalace` handles the copies that still get made.
+const MINE_INTERVAL_MS = 600_000;
 const MINE_TIMEOUT_MS = 10 * 60_000; // hard cap per mine (first run downloads the embedding model)
 /** mempalace's device "auto" picks the CoreML execution provider on Apple
  *  Silicon, and CoreML runs the quantized embeddinggemma ONNX graph partially
@@ -182,6 +193,12 @@ export class MemoryManager {
     if (!this.active() || this.initStarted) return;
     if (!this.bin() || !this.getHome() || !this.palacePath()) return;
     this.initStarted = true;
+    // Sweep once at boot, before the first mine. An app updating into this fix
+    // arrives at a palace that has been accumulating copies for as long as it
+    // has been running — 357 of them here — and waiting for the first agent to
+    // edit its memory.md would leave all of that on disk for an arbitrary
+    // while. This is the pass that makes the existing pile go away by itself.
+    this.reapPalace();
     this.startMineLoop();
   }
 
@@ -248,6 +265,35 @@ export class MemoryManager {
     } finally {
       this.mining = false;
     }
+    this.reapPalace(); // every pass above may have left another copy behind
+  }
+
+  /**
+   * Delete quarantined segment copies MemPalace renamed aside and never removed.
+   *
+   * Safe to delete: the rename is precisely what takes them OUT of the palace's
+   * live set, and Chroma has already rebuilt by the time we see one. They are
+   * diagnostic residue. `quarantineDirsToReap` keeps the newest couple so there
+   * is still something to look at, and refuses to touch anything recent enough
+   * to still be mid-recovery.
+   *
+   * Best-effort throughout. A palace we cannot read, or a directory we cannot
+   * remove, must never take down the mine loop — this is disk hygiene, not a
+   * correctness path.
+   */
+  private reapPalace(): void {
+    const palace = this.palacePath();
+    if (!palace || !existsSync(palace)) return;
+    let names: string[];
+    try { names = readdirSync(palace); } catch { return; }
+    const doomed = quarantineDirsToReap(names.map((name) => ({ name })), Date.now());
+    if (!doomed.length) return;
+    let removed = 0;
+    for (const name of doomed) {
+      try { rmSync(join(palace, name), { recursive: true, force: true }); removed += 1; }
+      catch { /* locked, gone, or not ours — leave it and try again next pass */ }
+    }
+    if (removed) console.log(`[memory] reaped ${removed} quarantined palace segment(s)`);
   }
 
   private mineAgent(agentDir: string, id: string): Promise<void> {
