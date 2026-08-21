@@ -657,6 +657,15 @@ export class HiveManager {
     // PowerShell, so every such instruction was dead on a Windows floor. Commands
     // we write for an agent to run bake `nodeCommand()`'s absolute path instead.
     env.HIVE_NODE = this.nodeCommand();
+    // Generic light/dark hint for TUIs that paint their own background. The app
+    // defaults to light but every agent CLI assumed a dark terminal, so Crush and
+    // OpenCode looked pasted into a light window. COLORFGBG is the classic
+    // "fg;bg" convention (rxvt/konsole) that lipgloss/termenv fall back to when
+    // an OSC 11 query gets no answer. Claude Code gets the same hint through its
+    // per-session settings.json (hookSettings); Crush and OpenCode through their
+    // per-agent config dirs below. A running TUI does not re-read this: new
+    // agents pick up the current theme, running ones keep the one they started with.
+    if (opts.theme) env.COLORFGBG = opts.theme === 'dark' ? '15;0' : '0;15';
 
     const claudeProvider = isClaudeProvider(meta.provider ?? 'claude');
 
@@ -730,7 +739,7 @@ export class HiveManager {
               // same Stop→drain semantics, provider-agnostic, no traffic interception.
               // LIVE-UNVERIFIED (plugin auto-load + session.idle firing); the renderer
               // idle inbox-wake nudge is the guaranteed drain fallback.
-              env.OPENCODE_CONFIG_DIR = this.installOpenCodePlugin(dir);
+              env.OPENCODE_CONFIG_DIR = this.installOpenCodePlugin(dir, opts.theme);
             }
             else if (desc.shim === 'gemini') {
               // Point only this worker at a per-agent system settings file so
@@ -765,7 +774,7 @@ export class HiveManager {
                 // (captured above from the inert sentinel env or cloud default) is the
                 // proxy's real target. Per-agent CRUSH_GLOBAL_DATA isolates session
                 // state from the user's global ~/.config/crush.
-                const crush = this.installCrushConfig(dir, loopback, desc.api);
+                const crush = this.installCrushConfig(dir, loopback, desc.api, opts.theme);
                 env.CRUSH_GLOBAL_CONFIG = dir;
                 env.CRUSH_GLOBAL_DATA = crush.data;
               } else {
@@ -1863,9 +1872,21 @@ export class HiveManager {
    *  LIVE-UNVERIFIED: plugin auto-load + session.idle firing + the inject path need
    *  BYOK keys to confirm; written best-effort, wrapped so it can't break the spawn.
    *  The renderer idle inbox-wake nudge is the guaranteed drain fallback. */
-  private installOpenCodePlugin(dir: string): string {
+  private installOpenCodePlugin(dir: string, theme?: 'light' | 'dark'): string {
     const home = join(dir, '.opencode');
     try {
+      // Theme: OpenCode's `system` theme keeps the terminal's own fg/bg (xterm's,
+      // which already follows the app theme) and builds its greys from the
+      // detected background, so it reads right on light AND dark. Written to
+      // tui.json (current builds) and opencode.json (older builds read `theme`
+      // there and migrate it; the migration skips when tui.json already exists).
+      // Per-agent dir only, the user's ~/.config/opencode is never touched.
+      if (theme) {
+        mkdirSync(home, { recursive: true });
+        const choice = { theme: 'system' };
+        writeFileSync(join(home, 'tui.json'), JSON.stringify({ $schema: 'https://opencode.ai/tui.json', ...choice }, null, 2), 'utf8');
+        writeFileSync(join(home, 'opencode.json'), JSON.stringify({ $schema: 'https://opencode.ai/config.json', ...choice }, null, 2), 'utf8');
+      }
       // BOTH `plugin/` and `plugins/`. OpenCode's current docs specify `plugins/`
       // (plural); older builds — and the shape this bridge was originally written
       // against — auto-load from `plugin/` (singular). Since the whole bridge is
@@ -1898,7 +1919,7 @@ export class HiveManager {
    *  time — for full synthesized events pick a model whose provider matches the
    *  configured upstream (or a local OpenAI-compatible endpoint). Cross-provider mixing
    *  is humanQA; the renderer nudge still delivers mail regardless. */
-  private installCrushConfig(dir: string, loopbackUrl: string, api: 'openai' | 'anthropic'): { config: string; data: string } {
+  private installCrushConfig(dir: string, loopbackUrl: string, api: 'openai' | 'anthropic', theme?: 'light' | 'dark'): { config: string; data: string } {
     const config = join(dir, 'crush.json');
     const data = join(dir, '.crush-data');
     try {
@@ -1917,7 +1938,12 @@ export class HiveManager {
       // Crush merges config so only base_url is rewritten.
       const wireProvider = api === 'anthropic' ? 'anthropic' : 'openai';
       const providers: Record<string, { base_url: string }> = { [wireProvider]: { base_url: loopbackUrl } };
-      writeFileSync(config, JSON.stringify({ providers }, null, 2), 'utf8');
+      // Theme: Crush ships one (dark) palette and no light theme, but
+      // `options.tui.transparent` stops it painting its own background, so it
+      // sits on xterm's, which follows the app theme. Set whenever the app
+      // passes a theme, dark included, so both modes look the same way.
+      const options = theme ? { tui: { transparent: true } } : undefined;
+      writeFileSync(config, JSON.stringify(options ? { providers, options } : { providers }, null, 2), 'utf8');
     } catch (e) { console.error('[hive] installCrushConfig failed:', e); }
     return { config, data };
   }
