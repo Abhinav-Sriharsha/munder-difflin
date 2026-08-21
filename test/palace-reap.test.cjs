@@ -121,3 +121,35 @@ test('ties inside the same second are ordered deterministically', () => {
     ['a.drift-20260822-010000']
   );
 });
+
+// --- backing off while the palace is quarantining ---------------------------
+// Mining into a palace that just quarantined only produces another copy: the
+// segment it rebuilds is the one the next open quarantines again.
+
+const { nextMineDelayMs } = loadTs('src/main/palaceReap.ts');
+const BASE = 600_000;
+const MAX = 1_800_000;
+
+test('a clean pass mines at the base interval', () => {
+  assert.equal(nextMineDelayMs(BASE, BASE, MAX, false), BASE);
+});
+
+test('each pass that quarantines doubles the wait', () => {
+  const first = nextMineDelayMs(BASE, BASE, MAX, true);
+  assert.equal(first, 1_200_000);
+  assert.equal(nextMineDelayMs(first, BASE, MAX, true), MAX);
+});
+
+test('the backoff is capped, so recall never goes badly stale', () => {
+  assert.equal(nextMineDelayMs(MAX, BASE, MAX, true), MAX);
+  assert.equal(nextMineDelayMs(MAX * 4, BASE, MAX, true), MAX);
+});
+
+test('one clean pass snaps straight back — no slow climb down', () => {
+  assert.equal(nextMineDelayMs(MAX, BASE, MAX, false), BASE,
+    'the palace stopped quarantining, so there is nothing left to back off from');
+});
+
+test('a delay below base is never used to shrink the interval', () => {
+  assert.equal(nextMineDelayMs(1_000, BASE, MAX, true), 1_200_000);
+});

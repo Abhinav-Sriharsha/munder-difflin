@@ -17,7 +17,7 @@ import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, rmSync 
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { ensureKilled } from './procKill';
-import { quarantineDirsToReap } from './palaceReap';
+import { quarantineDirsToReap, quarantineStampMs, nextMineDelayMs } from './palaceReap';
 
 /** Non-memory files `mempalace mine` must not ingest: the Claude Code hooks
  *  config (a large JSON blob that swamps the wake-up digest), the cursor, raw
@@ -73,6 +73,10 @@ export interface MemoryStatus {
 // written now is searchable within ten minutes rather than three, which no one
 // is waiting on. `reapPalace` handles the copies that still get made.
 const MINE_INTERVAL_MS = 600_000;
+// Ceiling for the quarantine backoff below. Low on purpose: a memory is not
+// searchable until it has been mined, and the reaper already handles the disk,
+// so there is nothing here worth making recall half an hour stale for.
+const MINE_BACKOFF_MAX_MS = 1_800_000;
 const MINE_TIMEOUT_MS = 10 * 60_000; // hard cap per mine (first run downloads the embedding model)
 /** mempalace's device "auto" picks the CoreML execution provider on Apple
  *  Silicon, and CoreML runs the quantized embeddinggemma ONNX graph partially
@@ -88,6 +92,12 @@ const MEMPALACE_DEVICE = process.platform === 'darwin' ? 'cpu' : undefined;
 export class MemoryManager {
   private binCache: string | null | undefined;
   private mineTimer: NodeJS.Timeout | null = null;
+  private mineStopped = false;
+  /** Current gap between mine passes. Widens while the palace is quarantining. */
+  private mineDelayMs = MINE_INTERVAL_MS;
+  /** Newest quarantine stamp seen so far, so a LATER one means the palace
+   *  quarantined again. A count would be useless: the reaper deletes them. */
+  private lastQuarantineTs = 0;
   private initStarted = false;
   /** True while a mineNow() pass is in flight — serializes palace writers. */
   private mining = false;
@@ -203,7 +213,8 @@ export class MemoryManager {
   }
 
   stop(): void {
-    if (this.mineTimer) { clearInterval(this.mineTimer); this.mineTimer = null; }
+    this.mineStopped = true;
+    if (this.mineTimer) { clearTimeout(this.mineTimer); this.mineTimer = null; }
   }
 
   /**
@@ -229,10 +240,23 @@ export class MemoryManager {
     return this.status();
   }
 
+  /** Self-scheduling rather than `setInterval`, so the gap can widen when the
+   *  palace is quarantining and snap back the moment it stops. */
   private startMineLoop(): void {
     if (this.mineTimer) return;
-    this.mineNow();
-    this.mineTimer = setInterval(() => this.mineNow(), MINE_INTERVAL_MS);
+    const tick = () => {
+      void this.mineNow().finally(() => {
+        if (this.mineStopped) return;
+        this.mineTimer = setTimeout(tick, this.mineDelayMs);
+        this.mineTimer.unref?.();
+      });
+    };
+    // Armed synchronously. `mineTimer` is the "is the loop running" signal that
+    // `refresh()` reports on right after `start()`, and setting it only once the
+    // first mine resolves would report the loop as dead for a whole pass —
+    // which is exactly the re-arm-after-install case that has its own test.
+    this.mineTimer = setTimeout(tick, 0);
+    this.mineTimer.unref?.();
   }
 
   // — mining (store) —
@@ -265,7 +289,12 @@ export class MemoryManager {
     } finally {
       this.mining = false;
     }
-    this.reapPalace(); // every pass above may have left another copy behind
+    // Every pass above may have left another copy behind, and whether it did
+    // decides how long we wait before the next one.
+    const quarantined = this.reapPalace();
+    this.mineDelayMs = nextMineDelayMs(
+      this.mineDelayMs, MINE_INTERVAL_MS, MINE_BACKOFF_MAX_MS, quarantined
+    );
   }
 
   /**
@@ -281,19 +310,32 @@ export class MemoryManager {
    * remove, must never take down the mine loop — this is disk hygiene, not a
    * correctness path.
    */
-  private reapPalace(): void {
+  private reapPalace(): boolean {
     const palace = this.palacePath();
-    if (!palace || !existsSync(palace)) return;
+    if (!palace || !existsSync(palace)) return false;
     let names: string[];
-    try { names = readdirSync(palace); } catch { return; }
+    try { names = readdirSync(palace); } catch { return false; }
+
+    let newest = 0;
+    for (const name of names) {
+      const ts = quarantineStampMs(name);
+      if (ts !== null && ts > newest) newest = ts;
+    }
+    // The boot sweep runs before the first mine precisely so it can seed this:
+    // otherwise a palace that arrives with a backlog would read as "just
+    // quarantined" and back the loop off before it has mined anything.
+    const fresh = this.lastQuarantineTs > 0 && newest > this.lastQuarantineTs;
+    if (newest > this.lastQuarantineTs) this.lastQuarantineTs = newest;
+
     const doomed = quarantineDirsToReap(names.map((name) => ({ name })), Date.now());
-    if (!doomed.length) return;
+    if (!doomed.length) return fresh;
     let removed = 0;
     for (const name of doomed) {
       try { rmSync(join(palace, name), { recursive: true, force: true }); removed += 1; }
       catch { /* locked, gone, or not ours — leave it and try again next pass */ }
     }
     if (removed) console.log(`[memory] reaped ${removed} quarantined palace segment(s)`);
+    return fresh;
   }
 
   private mineAgent(agentDir: string, id: string): Promise<void> {

@@ -98,3 +98,28 @@ export function quarantineDirsToReap(
     .filter((q) => nowMs - q.ts >= minAgeMs)
     .map((q) => q.name);
 }
+
+/**
+ * How long to wait before the next mine pass.
+ *
+ * Mining into a palace that just quarantined buys nothing: the segment it
+ * rebuilds is the same one the next open will quarantine again, so the only
+ * product of a fast cadence is another copy for `quarantineDirsToReap` to
+ * clean up. So each pass that sees a fresh quarantine doubles the wait, and
+ * the first clean pass drops straight back to the base interval.
+ *
+ * Capped deliberately, and not high. On a palace stuck in the loop the backoff
+ * would otherwise climb forever, and the cost of waiting is real: a memory is
+ * not searchable until it has been mined. The reaper already removes 100% of
+ * the disk growth, so this is only trimming CPU and IO — not worth making
+ * recall an hour stale to save.
+ */
+export function nextMineDelayMs(
+  currentMs: number,
+  baseMs: number,
+  maxMs: number,
+  quarantinedThisPass: boolean
+): number {
+  if (!quarantinedThisPass) return baseMs;
+  return Math.min(Math.max(currentMs, baseMs) * 2, maxMs);
+}
