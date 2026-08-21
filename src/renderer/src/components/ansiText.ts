@@ -27,3 +27,38 @@ export function stripAnsi(chunk: string): string {
     .replace(CHARSET_RE, '')
     .replace(ESC2_RE, '');
 }
+
+/**
+ * A pty write can split an escape sequence across two chunks (`ESC[3` in one
+ * read, `2m` in the next). `stripAnsi` is stateless, so the head of the
+ * sequence was dropped as a stray two-byte escape and the tail rendered as
+ * literal text ("2m"). The stream stripper holds the unfinished tail of a
+ * chunk and prepends it to the next one.
+ *
+ * The carry is bounded: a lone ESC that is never completed (or an OSC string
+ * that never terminates) must not buffer forever, so once the carry passes
+ * MAX_CARRY it is flushed through the stateless stripper as-is.
+ */
+export const MAX_CARRY = 256;
+
+// An ESC whose sequence has not reached its final byte yet: ESC alone, a CSI
+// with params/intermediates but no final, an OSC with no BEL/ST, or a bare
+// charset-select prefix.
+const PARTIAL_TAIL_RE = /^\x1b(?:\[[0-9;:?]*[ -/]*|\][^\x07\x1b]*|[()])?$/;
+
+export function createAnsiStripper(): (chunk: string) => string {
+  let carry = '';
+  return (chunk: string): string => {
+    let input = carry + chunk;
+    carry = '';
+    const esc = input.lastIndexOf('\x1b');
+    if (esc !== -1) {
+      const tail = input.slice(esc);
+      if (PARTIAL_TAIL_RE.test(tail) && tail.length <= MAX_CARRY) {
+        carry = tail;
+        input = input.slice(0, esc);
+      }
+    }
+    return stripAnsi(input);
+  };
+}

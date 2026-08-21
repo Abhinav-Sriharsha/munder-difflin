@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useStore, type ToolKind, type StationKind } from '@/store/store';
-import { stripAnsi } from '@/components/ansiText';
+import { createAnsiStripper } from '@/components/ansiText';
 
 // Tool call lines look like: `● Read SPEC.md`, `● Bash npm test`, `● Edit src/foo.ts`
 const TOOL_RE = /●\s+([A-Za-z][A-Za-z_]*)(?:\s+(.+))?/g;
@@ -51,6 +51,8 @@ export function usePtyParser(agentId: string) {
   const updateAgent = useStore(s => s.updateAgent);
   const pushFeed = useStore(s => s.pushFeed);
   const idleTimerRef = useRef<number | null>(null);
+  // One stripper per agent: it carries an escape split across pty chunks.
+  const stripRef = useRef(createAnsiStripper());
 
   const scheduleIdle = useCallback(() => {
     if (idleTimerRef.current !== null) {
@@ -83,7 +85,7 @@ export function usePtyParser(agentId: string) {
   }, []);
 
   return useCallback((chunk: string) => {
-    const text = stripAnsi(chunk);
+    const text = stripRef.current(chunk);
     if (!text.trim()) return;
 
     // Passive context-limit sniffing from /context output (the gauge poll
@@ -115,7 +117,7 @@ export function usePtyParser(agentId: string) {
     if (lastTool) {
       const station = TOOL_TO_STATION[lastTool] ?? 'desk';
       const carrying = TOOLKIND_BY_NAME[lastTool] ?? undefined;
-      // Collapse space runs: translated cursor-forwards (see stripAnsi) can
+      // Collapse space runs: translated cursor-forwards (see ansiText) can
       // stand for several columns, and the bubble shouldn't show the gaps.
       const summary = (lastArg ? `${lastTool.toLowerCase()} ${lastArg}` : lastTool.toLowerCase())
         .replace(/\s+/g, ' ');
