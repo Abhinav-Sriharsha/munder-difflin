@@ -22,7 +22,7 @@ import { PixelPanel } from '@/components/PixelPanel';
 import { PixelButton } from '@/components/PixelButton';
 import { Icon } from '@/components/Icon';
 import { SidebarSplitter } from '@/components/SidebarSplitter';
-import { acquireTerminal } from '@/components/terminalPool';
+import { acquireTerminal, notifyThemeChangeAll } from '@/components/terminalPool';
 import { FullscreenTerminal } from '@/components/FullscreenTerminal';
 import { TaskDetailOverlay } from '@/components/TaskDetailOverlay';
 import { FullscreenFileEditor } from '@/components/FullscreenFileEditor';
@@ -290,6 +290,13 @@ export function App() {
           className="cth-titlebar-nodrag cth-tip"
           onClick={() => {
             const next = toggleAppTheme();
+            // Tell every RUNNING program the theme flipped. xterm repaints its own
+            // cells, but a TUI that painted its panels with explicit colours keeps
+            // them until it redraws, which left OpenCode's boxes in the old palette
+            // until the agent restarted. Only programs that enabled DEC mode 2031
+            // are told, and it is every pooled terminal rather than the visible one,
+            // so a background agent is not stale when you switch to it.
+            notifyThemeChangeAll(next === 'dark' ? 'dark' : 'light');
             // Mirror into the harness config: every agent (re)spawned from now
             // on gets the matching `theme` in its per-session Claude settings,
             // so the TUI's truecolor palette fits the terminal. Scoped to

@@ -55,6 +55,12 @@ export interface TerminalEntry {
   /** A user-opened slash-command picker (for example Codex `/model`) owns the
    * input line. Queue automation waits until the picker closes. */
   automationBlocked: boolean;
+  /** Has the running program enabled DEC private mode 2031, terminal theme-change
+   *  notifications? A TUI that paints its own colours cannot see the app theme
+   *  flip: xterm repaints its own cells, but cells the program coloured
+   *  explicitly keep those colours until the program redraws them. 2031 is how it
+   *  asks to be told, and we only tell the ones that asked. */
+  themeNotify: boolean;
   /** When the picker latch was set — the block expires, see PICKER_BLOCK_MS. */
   automationBlockedAt: number;
   /** True while the user has unsubmitted text in the live TUI prompt. */
@@ -79,6 +85,25 @@ import { parseHexColor, oscColorBody } from './termColor';
 
 type ThemeMap = Record<string, string>;
 
+
+/** Tell a running program the terminal's theme changed.
+ *
+ *  The reply half of DEC mode 2031: `CSI ? 997 ; 1 n` for dark, `; 2 n` for
+ *  light. Sent ONLY to programs that enabled 2031, because a program that did not
+ *  ask would receive this as unsolicited bytes on its input.
+ *
+ *  Without it the app theme and the TUI disagree until the agent restarts:
+ *  xterm's own cells flip, and everything the program painted explicitly does
+ *  not. */
+export function notifyThemeChangeAll(theme: 'light' | 'dark'): void {
+  for (const ptyId of pool.keys()) notifyThemeChange(ptyId, theme);
+}
+
+function notifyThemeChange(ptyId: string, theme: 'light' | 'dark'): void {
+  const entry = pool.get(ptyId);
+  if (!entry || entry.exited || !entry.themeNotify) return;
+  window.cth.writePty(ptyId, `\x1b[?997;${theme === 'dark' ? 1 : 2}n`);
+}
 
 /** Get (or lazily create) the persistent terminal for a pty. Theme/font are
  *  only used at creation; an attaching view re-applies its own afterwards. */
@@ -134,6 +159,7 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
     recovery: createTerminalRecoveryState(),
     needsRendererRepaint: false,
     automationBlocked: false,
+    themeNotify: false,
     automationBlockedAt: 0,
     inputDirty: false,
     inputDirtyAt: 0,
@@ -263,6 +289,20 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
   };
   term.parser.registerOscHandler(10, oscColorReply(10));
   term.parser.registerOscHandler(11, oscColorReply(11));
+
+  // DEC private mode 2031: the program is asking to be told when the terminal's
+  // theme changes. Answering OSC 11 only covers STARTUP; a program that painted
+  // its panels from that answer keeps them until something tells it to repaint,
+  // which is why flipping the app theme left OpenCode's boxes in the old colours.
+  // Return false so xterm still applies the mode itself; we are only listening.
+  term.parser.registerCsiHandler({ prefix: '?', final: 'h' }, (params) => {
+    if (params.includes(2031)) entry.themeNotify = true;
+    return false;
+  });
+  term.parser.registerCsiHandler({ prefix: '?', final: 'l' }, (params) => {
+    if (params.includes(2031)) entry.themeNotify = false;
+    return false;
+  });
 
   // Keystrokes → pty. A small line buffer surfaces the last submitted prompt.
   // It lives on the entry (see TerminalEntry.lineBuf) so every prompt-clearing
