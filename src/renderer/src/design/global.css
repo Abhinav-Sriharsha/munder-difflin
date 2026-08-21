@@ -68,6 +68,21 @@ canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
   outline-offset: 2px;
 }
 
+/* Text inputs — resting border faint, focused border dark and thicker.
+   The resting 1px ink-100 is deliberately quiet so a panel full of boxes stays
+   calm, but that left NOTHING saying which box has the keyboard: these inputs
+   set `outline: none` (the global focus ring above sits OUTSIDE the inset
+   border and reads as detached from it), so the browser's own signal was gone
+   too. Focus now darkens and thickens the inset border instead.
+
+   Inset, so 1px to 2px changes no geometry and the text does not shift when you
+   click into the box. Both :focus and :focus-visible: a textarea you clicked
+   into is exactly as focused as one you tabbed into, and here we WANT the mouse
+   case — it is the one the founder is looking at while typing. */
+.cth-input { box-shadow: inset 0 0 0 1px var(--cth-ink-100); }
+.cth-input:focus,
+.cth-input:focus-visible { box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+
 /* Custom scrollbar — chunky, pixel-feel */
 ::-webkit-scrollbar { width: 12px; height: 12px; }
 ::-webkit-scrollbar-track {

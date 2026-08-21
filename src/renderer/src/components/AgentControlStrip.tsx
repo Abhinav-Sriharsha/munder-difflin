@@ -113,13 +113,14 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
         <input
+          className="cth-input"
           value={steer}
           onChange={(e) => setSteer(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') sendSteer(); }}
           placeholder="send this agent a note… (arrives as context on its next turn, nothing is typed into its terminal)"
           style={{
             flex: 1, padding: '4px 6px', background: 'var(--cth-paper-100)', border: 'none',
-            boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)', fontFamily: 'var(--cth-font-ui)',
+            fontFamily: 'var(--cth-font-ui)',
             fontSize: 12, color: 'var(--cth-ink-900)', outline: 'none'
           }}
         />
