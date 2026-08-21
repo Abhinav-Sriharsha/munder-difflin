@@ -514,8 +514,13 @@ export class HiveManager {
     if (!root) return;
     mkdirSync(join(root, 'agents'), { recursive: true });
 
-    const protocol = join(root, 'PROTOCOL.md');
-    if (!existsSync(protocol)) writeFileSync(protocol, PROTOCOL_MD, 'utf8');
+    // Refreshed each bootstrap, like COMMANDS.md just below. It used to be
+    // written only when absent, which meant a hive created once never saw a
+    // protocol change again: this repo's own hive still carried the file from
+    // the day it was initialised, so every protocol addition since had reached
+    // new hives only. The file is generated, not user-authored, and agents are
+    // pointed at it as the authority, so a stale copy is worse than a rewrite.
+    writeFileSync(join(root, 'PROTOCOL.md'), PROTOCOL_MD, 'utf8');
 
     const registry = join(root, 'registry.json');
     if (!existsSync(registry)) {
