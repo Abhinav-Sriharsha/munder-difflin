@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { PixelButton } from './PixelButton';
+import { AgentHoldButton } from './AgentHoldButton';
 
 /**
  * Operator control for one agent (#7C.1-7C.3) — pause (deny tools at the next
@@ -10,14 +11,17 @@ import { PixelButton } from './PixelButton';
  * The labels used to be "CONTROL", "pause", "halt", "steer", which told you the
  * mechanism and nothing about the consequence. "Control" what, and what is the
  * difference between pausing and halting? Both stop something; only one is
- * recoverable in the same breath. So each button now says what HAPPENS, the
- * heading says what the section governs, and the explanations are on a styled
- * hover tip rather than a native `title` that waits a second and then renders
- * an unstyled OS bubble.
+ * recoverable in the same breath. So each button says what HAPPENS, and the
+ * explanations are on a styled hover tip rather than a native `title` that
+ * waits a second and then renders an unstyled OS bubble.
  *
- * Not in this strip on purpose: the 1:1 hold, which lives next to IDE in the
- * header. Pause and halt stop the AGENT; hold stops MICHAEL sending it work.
- * Grouping them would suggest they are three flavours of the same thing.
+ * The heading is gone: once the buttons read as sentences it was labelling the
+ * obvious, and a row of three clear verbs needs no title above it.
+ *
+ * The 1:1 hold sits here too. It is a different KIND of control — the other two
+ * restrain the AGENT, 1:1 restrains MICHAEL, and the agent keeps running and
+ * answering you — so that distinction now lives in its tooltip rather than in
+ * the layout.
  */
 interface Snapshot {
   paused: boolean;
@@ -71,11 +75,6 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
       borderBottom: '1px solid var(--cth-ink-300)', flexShrink: 0
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span
-          className="cth-tip cth-tip-left cth-tip-wrap"
-          data-tip="What this agent is allowed to do right now, and a way to nudge it mid-run. Nothing here ends the agent or loses its session."
-          style={{ fontFamily: 'var(--cth-font-display)', fontSize: 9, color: 'var(--cth-ink-500)', marginRight: 2, cursor: 'help' }}
-        >WHAT THIS AGENT CAN DO</span>
         {/* Neither of these kills anything, and the old two-word labels never
             said so — the difference is WHEN the agent stops and whether it keeps
             its session. Say the consequence on the button, the detail on hover. */}
@@ -99,6 +98,11 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
             stop after this step
           </span>
         </PixelButton>
+        {/* Sits with them at the founder's call. It is a different KIND of
+            control — the two above restrain the agent, this one restrains
+            Michael — so the tooltip carries that distinction now that the
+            grouping no longer does. */}
+        <AgentHoldButton agentId={agentId} />
         {/* v0.3.4: the auto-delivery switch moved to the god's Command Center
             header — ONE floor-wide control instead of a per-agent toggle. */}
         {snap?.autoDeliveryPaused && (

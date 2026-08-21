@@ -4,18 +4,19 @@ import { Icon } from './Icon';
 import { useStore } from '@/store/store';
 
 /**
- * 1:1 HOLD — "I have this agent, Michael stop sending it work."
+ * 1:1 — "I have this agent, Michael stop sending it work."
  *
- * Sits immediately left of the IDE button on BOTH agent surfaces (the sidebar
- * detail panel and the focus-mode header) because focus mode covers the title
- * bar, so a title-bar control simply vanishes in the mode where you are most
- * likely to be working with one agent one-on-one.
+ * Lives in `AgentControlStrip` beside "block tools" and "stop after this step",
+ * so it is present in both sidebar and focus mode. It was briefly in the title
+ * bar, which focus mode covers, making it invisible in the one mode you are
+ * most likely to be in during a 1:1.
  *
- * Distinct from the pause and halt controls below the header, and the tooltip
- * says so, because the three look interchangeable and are not: pause and halt
- * stop the AGENT (deny its tools, or stop it after this step), while hold stops
- * MICHAEL (the agent keeps running and answering you). Halt in particular is
- * the wrong tool for a 1:1 — it stops the agent you wanted to talk to.
+ * It is a different KIND of control from the two it sits with, and the tooltip
+ * carries that since the grouping no longer does: those two restrain the AGENT
+ * (take its tools, or stop it after this step), while this one restrains
+ * MICHAEL. The agent keeps running and keeps answering you. "Stop after this
+ * step" is in fact the worst thing to reach for in a 1:1, because it stops the
+ * agent you wanted to talk to.
  *
  * Never rendered for Michael himself: telling the orchestrator to stop routing
  * work to itself is not a state worth having.
@@ -58,12 +59,12 @@ export function AgentHoldButton({ agentId }: { agentId: string }) {
       <span
         className="cth-tip cth-tip-wrap"
         data-tip={on
-          ? `Release ${agent.name}. Michael can hand them work again.`
-          : `Hold ${agent.name} for a 1:1. Michael stops sending them work until you release. They keep running and answering you — this is not pause or halt.`}
-        aria-label={on ? 'Release this agent to Michael' : 'Hold this agent for a 1:1'}
+          ? `End the 1:1. Michael can hand ${agent.name} work again.`
+          : `Take ${agent.name} aside. Michael stops sending them work until you end it. Unlike the two buttons here, this does not restrain the agent: they keep running and keep answering you.`}
+        aria-label={on ? 'End the 1:1 and release this agent to Michael' : 'Take this agent aside for a 1:1'}
         style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
       >
-        <Icon name={on ? 'pause' : 'play'} /> {on ? 'on hold' : 'hold'}
+        <Icon name={on ? 'pause' : 'play'} /> {on ? 'in 1:1' : '1:1'}
       </span>
     </PixelButton>
   );
