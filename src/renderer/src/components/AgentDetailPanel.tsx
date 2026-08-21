@@ -123,13 +123,15 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
             }}>{agent.project}</span>
           </div>
         </div>
-        <PixelButton
-          variant="secondary"
-          size="sm"
-          onClick={() => setEditOpen(true)}
-          title="Edit identity, engine, and briefing"
-        >
-          edit
+        <PixelButton variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
+          <span
+            className="cth-tip cth-tip-wrap"
+            data-tip={`Edit ${agent.name}: their name and face, which engine they run on, and the briefing that tells them what they are for.`}
+            aria-label="Edit this agent"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
+            <Icon name="pencil" /> edit
+          </span>
         </PixelButton>
         {/* v0.3.4: the IDE lives at agent level (replaces the old files tab) —
             opens the full-window Monaco editor rooted at this agent's workspace. */}

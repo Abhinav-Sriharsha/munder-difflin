@@ -7,7 +7,7 @@ export type IconName =
   | 'gear' | 'plus' | 'x' | 'check' | 'arrow-right' | 'pause' | 'play'
   | 'bell' | 'folder' | 'terminal' | 'code' | 'web' | 'mcp' | 'sparkle'
   | 'expand' | 'minimize' | 'clock' | 'mic' | 'ledger' | 'info' | 'sidebar'
-  | 'image';
+  | 'image' | 'pencil';
 
 interface IconDef {
   ink: string;     // primary color path d
@@ -38,6 +38,14 @@ const paths: Record<IconName, IconDef> = {
   'arrow-right': {
     accentColor: 'var(--cth-sky)',
     ink:   'M8 3h2v2h2v2h2v2h-2v2h-2v2H8v-2h2V9H2V7h8V5H8V3z'
+  },
+  // Pencil on the 16x16 pixel grid: a diagonal body from top-right down to
+  // bottom-left, a lighter nib at the tip. Drawn as stair-steps rather than a
+  // smooth diagonal so it matches the rest of the set at 16px instead of
+  // rendering as an anti-aliased smudge beside them.
+  pencil: {
+    accentColor: 'var(--cth-lemon)',
+    ink:   'M11 1h2v2h1v2h-2V3h-1V1zM9 3h2v2h1v2h-2V5H9V3zM7 5h2v2h1v2H8V7H7V5zM5 7h2v2h1v2H6V9H5V7zM3 9h2v2h1v2H4v-2H3V9zM1 11h2v2h1v2H1v-4z'
   },
   pause: {
     accentColor: 'var(--cth-lemon)',
