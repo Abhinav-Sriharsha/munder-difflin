@@ -16,7 +16,7 @@ import { useStore, type Agent } from '@/store/store';
 import { usePtyParser } from '@/hooks/usePtyParser';
 import { useRestoreTeam } from '@/hooks/useRestoreTeam';
 import { useTerminalFontSize } from './terminalFontSize';
-import { useHasTerminalDraft, disposeTerminal } from './terminalPool';
+import { useHasTerminalDraft, disposeTerminal, reflowTerminal } from './terminalPool';
 import { useAppTheme, toggleAppTheme } from '@/design/theme';
 import type { HarnessConfig } from '@/store/config';
 
@@ -223,6 +223,21 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
     return { gods: godList, groups: [...byRepo.entries()] };
     // repoVersion: rebucket once the async main-repo lookups land.
   }, [agents, repoVersion]);
+
+  // Focus mode: adding (or removing) an agent changes the layout around the
+  // focused terminal, but nothing re-fits it, so the grid stays wrong until the
+  // user switches agent and back (a remount, hence a fresh fit). Re-fit on
+  // every roster change. reflowTerminal only pokes the pty when cols/rows
+  // actually moved and never scrolls, so a no-op roster change costs nothing.
+  // Two passes: one after layout settles, one after the roster row has painted.
+  const rosterKey = agents.map(a => a.id).join('\n');
+  const focusedPtyId = agent?.ptyId;
+  useEffect(() => {
+    if (!focusedPtyId) return;
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => reflowTerminal(focusedPtyId)));
+    const late = setTimeout(() => reflowTerminal(focusedPtyId), 240);
+    return () => { cancelAnimationFrame(raf); clearTimeout(late); };
+  }, [rosterKey, focusedPtyId]);
 
   // Esc exits fullscreen
   useEffect(() => {
