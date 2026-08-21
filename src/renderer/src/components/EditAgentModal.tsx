@@ -101,12 +101,24 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
         zIndex: 500
       }}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 520, maxWidth: '94vw' }}>
+      {/* Same box as Add Agent (940 / 95vw / 86vh). They are the two halves of
+          one job — describe an agent — and a tall narrow dialog next to a wide
+          one reads as two unrelated screens. */}
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 940, maxWidth: '95vw' }}>
         <PixelPanel variant="dialog" title="EDIT AGENT" style={{ padding: 16 }} noPadding>
           <div style={{
             display: 'flex', flexDirection: 'column', gap: 14,
-            padding: 16, maxHeight: '82vh', overflowY: 'auto'
+            padding: 16, maxHeight: '86vh', overflowY: 'auto'
           }}>
+            {/* Two columns so the extra width is used rather than padded.
+                Identity and Engine are short field lists; Briefing is free
+                text and takes the taller side. minHeight keeps the dialog from
+                collapsing into a wide thin strip on a small form. */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 16, alignItems: 'start', minHeight: 260
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
             <Section label="Identity" hint="name · character · color">
               <Row label="Name">
                 <input
@@ -243,6 +255,8 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
               </span>
             </Section>
 
+              </div>
+              <div style={{ minWidth: 0 }}>
             <Section label="Briefing" hint="description · goal">
               <Row label="Description">
                 <input
@@ -259,10 +273,12 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
                   onChange={(e) => setGoal(e.target.value)}
                   placeholder="long-running directive injected on every prompt"
                   rows={4}
-                  style={{ ...inputStyle, fontFamily: 'var(--cth-font-ui)', resize: 'vertical', minHeight: 72 }}
+                  style={{ ...inputStyle, fontFamily: 'var(--cth-font-ui)', resize: 'vertical', minHeight: 200 }}
                 />
               </Row>
             </Section>
+              </div>
+            </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
               <PixelButton variant="ghost" size="md" onClick={onClose}>cancel</PixelButton>

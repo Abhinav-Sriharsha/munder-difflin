@@ -39,13 +39,15 @@ const paths: Record<IconName, IconDef> = {
     accentColor: 'var(--cth-sky)',
     ink:   'M8 3h2v2h2v2h2v2h-2v2h-2v2H8v-2h2V9H2V7h8V5H8V3z'
   },
-  // Pencil on the 16x16 pixel grid: a diagonal body from top-right down to
-  // bottom-left, a lighter nib at the tip. Drawn as stair-steps rather than a
-  // smooth diagonal so it matches the rest of the set at 16px instead of
-  // rendering as an anti-aliased smudge beside them.
+  // Pencil, drawn as solid 45-degree rows on the 16x16 grid: flat eraser end
+  // top-right, tapering to a point bottom-left, with the graphite tip as the
+  // accent. The first attempt was a thin stair-step outline, which at 16px read
+  // as a broken zigzag rather than an object — this set is chunky (see `x` and
+  // `check`), so the pencil has to be a solid mass too.
   pencil: {
     accentColor: 'var(--cth-lemon)',
-    ink:   'M11 1h2v2h1v2h-2V3h-1V1zM9 3h2v2h1v2h-2V5H9V3zM7 5h2v2h1v2H8V7H7V5zM5 7h2v2h1v2H6V9H5V7zM3 9h2v2h1v2H4v-2H3V9zM1 11h2v2h1v2H1v-4z'
+    ink:   'M10 1h5v1h-5zM9 2h6v1h-6zM8 3h6v1h-6zM7 4h6v1h-6zM6 5h6v1h-6zM5 6h6v1h-6zM4 7h6v1h-6zM3 8h6v1h-6zM2 9h6v1h-6zM2 10h5v1h-5z',
+    accent: 'M2 11h4v1h-4zM2 12h3v1h-3zM2 13h2v1h-2zM2 14h1v1h-1z'
   },
   pause: {
     accentColor: 'var(--cth-lemon)',
