@@ -218,6 +218,20 @@ export function App() {
     return () => { cancelled = true; };
   }, [config?.onboardingComplete]);
 
+  // Re-apply the persisted focus-mode preference as the roster fills in.
+  //
+  // Not a one-shot at store construction: at launch every restored agent still
+  // carries the PREVIOUS session's PTY id, so the reconcile above prunes the lot
+  // and correctly drops focus mode to null before god has respawned. The
+  // preference therefore has to be re-checked once agents with live terminals
+  // actually exist. `restoreFocusMode` is a no-op unless the preference is on and
+  // focus mode is currently off, so re-running it on every roster change is safe
+  // and pressing Esc stays sticky.
+  useEffect(() => {
+    if (!config?.onboardingComplete) return;
+    useStore.getState().restoreFocusMode();
+  }, [config?.onboardingComplete, agents]);
+
   // Track viewport width for splitter clamping
   useEffect(() => {
     const onResize = () => setVpWidth(window.innerWidth);

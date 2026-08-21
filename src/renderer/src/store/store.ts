@@ -16,7 +16,7 @@ import { DEFAULT_ORG_TRIGGER, type OrgTriggerConfig, type WebhookTrigger } from 
 import { isCompactionCommand } from '@shared/providerAutomation';
 import { preferredAgentRole } from '@shared/agentRole';
 import { isInboxNudge } from '@shared/hiveNudge';
-import { refocusAfterRemoval, focusOnLoad } from './focusMode';
+import { refocusAfterRemoval, focusOnLoad, restoreFocus } from './focusMode';
 
 export type ToolKind =
   | 'Read' | 'Edit' | 'Write' | 'Bash' | 'WebFetch' | 'WebSearch'
@@ -171,6 +171,10 @@ interface State {
   feeds: Record<string, string[]>;
   addAgentOpen: boolean;
   fullscreenAgentId: string | null;
+  /** Does the user work in focus mode by default? Persisted as a boolean, and
+   *  written ONLY by an explicit toggle. Kept in the store rather than read once
+   *  at construction because the roster arrives after the store does. */
+  prefersFocusMode: boolean;
   fullscreenFilePath: string | null;
   /** How the fullscreen file overlay renders (v0.3.4): raw editor or rendered
    *  markdown preview. Preview is the default when opened from a terminal link. */
@@ -302,6 +306,12 @@ interface State {
   finishPendingHire: () => void;
   clearPendingHires: () => void;
   setFullscreen: (id: string | null) => void;
+  /** Move focus mode WITHOUT touching the preference. For the paths that re-home
+   *  a focused agent that went away: the app is following the user, not being
+   *  told what the user wants. `setFullscreen` is the explicit toggle. */
+  refocusFullscreen: (id: string | null) => void;
+  /** Re-apply the persisted preference now that the roster has changed. */
+  restoreFocusMode: () => void;
   setFullscreenFile: (path: string | null, view?: 'edit' | 'preview') => void;
   /** Open/close the IDE. `agentId` names the agent whose workspace it should
    *  show; omit it only when the caller truly has no specific agent (the IDE
@@ -633,6 +643,7 @@ export const useStore = create<State>((set) => ({
   requestCommandCenterTab: (tab) =>
     set((s) => ({ ccTabRequest: { tab, seq: (s.ccTabRequest?.seq ?? 0) + 1 } })),
   fullscreenAgentId: focusOnLoad(initialPrefersFocusMode, initialSelectedId),
+  prefersFocusMode: initialPrefersFocusMode,
   fullscreenFilePath: null,
   fullscreenFileView: 'edit',
   ideInitialFile: null,
@@ -950,10 +961,17 @@ export const useStore = create<State>((set) => ({
   setFullscreen: (id) => {
     // Entering focus mode makes it the default view; leaving it clears that.
     // Only an explicit toggle writes the preference, so an agent closing under
-    // you never silently changes how the app opens next time.
+    // you never silently changes how the app opens next time. Every non-explicit
+    // mover goes through `refocusFullscreen` instead.
     try { window.localStorage.setItem(LS_FOCUS_MODE, id ? '1' : '0'); } catch { /* noop */ }
-    set({ fullscreenAgentId: id });
+    set({ fullscreenAgentId: id, prefersFocusMode: !!id });
   },
+  refocusFullscreen: (id) => set({ fullscreenAgentId: id }),
+  restoreFocusMode: () =>
+    set((s) => {
+      const id = restoreFocus(s.prefersFocusMode, s.fullscreenAgentId, s.agents, s.selectedId);
+      return id === s.fullscreenAgentId ? s : { fullscreenAgentId: id };
+    }),
   setFullscreenFile: (path, view) => set({ fullscreenFilePath: path, fullscreenFileView: view ?? 'edit' }),
   // Closing CLEARS the target: the id is scoped to one IDE session, and a stale
   // one left behind would silently win over the selection on the next open from

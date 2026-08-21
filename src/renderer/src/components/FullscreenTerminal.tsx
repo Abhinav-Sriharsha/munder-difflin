@@ -258,11 +258,16 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
   // agent rather than dropping the user out; leave only when nothing is left.
   // In an effect, not in render: setState during render is a React anti-pattern,
   // and hard-nulling here defeated the store's re-homing the same way onKill did.
+  // `refocusFullscreen`, NOT `setFullscreen`: this is the app following the user,
+  // not the user telling the app what they want. Going through the explicit
+  // toggle here wrote `prefersFocusMode = false` every time an agent went away,
+  // which is the same "fix the store, then overwrite it from a call site" trap
+  // that broke closing an agent in focus mode.
   useEffect(() => {
     if (agent && agent.ptyId) return;
     const s = useStore.getState();
     const next = s.agents.find((a) => a.id !== agent?.id && a.ptyId);
-    s.setFullscreen(next?.id ?? null);
+    s.refocusFullscreen(next?.id ?? null);
   }, [agent]);
 
   if (!agent || !agent.ptyId) return null;

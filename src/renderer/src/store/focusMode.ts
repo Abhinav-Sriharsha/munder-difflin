@@ -10,6 +10,9 @@
 /** The subset of an agent these rules need. */
 export interface FocusCandidate {
   id: string;
+  /** Present once the agent has a terminal. Absent for synthetic agents and for
+   *  a persisted agent whose PTY has not been re-established yet. */
+  ptyId?: string;
 }
 
 /**
@@ -52,4 +55,38 @@ export function focusOnLoad(
   selectedId: string | null
 ): string | null {
   return prefersFocusMode ? selectedId : null;
+}
+
+/**
+ * Re-enter focus mode once there is something to focus on.
+ *
+ * `focusOnLoad` alone was not enough and the reason is a startup ordering one.
+ * The store resolves the preference ONCE, while it is being constructed, against
+ * the roster read from disk. Every agent in that roster still carries the PTY id
+ * it had in the PREVIOUS session, and none of those PTYs exist yet, so the first
+ * `reconcileWithLivePtys` correctly prunes the lot and `refocusAfterRemoval`
+ * correctly returns null. By the time god respawns with a live terminal the
+ * preference has already been read and discarded, so the app opens in the
+ * sidebar with `cth.prefersFocusMode` still set to 1.
+ *
+ * So the preference has to be re-checked whenever the roster changes, not once
+ * at construction.
+ *
+ * Restores only onto an agent that HAS a terminal. `FullscreenTerminal` renders
+ * nothing without one and its own re-home effect would immediately bounce us
+ * back out, which is a loop rather than a restore.
+ *
+ * Returns the current value unchanged when there is nothing to do, so callers
+ * can compare by identity and skip the state write.
+ */
+export function restoreFocus(
+  prefersFocusMode: boolean,
+  fullscreenAgentId: string | null,
+  agents: FocusCandidate[],
+  selectedId: string | null
+): string | null {
+  if (!prefersFocusMode) return fullscreenAgentId;
+  if (fullscreenAgentId) return fullscreenAgentId;
+  const selected = agents.find((a) => a.id === selectedId && a.ptyId);
+  return selected?.id ?? agents.find((a) => a.ptyId)?.id ?? null;
 }
