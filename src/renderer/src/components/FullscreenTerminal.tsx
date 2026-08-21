@@ -254,11 +254,18 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [addAgentOpen, setFullscreen]);
 
-  if (!agent || !agent.ptyId) {
-    // Bail out — no real agent to show
-    setFullscreen(null);
-    return null;
-  }
+  // Focus mode is pointing at something we cannot render. Re-home to another live
+  // agent rather than dropping the user out; leave only when nothing is left.
+  // In an effect, not in render: setState during render is a React anti-pattern,
+  // and hard-nulling here defeated the store's re-homing the same way onKill did.
+  useEffect(() => {
+    if (agent && agent.ptyId) return;
+    const s = useStore.getState();
+    const next = s.agents.find((a) => a.id !== agent?.id && a.ptyId);
+    s.setFullscreen(next?.id ?? null);
+  }, [agent]);
+
+  if (!agent || !agent.ptyId) return null;
 
   // No kill button here on purpose. Killing an agent is a destructive action
   // that belongs with the rest of its lifecycle controls in the docked panel;
@@ -913,8 +920,11 @@ function Header({ agent }: { agent: Agent }) {
     if (!confirm(`Close ${agent.name}? The PTY process will terminate and the agent is archived (kept in history, off the floor).`)) return;
     await window.cth.killPty(agent.ptyId);
     disposeTerminal(agent.ptyId);
+    // archiveAgent re-homes focus mode to the next agent, and only leaves it when
+    // the last one is gone. Hard-nulling here threw that away, which is why
+    // closing an agent from inside focus mode still dropped you to the sidebar
+    // even after the store was fixed.
     archiveAgent(agent.id);
-    useStore.getState().setFullscreen(null);
   };
 
   return (

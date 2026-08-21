@@ -1150,18 +1150,16 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              {orchSpawnOn
-                                ? 'Michael may hire agents on his own'
-                                : 'Only you hire agents'}
+                              Who can add agents
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Every agent Michael starts spends tokens you did not approve, so this is
-                              off unless you turn it on. Requests he makes while it is off wait in the
-                              queue rather than failing.
+                              {orchSpawnOn
+                                ? 'Michael can hire on his own. Every agent he starts spends tokens you did not approve.'
+                                : 'Only you. Michael can still ask, and his request waits in the queue instead of failing.'}
                             </span>
                           </div>
                           <PixelButton variant={orchSpawnOn ? 'primary' : 'secondary'} size="sm" onClick={toggleOrchSpawn}>
-                            {orchSpawnOn ? 'allowed' : 'off'}
+                            {orchSpawnOn ? 'me and Michael' : 'only me'}
                           </PixelButton>
                         </div>
                       </div>
