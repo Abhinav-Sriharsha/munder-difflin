@@ -7,6 +7,7 @@ import { terminalInstanceKey } from './terminalRecovery';
 import { MessageQueueComposer } from './MessageQueueComposer';
 import { AgentControlStrip } from './AgentControlStrip';
 import { CommandCenterPanel } from './CommandCenterPanel';
+import { EditAgentModal } from './EditAgentModal';
 import { Icon } from './Icon';
 import { SpritePortrait } from './SpritePortrait';
 import { PORTRAIT_W } from '@/scene/office/portraitArt';
@@ -152,6 +153,9 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
   const select = useStore(s => s.select);
   const setAddAgentOpen = useStore(s => s.setAddAgentOpen);
   const addAgentOpen = useStore(s => s.addAgentOpen);
+  // Owned HERE, not in Header, purely so the Esc handler below can see it:
+  // Esc closing the dialog must not also throw you out of focus mode.
+  const [editAgentOpen, setEditAgentOpen] = useState(false);
   const setAgentNote = useStore(s => s.setAgentNote);
   const updateAgent = useStore(s => s.updateAgent);
   // The floor strip (and with it the restore button) is hidden behind the
@@ -245,14 +249,14 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
       if (e.key === 'Escape') {
         // A modal above fullscreen owns the interaction until it closes. Without
         // this guard, Esc from the Add Agent form unexpectedly exits fullscreen.
-        if (addAgentOpen) return;
+        if (addAgentOpen || editAgentOpen) return;
         e.preventDefault();
         setFullscreen(null);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [addAgentOpen, setFullscreen]);
+  }, [addAgentOpen, editAgentOpen, setFullscreen]);
 
   // Focus mode is pointing at something we cannot render. Re-home to another live
   // agent rather than dropping the user out; leave only when nothing is left.
@@ -569,7 +573,10 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
             </div>
           ) : (
             <>
-              <Header agent={agent} />
+              <Header agent={agent} onEdit={() => setEditAgentOpen(true)} />
+              {editAgentOpen && (
+                <EditAgentModal agent={agent} onClose={() => setEditAgentOpen(false)} />
+              )}
 
               {/* #7C — pause / halt / steer. These only existed in the docked
                   sidebar, so going fullscreen took the operator controls away. */}
@@ -904,7 +911,7 @@ function SidebarRow({
   );
 }
 
-function Header({ agent }: { agent: Agent }) {
+function Header({ agent, onEdit }: { agent: Agent; onEdit: () => void }) {
   const typing = useHasTerminalDraft(agent.ptyId);
   const archiveAgent = useStore((st) => st.archiveAgent);
   const [openState, setOpenState] = useState<'idle' | 'opening' | 'ok' | 'error'>('idle');
@@ -947,6 +954,23 @@ function Header({ agent }: { agent: Agent }) {
         fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '16px',
         color: 'var(--cth-ink-900)'
       }}>{agent.name.toUpperCase()}</span>
+      {/* Edit belongs with the NAME, not with the action cluster on the right:
+          it changes who this agent is, and the right-hand group is things you do
+          with the agent. Icon-only because it sits inside the identity line —
+          the word "edit" there would push the path off. God is excluded, as
+          everywhere else: his identity is the hive's, not the roster's. */}
+      {!agent.isGod && (
+        <PixelButton variant="secondary" size="sm" onClick={onEdit}>
+          <span
+            className="cth-tip cth-tip-left cth-tip-wrap"
+            data-tip={`Edit ${agent.name}: their name and face, which engine they run on, and the briefing that tells them what they are for.`}
+            aria-label={`Edit ${agent.name}`}
+            style={{ display: 'inline-flex', alignItems: 'center', lineHeight: 0 }}
+          >
+            <Icon name="edit" />
+          </span>
+        </PixelButton>
+      )}
       <span style={{
         fontSize: 12, color: 'var(--cth-ink-500)',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
