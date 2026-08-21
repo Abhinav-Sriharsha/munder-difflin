@@ -152,6 +152,22 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
     (OFFICE_CAST.some(m => m.name === c) ? (c as OfficeCharacterName) : DEFAULT_CHARACTER);
   const knownAccent = (a?: string): AccentColorName =>
     (ACCENTS.includes(a as AccentColorName) ? (a as AccentColorName) : 'sky');
+  /** The cast member a typed name refers to, if any.
+   *
+   *  The character tiles already set the name (clicking Meredith names the agent
+   *  Meredith), but the coupling ran ONE WAY, so typing "Meredith" left the
+   *  avatar on whatever was selected, in practice the Jim default. Same missing
+   *  default as issue #191 from the other direction, where a manifest that omits
+   *  `character` always lands on Jim.
+   *
+   *  Returns null on no match, and the caller leaves the avatar alone, so a
+   *  deliberate pick is never overwritten by continuing to type. */
+  const characterForName = (n: string): OfficeCharacterName | null => {
+    const q = n.trim().toLowerCase();
+    if (!q) return null;
+    const hit = OFFICE_CAST.find(c => c.displayName.toLowerCase() === q || c.name === q);
+    return hit ? hit.name : null;
+  };
   /** The locally-built spawn command for a manifest: provider preset + model
    *  from the LOCAL config builder, with the manifest's validated flags
    *  appended. A manifest can never name the binary itself. */
@@ -287,6 +303,21 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
     } catch { /* best-effort persist */ }
   };
 
+  /** Drop `path` from the project quick-picks.
+   *
+   *  Removes it from the LISTING only. The folder on disk is never touched, which
+   *  is the whole point: a project you are done with should stop cluttering the
+   *  picker without anything being deleted. */
+  const unregisterProject = async (path: string) => {
+    const next = repos.filter((r) => r !== path);
+    setRepos(next);
+    try {
+      const updated = await window.cth.updateConfig({ registeredRepos: next });
+      setRepos(updated.registeredRepos ?? next);
+      onConfigChange?.(updated);
+    } catch { /* best-effort persist */ }
+  };
+
   /** Pick a brand-new folder and register it as a project in one step. */
   const addProject = async () => {
     setError(undefined);
@@ -301,7 +332,9 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
   const applyManifest = (m: HireManifest) => {
     setHireMeta(m);
     setName(m.name);
-    setCharacter(knownCharacter(m.character));
+    // A manifest that names an agent but omits `character` should get the
+    // matching avatar rather than the Jim default (issue #191).
+    setCharacter(m.character ? knownCharacter(m.character) : (characterForName(m.name ?? '') ?? knownCharacter(undefined)));
     setAccent(knownAccent(m.accent));
     setProvider(m.provider ?? initialProvider);
     setModel(m.model);
@@ -404,13 +437,20 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
     // spawned into — record THAT, so this agent's cwd matches the hive registry
     // (and survives a restart, where nothing re-expands it).
     const spawnedCwd = spawnRes.cwd || cwd;
+    // With git isolation the agent RUNS in its own worktree, but its PROJECT is
+    // still the folder the user picked. Labelling the agent with the worktree's
+    // name was the visible half; the damaging half was promoting that worktree
+    // into registeredRepos below, which turned the project quick-picks into a
+    // list of throwaway worktrees. Mirrors the `isolate` sent to main, which is
+    // forced off while resuming.
+    const projectCwd = (!resuming && isolate) ? cwd.trim() : spawnedCwd;
     const agent: Agent = {
       id,
       name: name.trim(),
       character,
       accent,
       description: description.trim() || 'a fresh harness',
-      project: basename(spawnedCwd),
+      project: basename(projectCwd),
       tmuxTarget: '',
       cwd: spawnedCwd,
       goal: goal.trim() || undefined,
@@ -434,8 +474,8 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
     // Remember the folder for the next hire: promote it to the front of the
     // registeredRepos quick-picks (the modal's default cwd) so back-to-back
     // hires land in the same project without re-picking.
-    if (spawnedCwd && repos[0] !== spawnedCwd) {
-      const nextRepos = [spawnedCwd, ...repos.filter((r) => r !== spawnedCwd && r !== cwd)];
+    if (projectCwd && repos[0] !== projectCwd) {
+      const nextRepos = [projectCwd, ...repos.filter((r) => r !== projectCwd && r !== cwd)];
       try {
         const updated = await window.cth.updateConfig({ registeredRepos: nextRepos });
         onConfigChange?.(updated);
@@ -626,7 +666,12 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                     <Row label="Name">
                       <input
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setName(next);
+                          const match = characterForName(next);
+                          if (match) setCharacter(match);
+                        }}
                         placeholder="Ada"
                         style={inputStyle}
                       />
@@ -705,24 +750,53 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                       {repos.length > 0 && (
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
                           {repos.map((r) => (
-                            <button
+                            /* Two buttons per chip: pick the project, or drop it
+                               from this list. Nested in a span rather than one
+                               button so the remove control is not a button inside
+                               a button. */
+                            <span
                               key={r}
-                              onClick={() => setCwd(r)}
-                              title={r}
                               style={{
-                                padding: '3px 8px 1px',
+                                display: 'inline-flex',
+                                alignItems: 'stretch',
                                 background: cwd === r ? `var(--cth-${accent}-light)` : 'var(--cth-cream-100)',
                                 boxShadow: cwd === r
                                   ? 'inset 0 0 0 1.5px var(--cth-ink-500)'
-                                  : 'inset 0 0 0 1px var(--cth-ink-100)',
-                                fontFamily: 'var(--cth-font-ui)',
-                                fontSize: 12,
-                                cursor: 'pointer',
-                                border: 'none'
+                                  : 'inset 0 0 0 1px var(--cth-ink-100)'
                               }}
                             >
-                              {basename(r)}
-                            </button>
+                              <button
+                                onClick={() => setCwd(r)}
+                                title={r}
+                                style={{
+                                  padding: '3px 4px 1px 8px',
+                                  background: 'transparent',
+                                  fontFamily: 'var(--cth-font-ui)',
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  border: 'none'
+                                }}
+                              >
+                                {basename(r)}
+                              </button>
+                              <button
+                                onClick={() => unregisterProject(r)}
+                                title={`Remove ${basename(r)} from this list. The folder itself is left alone.`}
+                                aria-label={`Remove ${basename(r)} from the project list`}
+                                style={{
+                                  padding: '3px 6px 1px 2px',
+                                  background: 'transparent',
+                                  fontFamily: 'var(--cth-font-ui)',
+                                  fontSize: 12,
+                                  lineHeight: 1,
+                                  color: 'var(--cth-ink-500)',
+                                  cursor: 'pointer',
+                                  border: 'none'
+                                }}
+                              >
+                                ×
+                              </button>
+                            </span>
                           ))}
                         </div>
                       )}
