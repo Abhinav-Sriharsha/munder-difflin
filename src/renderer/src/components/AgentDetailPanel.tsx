@@ -130,7 +130,7 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
             aria-label="Edit this agent"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
           >
-            <Icon name="pencil" /> edit
+            <Icon name="edit" /> edit
           </span>
         </PixelButton>
         {/* v0.3.4: the IDE lives at agent level (replaces the old files tab) —

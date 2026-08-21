@@ -7,7 +7,7 @@ export type IconName =
   | 'gear' | 'plus' | 'x' | 'check' | 'arrow-right' | 'pause' | 'play'
   | 'bell' | 'folder' | 'terminal' | 'code' | 'web' | 'mcp' | 'sparkle'
   | 'expand' | 'minimize' | 'clock' | 'mic' | 'ledger' | 'info' | 'sidebar'
-  | 'image' | 'pencil';
+  | 'image' | 'edit';
 
 interface IconDef {
   ink: string;     // primary color path d
@@ -39,15 +39,13 @@ const paths: Record<IconName, IconDef> = {
     accentColor: 'var(--cth-sky)',
     ink:   'M8 3h2v2h2v2h2v2h-2v2h-2v2H8v-2h2V9H2V7h8V5H8V3z'
   },
-  // Pencil, drawn as solid 45-degree rows on the 16x16 grid: flat eraser end
-  // top-right, tapering to a point bottom-left, with the graphite tip as the
-  // accent. The first attempt was a thin stair-step outline, which at 16px read
-  // as a broken zigzag rather than an object — this set is chunky (see `x` and
-  // `check`), so the pencil has to be a solid mass too.
-  pencil: {
-    accentColor: 'var(--cth-lemon)',
-    ink:   'M10 1h5v1h-5zM9 2h6v1h-6zM8 3h6v1h-6zM7 4h6v1h-6zM6 5h6v1h-6zM5 6h6v1h-6zM4 7h6v1h-6zM3 8h6v1h-6zM2 9h6v1h-6zM2 10h5v1h-5z',
-    accent: 'M2 11h4v1h-4zM2 12h3v1h-3zM2 13h2v1h-2zM2 14h1v1h-1z'
+  // Notebook + pen. Two earlier tries were solid pixel-art pencils and both read
+  // as a blob at 16px; this sits next to `code` and `terminal` in the same row,
+  // so it is drawn the way they are — hairline outlines, one colour, two whole
+  // objects with a clear gap between them rather than one overlapping the other.
+  edit: {
+    accentColor: 'var(--cth-lilac)',
+    ink:   'M13 1h1v1h-1zM12 2h1v1h-1zM14 2h1v1h-1zM11 3h1v1h-1zM15 3h1v1h-1zM10 4h1v1h-1zM14 4h1v1h-1zM1 5h8v1h-8zM10 5h2v1h-2zM13 5h1v1h-1zM1 6h1v1h-1zM8 6h1v1h-1zM10 6h3v1h-3zM1 7h1v1h-1zM8 7h1v1h-1zM1 8h1v1h-1zM3 8h4v1h-4zM8 8h1v1h-1zM1 9h1v1h-1zM8 9h1v1h-1zM1 10h1v1h-1zM3 10h4v1h-4zM8 10h1v1h-1zM1 11h1v1h-1zM8 11h1v1h-1zM1 12h1v1h-1zM3 12h4v1h-4zM8 12h1v1h-1zM1 13h1v1h-1zM8 13h1v1h-1zM1 14h8v1h-8z'
   },
   pause: {
     accentColor: 'var(--cth-lemon)',
