@@ -313,6 +313,13 @@ Contributions are welcome — this is an early prototype with a lot of surface a
 `npm run typecheck` green, and **derive any new UI from [`DESIGN.md`](./DESIGN.md) tokens**. Good
 first areas: wiring real hook events, the add-agent flow, the config drawer, and cross-platform work.
 
+> [!IMPORTANT]
+> **Every pull request must show a before and an after** — screenshots, or a recording when the
+> thing moves — under the `### Before` and `### After` headings in the PR template. This is checked
+> automatically and a PR without it does not merge. "My change has no UI" is not an exemption; it
+> just changes what the evidence looks like. See
+> [Evidence is mandatory](./CONTRIBUTING.md#evidence-is-mandatory).
+
 Questions, bugs, or want to show off your office? Join the Discord: **<https://discord.gg/SEDzP5ZPk5>**. Add your Discord handle to a PR and you'll get the `employee of the month` role when it merges.
 
 ## Telemetry
