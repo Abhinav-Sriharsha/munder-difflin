@@ -23,7 +23,7 @@ visualized as avatars at work on a shared office floor.
 
 <p>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
-  <a href="./CHANGELOG.md"><img alt="Version: 0.4.4" src="https://img.shields.io/badge/version-0.4.4-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
+  <a href="./CHANGELOG.md"><img alt="Version: 0.4.5" src="https://img.shields.io/badge/version-0.4.5-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
   <img alt="Status: prototype" src="https://img.shields.io/badge/status-working%20prototype-F4F1EA.svg?style=flat-square&labelColor=6E1423">
   <img alt="Platform: macOS | Windows | Linux" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-F4F1EA.svg?style=flat-square&labelColor=6E1423">
   <a href="./CONTRIBUTING.md"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
@@ -144,17 +144,21 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 - **Slack & webhooks** — message a channel or POST a webhook; Michael can spawn an ephemeral worker, reply in-thread, and tear it down.
 - **Shareable hires + Agent Gallery** — import a role from a `munderdifflin://hire` link; import only pre-fills the form, a human still spawns it. Browse roles at the [Agent Gallery](https://munderdiffl.in/hires/).
 - **BYOK keys + local LLMs** — per-provider keys in a write-only secret broker, plus Ollama / LM Studio / vLLM base URLs. Guides: [open models](https://munderdiffl.in/blog/run-munder-difflin-on-open-models/) · [Mac Mini](https://munderdiffl.in/blog/run-munder-difflin-on-a-mac-mini/).
-- **Auto-update** — new releases download in the background; you click restart, and the notes arrive as a designed page rather than a version number.
+- **Updates in one click** — the title-bar badge fetches the build for your machine and tells you how to install it, and it reads `latest` once a check confirms you are current. The first run afterwards opens that release's notes as a designed page rather than a version number. Background auto-update stays in Settings.
 - **Prerequisites** — one Settings page showing which supporting tools (uv, git, Node, MemPalace, each agent CLI) you have, what each is for, and a button that asks Michael to install what is missing.
 
 > [!NOTE]
-> **Status: v0.4.4 — Windows agents can finally talk to each other.** On Windows, agents were
-> never told they could message one another: the protocol reaches them as a multi-line command
-> line, and `cmd.exe` cut it at the first newline. They started, looked healthy, and ignored each
-> other forever. If you tried Munder Difflin on Windows and your team just sat there, that was
-> this bug. Also fixed: a fresh install now starts its own message router instead of waiting for a
-> restart, the setup wizard can be finished, and dark mode is rebuilt for readability. New in this
-> release: **Skills**, **Prerequisites**, and release notes that carry their own page.
+> **Status: v0.4.5, the release that fixes three things you trusted and were quietly wrong.**
+> Cost reporting reset its counter on every app restart while the session id stayed the same, so
+> the floor under reported what you had actually spent. It is now folded from the ledger, with a
+> separate session figure kept alongside. Semantic memory never worked on Apple Silicon: CoreML
+> overflowed the quantized embedding graph, every vector came back NaN, and every upsert was
+> rejected. Embeddings are pinned to CPU on macOS. And agents did not reliably reach each other,
+> so mail could sit in an inbox nobody woke up for. There is now an inbox wake watchdog, no more
+> stale nudges, and mail to a missing inbox is bounced and logged instead of dropped. Also in this
+> release: triggers that run on weekdays at a time of day, clickable paths in every terminal, one
+> editor instead of two, one click updates, and a renderer inside Chromium's sandbox.
+> 23 community pull requests landed.
 > **If you're on 0.3.8, update:** that build's usage-limit guard never released the agents it held,
 > and it has been removed entirely.
 > macOS (signed & notarized), Windows, and Linux builds are on the
@@ -289,12 +293,13 @@ chrome. The 15 avatars are the cast of *The Office*, differentiated by hair/skin
 
 ## Roadmap
 
-Shipped through **v0.4.4** — ten agent engines with BYOK keys and local LLMs, voice orchestration,
-the hive (memory · mailboxes · blackboard · event log), Command Center with kanban and schedules,
-a built-in Monaco IDE with git rails, integrations registry + secret broker, Slack-spawned workers,
-shareable hires and the Agent Gallery, observability and the circuit breaker, durable persistence,
-session resume, multi-window floors, working auto-update, a Skills browser, and a live Prerequisites
-check.
+Shipped through **v0.4.5** — ten agent engines with BYOK keys and local LLMs, voice orchestration,
+the hive (memory · mailboxes · blackboard · event log), Command Center with kanban and weekday
+schedules, a built-in Monaco IDE with git rails, integrations registry + secret broker,
+Slack-spawned workers, shareable hires and the Agent Gallery, observability and the circuit
+breaker, durable persistence, session resume, multi-window floors, one click updates, a Skills
+browser, a live Prerequisites check, cost reporting folded from the ledger, and semantic memory
+that works on Apple Silicon.
 Full history in [`CHANGELOG.md`](./CHANGELOG.md).
 
 Next up:
