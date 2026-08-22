@@ -3194,6 +3194,32 @@ ipcMain.handle('fs:statAbs', (_evt, p: unknown) => {
   return statAbs(p);
 });
 
+/** Reveal a path in the OS file browser — Finder, Explorer, or whatever the
+ *  Linux desktop registers. Backs ⌘-click on a terminal path we cannot open
+ *  ourselves (an image, an archive, an unknown extension).
+ *
+ *  `showItemInFolder`, NEVER `shell.openPath`, for a file. The path arrives
+ *  from agent output, and openPath hands an arbitrary file to its default
+ *  application: a printed `installer.dmg` or `.desktop` would be one click from
+ *  executing. Revealing only ever opens a file browser, so the worst an agent
+ *  can achieve by printing a path is a window at a folder the user could
+ *  already open themselves.
+ *
+ *  openPath IS used for a directory, and only after statAbs has confirmed it is
+ *  one — a directory has no default application to launch, so the execution
+ *  argument above does not apply, and revealing a folder inside its parent is
+ *  not what "open this folder" means to anyone. */
+ipcMain.handle('fs:revealPath', async (_evt, p: unknown) => {
+  if (typeof p !== 'string' || !p.length || p.length > 4096 || p.includes('\0')) {
+    return { ok: false, error: 'bad request' };
+  }
+  const st = await statAbs(p);
+  if (!st.exists) return { ok: false, error: 'not found' };
+  if (st.isFile) { shell.showItemInFolder(st.path); return { ok: true }; }
+  const err = await shell.openPath(st.path);
+  return err ? { ok: false, error: err } : { ok: true };
+});
+
 // ─── IPC: git ───────────────────────────────────────────────────────────────
 ipcMain.handle('git:isRepo', (_evt, cwd: unknown) => {
   if (typeof cwd !== 'string') return false;

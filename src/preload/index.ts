@@ -685,6 +685,12 @@ const api = {
    *  terminal ⌘-click markdown flow. Metadata only, never contents. */
   statAbs: (p: string): Promise<{ exists: boolean; isFile: boolean; path: string }> =>
     ipcRenderer.invoke('fs:statAbs', p),
+  /** Show a path in the OS file browser (Finder / Explorer / the Linux default).
+   *  Backs ⌘-click on a terminal path we have no viewer for. Reveals only — main
+   *  never launches a file's default application, because the path came from
+   *  agent output. */
+  revealPath: (p: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('fs:revealPath', p),
 
   // ─── Git ─────────────────────────────────────────────────────────────────
   gitIsRepo: (cwd: string): Promise<boolean> => ipcRenderer.invoke('git:isRepo', cwd),

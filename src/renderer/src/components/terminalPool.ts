@@ -19,6 +19,9 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import {
+  classifyPathToken, isPathToken, pathTokenMatcher, stripPathToken, type PathAction
+} from '@shared/terminalPaths';
+import {
   createTerminalRecoveryState,
   normalizePtyChunk,
   requestInitialPtyRedraw,
@@ -742,23 +745,26 @@ export function disposeTerminal(ptyId: string): void {
   pool.delete(ptyId);
 }
 
-// ─── v0.3.4: ⌘-click a markdown path in terminal output → rendered preview ───
+// ─── v0.3.4: ⌘-click a path in terminal output ──────────────────────────────
 // A custom ILinkProvider (NOT WebLinksAddon, which only matches URLs): detects
-// *.md tokens in the visible buffer line, resolves relative ones against the
+// path tokens in the visible buffer line, resolves relative ones against the
 // owning agent's cwd, and on Cmd/Ctrl+click verifies existence via the
-// metadata-only fs:statAbs IPC before opening the fullscreen preview overlay.
+// metadata-only fs:statAbs IPC before acting.
 // Plain click stays with the TUI (matches VS Code's terminal convention).
 // The path string is agent output — treated as hostile: it flows only into a
-// read-only stat + the existing read pipeline, and only on an explicit
-// modifier-click.
-const MD_TOKEN_RE = /[A-Za-z0-9_@.~/+-]+\.(?:md|markdown)\b(?::\d+)?/g;
+// read-only stat, the existing read pipeline, or a REVEAL (never an "open with
+// the default app", which would turn a printed path into an execution), and
+// only on an explicit modifier-click.
+//
+// v0.4.5 widened this from markdown-only to every path token. What each type
+// does lives in @shared/terminalPaths, not here — this file only knows how to
+// find tokens on a line and how to run the three verdicts.
 const mdStatCache = new Map<string, { isFile: boolean; path: string }>();
 
-function resolveMdCandidate(ptyId: string, raw: string): string | null {
-  // strip wrapping quotes/backticks/parens + trailing punctuation + :line
-  const p = raw.replace(/^["'`(]+/, '').replace(/["'`),.;:]+$/, '').replace(/:(\d+)$/, '');
-  if (!/\.(md|markdown)$/i.test(p)) return null;
-  if (p.startsWith('~/') || p.startsWith('/')) return p;
+function resolvePathCandidate(ptyId: string, raw: string): string | null {
+  const p = stripPathToken(raw);
+  if (!isPathToken(p)) return null;
+  if (p.startsWith('~/') || p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p)) return p;
   // relative → resolve against the owning agent's cwd. Async store import keeps
   // this module usable in the node test harness (no zustand/react at load).
   const cwd = storeApi?.getState().agents.find((a) => a.ptyId === ptyId)?.cwd ?? null;
@@ -780,17 +786,23 @@ void import('@/store/store')
   .then((m) => { storeApi = (m as unknown as { useStore: MdStoreShape }).useStore; })
   .catch(() => { /* store unavailable (tests) — link provider stays inert */ });
 
-async function openMdPreview(abs: string): Promise<void> {
+/** Act on a verified path. `reveal` is the only branch that accepts a directory:
+ *  the other two need a file to put in the editor. A miss is silent by design —
+ *  the token is agent output and may simply not exist. */
+async function activatePath(abs: string, action: PathAction): Promise<void> {
   let hit = mdStatCache.get(abs);
   if (!hit) {
     const res = await window.cth.statAbs(abs).catch(() => null);
-    if (!res) return;
-    hit = { isFile: res.exists && res.isFile, path: res.path };
+    if (!res || !res.exists) return;
+    hit = { isFile: res.isFile, path: res.path };
     if (mdStatCache.size > 500) mdStatCache.clear();
     mdStatCache.set(abs, hit);
   }
-  if (!hit.isFile) return;
-  storeApi?.getState().setFullscreenFile(hit.path, 'preview');
+  if (action === 'reveal' || !hit.isFile) {
+    void window.cth.revealPath(hit.path).catch(() => { /* file browser refused */ });
+    return;
+  }
+  storeApi?.getState().setFullscreenFile(hit.path, action === 'preview' ? 'preview' : 'edit');
 }
 
 function registerMarkdownLinkProvider(term: Terminal, ptyId: string): void {
@@ -799,14 +811,15 @@ function registerMarkdownLinkProvider(term: Terminal, ptyId: string): void {
       provideLinks(bufferLineNumber, callback) {
         const line = term.buffer.active.getLine(bufferLineNumber - 1);
         const text = line ? line.translateToString(true) : '';
-        if (!text || !/\.(md|markdown)\b/i.test(text)) { callback(undefined); return; }
+        if (!text || !text.includes('.')) { callback(undefined); return; }
         const links: Parameters<typeof callback>[0] = [];
-        const re = new RegExp(MD_TOKEN_RE.source, 'g');
+        const re = pathTokenMatcher();
         let m: RegExpExecArray | null;
         while ((m = re.exec(text)) !== null) {
           const raw = m[0];
-          const abs = resolveMdCandidate(ptyId, raw);
+          const abs = resolvePathCandidate(ptyId, raw);
           if (!abs) continue;
+          const action = classifyPathToken(stripPathToken(raw));
           links!.push({
             range: {
               start: { x: m.index + 1, y: bufferLineNumber },
@@ -817,7 +830,7 @@ function registerMarkdownLinkProvider(term: Terminal, ptyId: string): void {
             activate: (event: MouseEvent | undefined) => {
               // ⌘/Ctrl+click only — a plain click must keep going to the TUI.
               if (event && !(event.metaKey || event.ctrlKey)) return;
-              void openMdPreview(abs);
+              void activatePath(abs, action);
             }
           });
         }
