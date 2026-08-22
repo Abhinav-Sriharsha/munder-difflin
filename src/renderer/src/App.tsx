@@ -25,7 +25,6 @@ import { SidebarSplitter } from '@/components/SidebarSplitter';
 import { acquireTerminal, notifyThemeChangeAll } from '@/components/terminalPool';
 import { FullscreenTerminal } from '@/components/FullscreenTerminal';
 import { TaskDetailOverlay } from '@/components/TaskDetailOverlay';
-import { FullscreenFileEditor } from '@/components/FullscreenFileEditor';
 import { IdePanel } from '@/ide/IdePanel';
 import { useHoldOptionToTalk } from '@/freeflow/holdOption';
 import brandLogo from '@brand/logo.png?url';
@@ -43,7 +42,6 @@ export function App() {
   const godStatus = useStore(s => s.godStatus);
   const fullscreenAgentId = useStore(s => s.fullscreenAgentId);
   const appThemeNow = useAppTheme();
-  const fullscreenFilePath = useStore(s => s.fullscreenFilePath);
   const sidebarWidth = useStore(s => s.sidebarWidth);
   const setSidebarWidth = useStore(s => s.setSidebarWidth);
   const ideOpen = useStore(s => s.ideOpen);
@@ -497,7 +495,6 @@ export function App() {
       )}
 
       {fullscreenAgentId && <FullscreenTerminal config={config} />}
-      {fullscreenFilePath && <FullscreenFileEditor />}
       {ideOpen && <IdePanel />}
       <TaskDetailOverlay />
     </div>

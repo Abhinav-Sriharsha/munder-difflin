@@ -7,7 +7,7 @@ export type IconName =
   | 'gear' | 'plus' | 'x' | 'check' | 'arrow-right' | 'pause' | 'play'
   | 'bell' | 'folder' | 'terminal' | 'code' | 'web' | 'mcp' | 'sparkle'
   | 'expand' | 'minimize' | 'clock' | 'mic' | 'ledger' | 'info' | 'sidebar'
-  | 'image' | 'edit';
+  | 'image' | 'edit' | 'git';
 
 interface IconDef {
   ink: string;     // primary color path d
@@ -74,6 +74,14 @@ const paths: Record<IconName, IconDef> = {
   terminal: {
     accentColor: 'var(--cth-mint)',
     ink:   'M1 2h14v12H1V2zm1 1v10h12V3H2zm1 2h1v1h1v1h1v1H5v1H4v1H3V9h1V8h1V7H4V6H3V5zm5 5h4v1H8v-1z'
+  },
+  // The branch graph, which is what git's own mark is: a trunk with two commit
+  // nodes and one branch arcing off into a third. Drawn at the same hairline
+  // weight as `code` and `terminal` so a row of them reads as one set — a
+  // solid-filled mark next to those two looks like a different icon family.
+  git: {
+    accentColor: 'var(--cth-coral)',
+    ink:   'M5 1h3v1h-3zM4 2h1v1h-1zM8 2h1v1h-1zM4 3h1v1h-1zM8 3h1v1h-1zM5 4h3v1h-3zM6 5h1v1h-1zM6 6h1v1h-1zM9 6h3v1h-3zM6 7h1v1h-1zM8 7h1v1h-1zM12 7h1v1h-1zM6 8h3v1h-3zM12 8h1v1h-1zM6 9h1v1h-1zM9 9h3v1h-3zM6 10h1v1h-1zM5 11h3v1h-3zM4 12h1v1h-1zM8 12h1v1h-1zM4 13h1v1h-1zM8 13h1v1h-1zM5 14h3v1h-3z'
   },
   code: {
     accentColor: 'var(--cth-sky)',

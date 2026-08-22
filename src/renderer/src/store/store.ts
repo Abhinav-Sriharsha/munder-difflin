@@ -179,12 +179,9 @@ interface State {
    *  written ONLY by an explicit toggle. Kept in the store rather than read once
    *  at construction because the roster arrives after the store does. */
   prefersFocusMode: boolean;
-  fullscreenFilePath: string | null;
-  /** How the fullscreen file overlay renders (v0.3.4): raw editor or rendered
-   *  markdown preview. Preview is the default when opened from a terminal link. */
-  fullscreenFileView: 'edit' | 'preview';
-  /** Absolute path queued for the IDE to open on next mount ("open in IDE"
-   *  escalation from the file overlay). Consumed-and-cleared by IdePanel. */
+  /** Absolute path queued for the IDE to open on next mount. Consumed-and-cleared
+   *  by IdePanel, which routes it the same way a tree click would (Monaco for
+   *  source, preview for markdown, the viewer for images). */
   ideInitialFile: string | null;
   /** Whether the full-window IDE panel (file manager + Monaco editor + git diff)
    *  is open. Toggled from the title-bar IDE button; a global feature surface,
@@ -316,7 +313,14 @@ interface State {
   refocusFullscreen: (id: string | null) => void;
   /** Re-apply the persisted preference now that the roster has changed. */
   restoreFocusMode: () => void;
-  setFullscreenFile: (path: string | null, view?: 'edit' | 'preview') => void;
+  /** Open an absolute path in the IDE — the ONE way to show a file.
+   *
+   *  v0.4.5 removed a second, worse file surface (a fullscreen overlay wrapping
+   *  a bare Monaco). It could not scroll, had no tabs, no tree, and no git, and
+   *  every file it opened was one click from "open in IDE" anyway. Everything
+   *  that used to open it now comes here, so there is exactly one editor to fix
+   *  when an editor bug shows up. */
+  openFileInIde: (absPath: string) => void;
   /** Open/close the IDE. `agentId` names the agent whose workspace it should
    *  show; omit it only when the caller truly has no specific agent (the IDE
    *  then falls back to the selection and says so in its title). */
@@ -636,7 +640,7 @@ function newQueuedId(): string {
   return `q-${Date.now()}-${queuedSeq}`;
 }
 
-export const useStore = create<State>((set) => ({
+export const useStore = create<State>((set, get) => ({
   agents: initialAgents,
   archivedAgents: initialArchivedAgents,
   restorableAgents: initialRestorableAgents,
@@ -648,8 +652,6 @@ export const useStore = create<State>((set) => ({
     set((s) => ({ ccTabRequest: { tab, seq: (s.ccTabRequest?.seq ?? 0) + 1 } })),
   fullscreenAgentId: focusOnLoad(initialPrefersFocusMode, initialSelectedId),
   prefersFocusMode: initialPrefersFocusMode,
-  fullscreenFilePath: null,
-  fullscreenFileView: 'edit',
   ideInitialFile: null,
   ideOpen: false,
   ideAgentId: null,
@@ -976,7 +978,14 @@ export const useStore = create<State>((set) => ({
       const id = restoreFocus(s.prefersFocusMode, s.fullscreenAgentId, s.agents, s.selectedId);
       return id === s.fullscreenAgentId ? s : { fullscreenAgentId: id };
     }),
-  setFullscreenFile: (path, view) => set({ fullscreenFilePath: path, fullscreenFileView: view ?? 'edit' }),
+  openFileInIde: (absPath) => {
+    const s = get();
+    // Resolve the OWNING agent here rather than in each caller: a terminal link
+    // or a Files-tab click often has nothing selected, and the IDE would
+    // otherwise fall back to the selection and open the wrong workspace.
+    const owner = s.agents.find((a) => absPath === a.cwd || absPath.startsWith(a.cwd + '/'));
+    set({ ideInitialFile: absPath, ideOpen: true, ideAgentId: owner?.id ?? null });
+  },
   // Closing CLEARS the target: the id is scoped to one IDE session, and a stale
   // one left behind would silently win over the selection on the next open from
   // a caller that passes nothing.

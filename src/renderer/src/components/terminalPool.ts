@@ -778,7 +778,7 @@ function resolvePathCandidate(ptyId: string, raw: string): string | null {
 interface MdStoreShape {
   getState: () => {
     agents: Array<{ ptyId?: string; cwd: string }>;
-    setFullscreenFile: (p: string, v?: 'edit' | 'preview') => void;
+    openFileInIde: (absPath: string) => void;
   };
 }
 let storeApi: MdStoreShape | null = null;
@@ -786,9 +786,14 @@ void import('@/store/store')
   .then((m) => { storeApi = (m as unknown as { useStore: MdStoreShape }).useStore; })
   .catch(() => { /* store unavailable (tests) — link provider stays inert */ });
 
-/** Act on a verified path. `reveal` is the only branch that accepts a directory:
- *  the other two need a file to put in the editor. A miss is silent by design —
- *  the token is agent output and may simply not exist. */
+/** Act on a verified path. `reveal` also takes any directory that reaches here:
+ *  the IDE needs a file. A miss is silent by design — the token is agent output
+ *  and may simply not exist.
+ *
+ *  Both non-reveal verdicts land in the IDE. The IDE already routes by type
+ *  (Monaco for source, preview for markdown, the viewer for images), so this
+ *  does not need to pass the verdict along — it only needs to know whether the
+ *  file is ours to open at all. */
 async function activatePath(abs: string, action: PathAction): Promise<void> {
   let hit = mdStatCache.get(abs);
   if (!hit) {
@@ -802,7 +807,7 @@ async function activatePath(abs: string, action: PathAction): Promise<void> {
     void window.cth.revealPath(hit.path).catch(() => { /* file browser refused */ });
     return;
   }
-  storeApi?.getState().setFullscreenFile(hit.path, action === 'preview' ? 'preview' : 'edit');
+  storeApi?.getState().openFileInIde(hit.path);
 }
 
 function registerMarkdownLinkProvider(term: Terminal, ptyId: string): void {
