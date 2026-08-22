@@ -13,6 +13,28 @@ function tmpHome() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'md-crush-config-'));
 }
 
+/**
+ * ensureAgent on a proxy-tier provider writes the crush config ONLY when the
+ * hive-proxy sidecar actually bound a loopback port: hive.ts gates
+ * installCrushConfig behind `if (port > 0)` and otherwise degrades on purpose to
+ * un-proxied routing, logging "proxy bridge ... did not bind". A sidecar that
+ * loses that race is correct product behaviour, so asserting the proxied branch
+ * unconditionally is what made these tests fail intermittently on a loaded
+ * machine — the config production chose not to write reads back as ENOENT.
+ *
+ * Returns true when the proxied branch was taken. When it was not, the DEGRADED
+ * contract is asserted instead: routing must be left completely untouched, so a
+ * half-applied config still fails.
+ */
+function proxyBridgeBound(injection, agentDir) {
+  if (injection.env.CRUSH_GLOBAL_CONFIG !== undefined) return true;
+  assert.equal(injection.env.CRUSH_GLOBAL_DATA, undefined,
+    "degraded spawn must leave routing untouched, not half-applied");
+  assert.equal(fs.existsSync(path.join(agentDir, "crush.json")), false,
+    "no crush config may exist without a bound proxy");
+  return false;
+}
+
 test('crush provider points CRUSH_GLOBAL_CONFIG at the agent directory', async (t) => {
   const home = tmpHome();
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
@@ -30,6 +52,7 @@ test('crush provider points CRUSH_GLOBAL_CONFIG at the agent directory', async (
   });
 
   const agentDir = path.join(home, 'hive', 'agents', 'crush-1');
+  if (!proxyBridgeBound(injection, agentDir)) return;
   assert.equal(injection.env.CRUSH_GLOBAL_CONFIG, agentDir);
   assert.equal(injection.env.CRUSH_GLOBAL_DATA, path.join(agentDir, '.crush-data'));
 

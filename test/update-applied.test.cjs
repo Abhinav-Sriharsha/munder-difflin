@@ -227,14 +227,20 @@ test('e2e: DO_NOT_TRACK sends nothing and writes no stamp at all', () => {
 test('e2e: an unwritable state dir reports no transition, on any boot', () => {
   // The ephemeral-id fallback cannot recognise the install across boots, so a
   // version transition here would fire on EVERY launch. It must fire on none.
-  const dir = path.join(os.tmpdir(), 'md-update-applied-file-not-a-dir');
+  // A FIXED name here is shared with every other suite run on the machine, and
+  // the collision is destructive: a concurrent run removes this file in its own
+  // finally, analytics' mkdirSync(stateDir, {recursive:true}) then recreates the
+  // path as a real state DIRECTORY, and the cleanup below throws EISDIR. Worse,
+  // the directory outlives the run and every later suite on that machine fails
+  // here until someone deletes it by hand. Per-run name, so runs cannot collide.
+  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'md-update-applied-')), 'file-not-a-dir');
   fs.writeFileSync(dir, 'x');                  // mkdirSync/writeFileSync will throw
   try {
     for (let i = 0; i < 3; i++) {
       assert.deepEqual(bootApp(dir, '0.4.5').map((e) => e.event), ['app_launched']);
     }
   } finally {
-    fs.rmSync(dir, { force: true });
+    fs.rmSync(path.dirname(dir), { recursive: true, force: true });
   }
 });
 
