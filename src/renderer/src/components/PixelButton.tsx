@@ -106,6 +106,12 @@ export function PixelButton({
         // Kill descender-driven drift: with the height fixed above, an inherited
         // line-height only moves the text off centre.
         lineHeight: 1,
+        // A button never shrinks below its own label. The default flex-shrink is
+        // 1, and with `whiteSpace: nowrap` below, a squeezed button keeps drawing
+        // its full-width text out of a narrowed box — so in a tight row the
+        // labels paint straight over whatever sits to their left. That is not a
+        // clipped button, it is two controls on top of each other.
+        flexShrink: 0,
         height: heightBySize[size],
         padding: padBySize[size],
         background: palette.fill,

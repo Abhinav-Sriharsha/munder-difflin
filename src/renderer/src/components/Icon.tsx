@@ -43,9 +43,13 @@ const paths: Record<IconName, IconDef> = {
   // as a blob at 16px; this sits next to `code` and `terminal` in the same row,
   // so it is drawn the way they are — hairline outlines, one colour, two whole
   // objects with a clear gap between them rather than one overlapping the other.
+  // Notepad with the pen laid ACROSS its top-right corner, not parked beside it.
+  // The pen breaks the pad's outline where it crosses, and that broken edge is
+  // the whole trick — two shapes sharing one ink colour only read as "over" if
+  // the lower one visibly stops. Same hairline weight as code/terminal/git.
   edit: {
     accentColor: 'var(--cth-lilac)',
-    ink:   'M13 1h1v1h-1zM12 2h1v1h-1zM14 2h1v1h-1zM11 3h1v1h-1zM15 3h1v1h-1zM10 4h1v1h-1zM14 4h1v1h-1zM1 5h8v1h-8zM10 5h2v1h-2zM13 5h1v1h-1zM1 6h1v1h-1zM8 6h1v1h-1zM10 6h3v1h-3zM1 7h1v1h-1zM8 7h1v1h-1zM1 8h1v1h-1zM3 8h4v1h-4zM8 8h1v1h-1zM1 9h1v1h-1zM8 9h1v1h-1zM1 10h1v1h-1zM3 10h4v1h-4zM8 10h1v1h-1zM1 11h1v1h-1zM8 11h1v1h-1zM1 12h1v1h-1zM3 12h4v1h-4zM8 12h1v1h-1zM1 13h1v1h-1zM8 13h1v1h-1zM1 14h8v1h-8z'
+    ink:   'M13 1h2v1h-2zM1 2h10v1h-10zM12 2h2v1h-2zM1 3h1v1h-1zM11 3h2v1h-2zM1 4h1v1h-1zM10 4h2v1h-2zM1 5h1v1h-1zM9 5h2v1h-2zM1 6h1v1h-1zM3 6h5v1h-5zM9 6h1v1h-1zM1 7h1v1h-1zM10 7h1v1h-1zM1 8h1v1h-1zM10 8h1v1h-1zM1 9h1v1h-1zM3 9h5v1h-5zM10 9h1v1h-1zM1 10h1v1h-1zM10 10h1v1h-1zM1 11h1v1h-1zM10 11h1v1h-1zM1 12h1v1h-1zM3 12h5v1h-5zM10 12h1v1h-1zM1 13h1v1h-1zM10 13h1v1h-1zM1 14h1v1h-1zM10 14h1v1h-1zM1 15h10v1h-10z'
   },
   pause: {
     accentColor: 'var(--cth-lemon)',

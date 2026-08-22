@@ -114,7 +114,8 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
             />
           </div>
           <div style={{
-            display: 'flex', gap: 6, alignItems: 'center', marginTop: 1
+            display: 'flex', gap: 6, alignItems: 'center', marginTop: 1,
+            minWidth: 0, overflow: 'hidden'
           }}>
             <PixelBadge status={agent.status} />
             <span style={{
