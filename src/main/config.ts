@@ -28,6 +28,12 @@ export interface ScheduledMission {
   id: string;
   label: string;
   intervalMs: number;
+  /** Day-of-week + time-of-day schedule. When present and valid this REPLACES
+   *  `intervalMs` — an interval cannot say "weekday mornings", because it drifts
+   *  against the clock and a 24h one started at 15:00 fires at 15:00 forever.
+   *  `intervalMs` is deliberately left on the record so switching back restores
+   *  the cadence the user had. See shared/weeklySchedule.ts. */
+  weekly?: { days: number[]; minute: number };
   to: string;
   body: string;
   enabled: boolean;

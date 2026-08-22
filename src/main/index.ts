@@ -18,6 +18,7 @@ import {
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
 } from './config';
 import { listDir, readFileText, readFileBinary, writeFileText, statAbs, expandTilde } from './fs';
+import { normalizeWeekly, weeklyDelayMs } from '../shared/weeklySchedule';
 import {
   getBranch, getStatus, getLog, getBranches, getAheadBehind, isRepo, getDiff, mainRepoRoot,
   addWorktree, removeWorktree, worktreeHasUnintegratedWork, worktreeIsGcSafe,
@@ -660,7 +661,12 @@ function syncMissions(): void {
   clearMissionTimers();
   const missions = readConfig().missions ?? [];
   for (const m of missions) {
-    if (!m.enabled || !(m.intervalMs > 0)) continue;
+    if (!m.enabled) continue;
+    // A weekly mission (day-of-week + time) is armed below and does NOT need an
+    // interval, so the interval guard has to come after that branch — it used to
+    // be folded into the line above and would have rejected every one of them.
+    const weekly = m.kind === 'heartbeat' ? null : normalizeWeekly(m.weekly);
+    if (!weekly && !(m.intervalMs > 0)) continue;
     // Heartbeat (Lane A #1) opts out of the fixed setInterval and self-reschedules
     // with an adaptive cadence. Registered into the same missionTimers map so
     // clearMissionTimers() tears it down identically on quit/reset.
@@ -699,11 +705,33 @@ function syncMissions(): void {
         console.error('[scheduler] mission', m.id, e);
       }
     };
+    const entry: MissionTimer = {};
+    if (weekly) {
+      // Weekly self-reschedules: there is no steady interval to settle into,
+      // because the gap between two slots varies (Fri to Mon is not Mon to Wed,
+      // and the week the clocks change is not 168 hours long).
+      //
+      // `justFired` is a spin guard, not a nicety. weeklyDelayMs returns 0 for a
+      // slot that was missed and not yet run, and it learns "already run" from
+      // the persisted lastFiredAt — so if fire()'s writeConfig ever failed, the
+      // next computation would return 0 again, forever. Passing `now` as the
+      // last-fired floor after a fire makes the catch-up branch unreachable, so
+      // the worst case is a lost stamp rather than a hot loop.
+      const rearm = (justFired: boolean): void => {
+        const now = Date.now();
+        const persisted = (readConfig().missions ?? []).find((x) => x.id === m.id)?.lastFiredAt ?? 0;
+        const delay = weeklyDelayMs(weekly, now, justFired ? Math.max(persisted, now) : persisted);
+        if (delay === null) return;
+        entry.timeout = setTimeout(() => { fire(); rearm(true); }, delay);
+      };
+      rearm(false);
+      missionTimers.set(m.id, entry);
+      continue;
+    }
     // Honor lastFiredAt so a partially-elapsed interval is not restarted from
     // zero on reboot or when an unrelated mission is edited: wait only the time
     // remaining until the next due fire, then settle into a steady interval.
     const remaining = Math.max(0, m.intervalMs - (Date.now() - (m.lastFiredAt ?? 0)));
-    const entry: MissionTimer = {};
     entry.timeout = setTimeout(() => {
       fire();
       entry.interval = setInterval(fire, m.intervalMs);
