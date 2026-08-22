@@ -175,7 +175,8 @@ export function describeUpdate(status: UpdateStatus | null, currentVersion: stri
       };
     case 'not-available':
     case 'just-updated':
-      return { label: null, action: 'check', tone: 'idle', busy: false, title: `v${v} is the latest version — click to check again` };
+      // A check has confirmed it, so say so. Idle (no check yet) stays bare.
+      return { label: 'latest', action: 'check', tone: 'idle', busy: false, title: `v${v} is the latest version — click to check again` };
     case 'idle':
     default:
       return { label: null, action: 'check', tone: 'idle', busy: false, title: `v${v} — click to check for updates` };

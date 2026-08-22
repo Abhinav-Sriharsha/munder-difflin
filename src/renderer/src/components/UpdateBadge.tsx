@@ -83,12 +83,13 @@ export function UpdateBadge() {
       aria-busy={view.busy || busy}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: view.label ? '2px 8px' : '2px 4px',
+        padding: view.label && view.tone !== 'idle' ? '2px 8px' : '2px 4px',
         margin: 0,
         background: chipBg,
         border: 'none',
         borderRadius: 2,
-        boxShadow: view.label ? 'inset 0 0 0 1px var(--cth-ink-300)' : 'none',
+        // 'latest' is a quiet word after the version, not a chip asking for a click.
+        boxShadow: view.label && view.tone !== 'idle' ? 'inset 0 0 0 1px var(--cth-ink-300)' : 'none',
         fontFamily: 'var(--cth-font-ui)',
         fontSize: 13,
         lineHeight: '18px',
@@ -100,7 +101,7 @@ export function UpdateBadge() {
       {view.label && (
         <>
           <span aria-hidden style={{ color: 'var(--cth-ink-500)' }}>·</span>
-          <span style={{ fontWeight: 600 }}>{view.label}</span>
+          <span style={{ fontWeight: view.tone === 'idle' ? 400 : 600 }}>{view.label}</span>
         </>
       )}
     </button>

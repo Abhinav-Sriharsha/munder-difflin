@@ -84,7 +84,7 @@ test('every actionable state offers the action its label promises', () => {
   // the whole point of the founder's "tell me and let me trigger it" ask.
   check(null, { action: 'check', label: null, busy: false });
   check({ state: 'idle' }, { action: 'check', label: null });
-  check({ state: 'not-available' }, { action: 'check', label: null });
+  check({ state: 'not-available' }, { action: 'check', label: 'latest' });
 
   check({ state: 'checking' }, { action: 'none', busy: true });
   check({ state: 'available', version: '0.3.7' }, { action: 'manual', busy: false });
@@ -207,7 +207,7 @@ test('manual update with a direct installer reads as a download, not a page to h
 
 test('just-updated is quiet on the badge and loses to a newer available release', () => {
   const v = describeUpdate({ state: 'just-updated', version: '0.4.5' }, '0.4.5');
-  assert.equal(v.label, null);
+  assert.equal(v.label, 'latest');
   const next = reduceStatus(
     { state: 'just-updated', version: '0.4.5' },
     { state: 'available', version: '0.4.6' }
