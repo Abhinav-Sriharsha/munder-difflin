@@ -17,8 +17,8 @@
  * same offline. A sponsor slot with nothing in it renders NOTHING rather than a
  * "your logo here" placeholder.
  *
- * Since 0.4.5 it is drawn in the release drop's idiom (ink border, hard offset
- * shadow, dark mono title bar) and carries the v0.5.0 Pro announcement and the
+ * Since 0.4.5 it borrows the release drop's idiom (ink borders, a lilac
+ * announcement block, a dark offer band) and carries the v0.5.0 Pro announcement and the
  * Founders' Wall offer, so the one card people see in Settings says the same
  * thing the release modal does. Plan label and blurb still come from hero.json.
  */
@@ -64,29 +64,29 @@ export function SettingsHeroCard() {
     <div style={{
       display: 'flex', flexDirection: 'column',
       background: 'var(--cth-paper-100)',
-      border: `3px solid ${INK}`,
-      boxShadow: `8px 8px 0 ${INK}`,
-      marginRight: 8, marginBottom: 8
+      border: `2px solid ${INK}`
     }}>
-      {/* Title bar, in the release drop's idiom. */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '8px 14px',
-        background: INK, color: 'var(--cth-paper-100)',
-        fontFamily: MONO, fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase'
-      }}>
-        <span style={{ flex: 1, minWidth: 0 }}>
-          Munder Difflin{version ? ` · v${version}` : ''}
-        </span>
-        <span style={{
-          fontSize: 9, letterSpacing: '.12em', padding: '2px 7px',
-          background: 'var(--cth-mint-light)', color: INK
-        }}>{PLAN.label}</span>
-      </div>
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14 }}>
-        <div style={{ fontSize: 12.5, lineHeight: 1.5, color: 'var(--cth-ink-700)', maxWidth: '64ch' }}>
-          {PLAN.blurb}
+        {/* Identity: name, the running version in plain sight, the plan. */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{
+              fontFamily: 'var(--cth-font-display)', fontSize: 13, lineHeight: '20px', color: INK
+            }}>MUNDER DIFFLIN</span>
+            {version && (
+              <span style={{
+                fontFamily: MONO, fontSize: 15, fontWeight: 700, color: INK
+              }}>v{version}</span>
+            )}
+            <span style={{
+              fontFamily: MONO, fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase',
+              padding: '2px 7px', background: 'var(--cth-mint-light)',
+              boxShadow: 'inset 0 0 0 1px var(--cth-mint)', color: INK
+            }}>{PLAN.label}</span>
+          </div>
+          <div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.5, color: 'var(--cth-ink-700)', maxWidth: '64ch' }}>
+            {PLAN.blurb}
+          </div>
         </div>
 
         {/* A one-line notice (an incident, a migration heads-up), when set. */}
@@ -101,8 +101,7 @@ export function SettingsHeroCard() {
         <div style={{
           padding: '12px 14px',
           background: 'var(--cth-lilac-light)',
-          border: `2px solid ${INK}`, boxShadow: `5px 5px 0 ${INK}`,
-          marginRight: 5, marginBottom: 5
+          border: `2px solid ${INK}`
         }}>
           <span style={{
             display: 'inline-block', fontFamily: MONO, fontSize: 9, letterSpacing: '.18em',
