@@ -116,8 +116,15 @@ test('ReleaseDrop grants allow-popups and nothing else', () => {
 });
 
 // The drop is presentation only. A button here would be an app control wearing
-// the release author's page; every action a release wants to offer belongs in
-// the authored HTML, which is why the frame can open links at all.
-test('ReleaseDrop renders no buttons', () => {
-  assert.ok(!/<button/.test(readDrop()), 'the release drop must carry no chrome buttons');
+// the release author's page; every action a release wants to offer (star, notes,
+// Discord, download) belongs in the authored HTML, which is why the frame can
+// open links at all. The ONE control the chrome owns is close: a modal this
+// large with no visible way out is a trap, and Esc alone is invisible.
+test('ReleaseDrop renders no action buttons, only a close', () => {
+  const src = readDrop();
+  const buttons = src.match(/<button\b[\s\S]*?>/g) ?? [];
+  assert.equal(buttons.length, 1, 'the release drop must carry exactly one chrome button');
+  assert.ok(/aria-label="Close/.test(buttons[0]), 'the only chrome button must be the close');
+  assert.ok(!/Star|Restart|Later|Download|Open release/i.test(src.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')),
+    'no release action may be a chrome button');
 });
