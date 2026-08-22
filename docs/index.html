@@ -35,7 +35,7 @@
   "url": "https://munderdiffl.in/",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS, Windows, Linux",
-  "softwareVersion": "0.4.4",
+  "softwareVersion": "0.4.5",
   "downloadUrl": "https://github.com/chaitanyagiri/munder-difflin/releases/latest",
   "softwareHelp": "https://github.com/chaitanyagiri/munder-difflin#readme",
   "license": "https://github.com/chaitanyagiri/munder-difflin/blob/main/LICENSE",
@@ -1734,11 +1734,11 @@
         <a class="btn lg" data-gh-stars href="https://github.com/chaitanyagiri/munder-difflin" target="_blank" rel="noopener"><span class="ic">★</span> Star on GitHub<span class="star-count"></span></a>
       </div>
       <div class="mono-hint">macOS · Windows · Linux — free for individuals · org licenses for teams</div>
-      <!-- v0.4.4: the Windows headline belongs where people decide to download.
-           Anyone who tried it on Windows before and watched their agents ignore
-           each other needs to know that specific bug is gone. -->
+      <!-- v0.4.5: the headline belongs where people decide to download. 0.4.4 named
+           the Windows fix; 0.4.5 names the three things that were quietly wrong for
+           people already running it, which is what would stop them updating. -->
       <div class="mono-hint" style="margin-top:6px">
-        <strong>New in v0.4.4</strong> — agent-to-agent messaging now works on Windows ·
+        <strong>New in v0.4.5</strong> · accurate cost reporting, semantic memory on Apple Silicon, reliable agent messaging ·
         <a href="https://github.com/chaitanyagiri/munder-difflin/releases/latest">release notes</a>
       </div>
     </div>
@@ -2777,7 +2777,7 @@
   // first; "download without paying" keeps the download genuinely ungated.
   (function () {
     var REPO = 'chaitanyagiri/munder-difflin';
-    var REL = '0.4.4'; // fallback version; live links are resolved from the GitHub API below
+    var REL = '0.4.5'; // fallback version; live links are resolved from the GitHub API below
     var BASE = 'https://github.com/' + REPO + '/releases/latest/download/';
     var PAY_URL = 'https://rzp.io/rzp/munder-difflin'; // Razorpay Payment Page — Munder Difflin: Founders' Wall
     var PLATFORMS = [
