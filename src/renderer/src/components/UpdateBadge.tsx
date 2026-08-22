@@ -13,7 +13,7 @@
  * is wiring and pixels.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { describeUpdate, manualInstallSteps, reduceStatus, type UpdateStatus } from '@shared/updateState';
+import { describeUpdate, manualDownloadUrl, manualInstallSteps, pendingVersion, reduceStatus, type UpdateStatus } from '@shared/updateState';
 import { PixelButton } from './PixelButton';
 
 declare const __APP_VERSION__: string;
@@ -42,15 +42,14 @@ export function UpdateBadge() {
     if (view.action === 'none' || busy) return;
     setBusy(true);
     try {
-      if (view.action === 'restart') await window.cth.updateRestartAndInstall();
-      else if (view.action === 'download') await window.cth.updateDownload();
-      else if (view.action === 'check') await window.cth.updateCheckNow();
-      else if (view.action === 'open-release') {
-        // With a direct installer for this machine the click IS the download;
-        // the release page is only for installs the release has no asset for.
-        const manual = status?.state === 'available-manual' ? status : null;
-        await window.cth.updateOpenRelease(manual ? (manual.downloadUrl ?? manual.url) : undefined);
-        if (manual?.downloadUrl) setStarted(manual.version);
+      if (view.action === 'check') await window.cth.updateCheckNow();
+      else if (view.action === 'manual' && status) {
+        // The click IS the download. Auto-update lives in Settings.
+        const url = manualDownloadUrl(status, window.cth.platform, window.cth.arch);
+        if (url) {
+          await window.cth.updateOpenRelease(url);
+          setStarted(pendingVersion(status, __APP_VERSION__));
+        }
       }
     } catch { /* the emitted status carries the failure — nothing to do here */ }
     setBusy(false);
@@ -65,7 +64,7 @@ export function UpdateBadge() {
       : view.tone === 'warn' ? 'var(--cth-amber-light, #f6e2b3)'
         : 'transparent';
 
-  const manual = status?.state === 'available-manual' && status.downloadUrl ? status : null;
+  const pending = pendingVersion(status, __APP_VERSION__);
   const steps = manualInstallSteps(window.cth.platform ?? 'darwin');
   const INK = 'var(--cth-ink-900)';
 
@@ -107,7 +106,7 @@ export function UpdateBadge() {
     </button>
 
     {/* Hover card: what the click does and what to do with the file, for this OS. */}
-    {manual && hover && !started && (
+    {pending && hover && !started && (
       <div
         role="tooltip"
         className="cth-titlebar-nodrag"
@@ -120,10 +119,10 @@ export function UpdateBadge() {
         }}
       >
         <div style={{ fontFamily: 'var(--cth-font-mono, monospace)', fontWeight: 700, fontSize: 12.5 }}>
-          Click to download v{manual.version}
+          Click to download v{pending}
         </div>
         <div style={{ marginTop: 4, color: 'var(--cth-ink-700)' }}>
-          This build cannot update itself. Download the latest version and replace the app you have.
+          Download the latest version and replace the app you have. Prefer the app to update itself? Settings &rarr; Updates.
         </div>
         <div style={{
           marginTop: 8, fontFamily: 'var(--cth-font-mono, monospace)', fontSize: 9,

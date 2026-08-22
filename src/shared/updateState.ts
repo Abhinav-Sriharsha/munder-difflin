@@ -31,7 +31,37 @@ export type UpdateStatus =
   | { state: 'just-updated'; version: string; notes?: string }
   | { state: 'error'; message: string };
 
-export type UpdateAction = 'none' | 'check' | 'download' | 'restart' | 'open-release';
+export type UpdateAction = 'none' | 'check' | 'download' | 'restart' | 'open-release' | 'manual';
+
+export const REPO = 'chaitanyagiri/munder-difflin';
+
+/** The installer for THIS machine in the release tagged v{version}, by the
+ *  names electron-builder.yml produces. Used when a status carries no
+ *  `downloadUrl` of its own (the native updater path never does). */
+export function installerUrl(version: string, platform: string, arch: string): string {
+  const v = version.replace(/^v/, '');
+  const file = platform === 'darwin' ? `Munder-Difflin-${v}-mac-${arch}.dmg`
+    : platform === 'win32' ? `Munder-Difflin-${v}-win-x64-setup.exe`
+    : `Munder-Difflin-${v}-linux-x86_64.AppImage`;
+  return `https://github.com/${REPO}/releases/download/v${v}/${file}`;
+}
+
+/** The newer release a status knows about, or null. Every state that names a
+ *  version newer than the running one counts, whatever the updater is doing
+ *  with it: the manual path is always on offer. */
+export function pendingVersion(status: UpdateStatus | null, current: string): string | null {
+  if (!status || !('version' in status)) return null;
+  if (status.state === 'just-updated') return null;
+  return isNewer(status.version, current) ? status.version : null;
+}
+
+/** Where a manual download of `status`'s release goes: the asset the release
+ *  itself named when it did, else the conventional installer URL. */
+export function manualDownloadUrl(status: UpdateStatus, platform: string, arch: string): string | null {
+  if (!('version' in status) || status.state === 'just-updated') return null;
+  if (status.state === 'available-manual' && status.downloadUrl) return status.downloadUrl;
+  return installerUrl(status.version, platform, arch);
+}
 
 export interface UpdateBadgeView {
   /** Extra text beside the version, or null to show the version alone. */
@@ -114,44 +144,37 @@ export function reduceStatus(prev: UpdateStatus | null, next: UpdateStatus): Upd
  */
 export function describeUpdate(status: UpdateStatus | null, currentVersion: string): UpdateBadgeView {
   const v = currentVersion;
+  // The title-bar badge is the MANUAL path, always: click downloads the
+  // installer and the user replaces the app. Auto-update (download, restart)
+  // lives in Settings -> Updates. So any state that names a newer release reads
+  // the same here, whatever the background updater is doing with it.
+  if (status?.state === 'downloading') {
+    // Settings started the automatic download; the chip reports progress and
+    // nothing else, so the two paths are not raced against each other.
+    return {
+      label: `downloading ${clampPercent(status.percent)}%`, action: 'none', tone: 'busy', busy: true,
+      title: `Downloading v${status.version}… ${clampPercent(status.percent)}%`
+    };
+  }
+  const pending = pendingVersion(status, v);
+  if (pending) {
+    const why = status?.state === 'available-manual' && status.reason
+      ? ` (this install could not update itself: ${status.reason})` : '';
+    return {
+      label: `v${pending} · download`, action: 'manual', tone: 'ready', busy: false,
+      title: `Click to download v${pending}, then replace the app you have${why}`
+    };
+  }
   switch (status?.state) {
     case 'checking':
       return { label: 'checking…', action: 'none', tone: 'busy', busy: true, title: `Checking for updates (you're on v${v})` };
-    case 'available':
-      return {
-        label: `v${status.version} ready to install`, action: 'download', tone: 'ready', busy: false,
-        title: `Version ${status.version} is available — click to download it`
-      };
-    case 'downloading':
-      return {
-        label: `downloading ${clampPercent(status.percent)}%`, action: 'none', tone: 'busy', busy: true,
-        title: `Downloading v${status.version}… ${clampPercent(status.percent)}%`
-      };
-    case 'downloaded':
-      return {
-        label: `restart to update to v${status.version}`, action: 'restart', tone: 'ready', busy: false,
-        title: `v${status.version} is downloaded and ready — click to restart and apply it`
-      };
-    case 'available-manual':
-      return status.downloadUrl
-        ? {
-          label: `v${status.version} · download`, action: 'open-release', tone: 'ready', busy: false,
-          title: `Click to download v${status.version}, then replace the app you have`
-        }
-        : {
-          label: `v${status.version} — get it manually`, action: 'open-release', tone: 'warn', busy: false,
-          title: status.reason
-            ? `This install couldn't update itself (${status.reason}) — click to open the release page`
-            : `This install can't update itself — click to open the release page`
-        };
-    case 'just-updated':
-      return { label: null, action: 'check', tone: 'idle', busy: false, title: `v${v} is the latest version — click to check again` };
     case 'error':
       return {
         label: 'update check failed', action: 'check', tone: 'warn', busy: false,
         title: `${status.message} — click to try again`
       };
     case 'not-available':
+    case 'just-updated':
       return { label: null, action: 'check', tone: 'idle', busy: false, title: `v${v} is the latest version — click to check again` };
     case 'idle':
     default:
@@ -159,7 +182,6 @@ export function describeUpdate(status: UpdateStatus | null, currentVersion: stri
   }
 }
 
-/** The same status, rendered for Settings instead of the toolbar chip. */
 export interface UpdateSettingsView {
   /** Headline: the version that matters right now — yours, or the one waiting. */
   headline: string;

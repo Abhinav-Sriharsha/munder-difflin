@@ -1376,6 +1376,7 @@ const api = {
     ipcRenderer.invoke('update:openRelease', url),
   /** Which OS this window runs on, for platform-specific copy. */
   platform: process.platform as string,
+  arch: process.arch as string,
   /** DEV ONLY — fabricate an update status so the toast can be inspected without
    *  cutting a release. Refused (`{ok:false}`) in a packaged build; see the
    *  handler in updater.ts. Call it from the devtools console:

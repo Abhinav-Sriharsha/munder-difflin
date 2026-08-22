@@ -5,7 +5,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { readConfig } from './config';
 import { DEFAULT_DROP_HTML } from '../shared/releaseDrop';
-import { reduceStatus, clampPercent, isNewer, type UpdateStatus } from '../shared/updateState';
+import { reduceStatus, clampPercent, isNewer, installerUrl, type UpdateStatus } from '../shared/updateState';
 
 /**
  * Auto-update from GitHub releases.
@@ -377,7 +377,7 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
         : SIMULATED_NOTES;
     emit(o.state === 'downloaded'
       ? { state: 'downloaded', version, notes }
-      : { state: 'available-manual', version, notes, url: `https://github.com/${REPO}/releases/tag/v${version}`, downloadUrl: `https://github.com/${REPO}/releases/download/v${version}/Munder-Difflin-${version}-mac-${process.arch}.dmg` });
+      : { state: 'available-manual', version, notes, url: `https://github.com/${REPO}/releases/tag/v${version}`, downloadUrl: installerUrl(version, process.platform, process.arch) });
     logLine(`SIMULATED ${o.state === 'downloaded' ? 'downloaded' : 'available-manual'} ${version} (dev only)`);
     return { ok: true };
   });
@@ -392,7 +392,7 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
       const notes = readFileSync(previewPath, 'utf8');
       const m = notes.match(/what[’']?s\s+new\s+in\s+v?(\d+\.\d+\.\d+)/i) ?? notes.match(/\bv(\d+\.\d+\.\d+)\b/);
       const version = m?.[1] ?? '9.9.9';
-      emit({ state: 'available-manual', version, notes, url: `https://github.com/${REPO}/releases/tag/v${version}`, downloadUrl: `https://github.com/${REPO}/releases/download/v${version}/Munder-Difflin-${version}-mac-${process.arch}.dmg` });
+      emit({ state: 'available-manual', version, notes, url: `https://github.com/${REPO}/releases/tag/v${version}`, downloadUrl: installerUrl(version, process.platform, process.arch) });
       logLine(`SIMULATED available-manual ${version} from MD_DROP_PREVIEW=${previewPath} (dev only)`);
     } catch (e) {
       logLine(`MD_DROP_PREVIEW unreadable: ${errText(e)}`);
