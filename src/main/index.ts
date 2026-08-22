@@ -2211,7 +2211,9 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      // Keep Chromium's OS renderer sandbox active; privileged work stays behind
+      // the narrow contextBridge/IPC surface owned by the main process.
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
       // The renderer runs the hive's heartbeat loops (inbox nudge, message
