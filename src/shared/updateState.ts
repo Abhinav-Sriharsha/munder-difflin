@@ -21,7 +21,11 @@ export type UpdateStatus =
    *  `notes` is the release body — the notify-only poll already reads the same
    *  `releases/latest` JSON that carries it, so the toast can show "what's new"
    *  here too without a second request. */
-  | { state: 'available-manual'; version: string; url: string; reason?: string; notes?: string }
+  | { state: 'available-manual'; version: string; url: string; reason?: string; notes?: string;
+      /** Direct asset for THIS platform/arch, when the release has one. The
+       *  modal's primary button downloads it; without it the button falls back
+       *  to the releases page. */
+      downloadUrl?: string }
   | { state: 'error'; message: string };
 
 export type UpdateAction = 'none' | 'check' | 'download' | 'restart' | 'open-release';

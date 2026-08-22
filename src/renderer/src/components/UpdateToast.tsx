@@ -144,19 +144,33 @@ export function UpdateToast() {
 
   if (!status) return null;
 
+  /** Close the notice FIRST, then ask main to quit and install. The quit path
+   *  raises the kill-and-quit warning when agents are running, and leaving a
+   *  "restarting…" notice on screen behind it just gives the user two things to
+   *  read. (The warning outranking every modal is a separate fix — this one is
+   *  about not asking two questions at once.) If main reports it could not quit,
+   *  the notice comes back so the user can retry; a user CANCEL of the warning
+   *  is not a failure, and the notice stays closed. */
   const restart = async () => {
+    const prev = status;
     setBusy(true);
+    setStatus(null);
     try {
       const res = await window.cth.updateRestartAndInstall();
-      if (!res.ok) setBusy(false); // stayed alive — let the user retry
-    } catch { setBusy(false); }
+      if (!res.ok) { setStatus(prev); setBusy(false); }
+    } catch { setStatus(prev); setBusy(false); }
   };
 
   /** Same call the manual state's button makes: main resolves `undefined` to
    *  the releases page and refuses any URL outside this repo. */
   const openRelease = () => {
-    void window.cth.updateOpenRelease(status.state === 'available-manual' ? status.url : undefined);
+    void window.cth.updateOpenRelease(
+      status.state === 'available-manual' ? (status.downloadUrl ?? status.url) : undefined
+    );
   };
+  /** True when the release carries an installer for THIS machine, so the button
+   *  can promise a download rather than a page to go hunting on. */
+  const hasDownload = status.state === 'available-manual' && !!status.downloadUrl;
 
   // An authored release: hand the whole moment to the centered drop instead of
   // the corner toast. Nothing is passed in but the content — the drop carries no
@@ -270,7 +284,7 @@ export function UpdateToast() {
             onClick={openRelease}
             style={buttonStyle}
           >
-            open releases
+            {hasDownload ? `download ${status.version}` : 'open releases'}
           </button>
         )}
       </div>

@@ -1,7 +1,7 @@
 import { app, ipcMain, shell } from 'electron';
 import type { WebContents } from 'electron';
 import { request as httpsRequest } from 'node:https';
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readConfig } from './config';
 import { DEFAULT_DROP_HTML } from '../shared/releaseDrop';
@@ -116,6 +116,27 @@ function errText(e: unknown): string {
   return m.length > 300 ? `${m.slice(0, 300)}…` : m;
 }
 
+/** The one asset in a release that installs on THIS machine, by the names
+ *  electron-builder.yml produces: mac-{arch}.dmg, win-x64-setup.exe,
+ *  linux-x86_64.AppImage. Null when the release has no matching asset, and the
+ *  caller falls back to the releases page. Download URLs live under
+ *  github.com/REPO/releases/download/, so the openRelease prefix guard already
+ *  admits them. */
+export function pickDownloadAsset(
+  assets: ReadonlyArray<{ name?: string; browser_download_url?: string }> | undefined,
+  platform: NodeJS.Platform = process.platform,
+  arch: string = process.arch
+): string | null {
+  if (!Array.isArray(assets)) return null;
+  const want = platform === 'darwin' ? new RegExp(`-mac-${arch}\\.dmg$`)
+    : platform === 'win32' ? /-win-x64-setup\.exe$/
+    : platform === 'linux' ? /-linux-x86_64\.AppImage$/
+    : null;
+  if (!want) return null;
+  const hit = assets.find((a) => typeof a.name === 'string' && want.test(a.name) && typeof a.browser_download_url === 'string');
+  return hit?.browser_download_url ?? null;
+}
+
 /** Notify-only check against releases/latest (no download). Never throws. */
 function fallbackCheck(reason: string | undefined, force = false): void {
   const now = Date.now();
@@ -136,7 +157,7 @@ function fallbackCheck(reason: string | undefined, force = false): void {
         res.on('data', (d) => { body += d; if (body.length > 262_144) req.destroy(); });
         res.on('end', () => {
           try {
-            const rel = JSON.parse(body) as { tag_name?: string; html_url?: string; body?: string };
+            const rel = JSON.parse(body) as { tag_name?: string; html_url?: string; body?: string; assets?: Array<{ name?: string; browser_download_url?: string }> };
             const tag = rel.tag_name ?? '';
             if (tag && isNewer(tag, app.getVersion())) {
               emit({
@@ -144,6 +165,7 @@ function fallbackCheck(reason: string | undefined, force = false): void {
                 version: tag.replace(/^v/, ''),
                 url: rel.html_url ?? `https://github.com/${REPO}/releases/latest`,
                 reason,
+                downloadUrl: pickDownloadAsset(rel.assets) ?? undefined,
                 // Already in the response we just parsed — carrying it costs
                 // nothing and lets the notify-only toast show "What's new" too.
                 // NOT a new request: see TELEMETRY.md, this app never adds one.
@@ -286,10 +308,27 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
         : SIMULATED_NOTES;
     emit(o.state === 'downloaded'
       ? { state: 'downloaded', version, notes }
-      : { state: 'available-manual', version, notes, url: `https://github.com/${REPO}/releases/tag/v${version}` });
+      : { state: 'available-manual', version, notes, url: `https://github.com/${REPO}/releases/tag/v${version}`, downloadUrl: `https://github.com/${REPO}/releases/download/v${version}/Munder-Difflin-${version}-mac-${process.arch}.dmg` });
     logLine(`SIMULATED ${o.state === 'downloaded' ? 'downloaded' : 'available-manual'} ${version} (dev only)`);
     return { ok: true };
   });
+  // DEV ONLY — `MD_DROP_PREVIEW=<path to a release body .md>` (see
+  // `npm run dev:drop`) feeds that file through the simulate path on boot, so a
+  // drop under authoring opens centred the moment the window is up, with no
+  // DevTools paste. The renderer pulls `update:current` on mount, so emitting
+  // before the window exists is fine. Same hard gate as `update:simulate`.
+  const previewPath = process.env.MD_DROP_PREVIEW;
+  if (!app.isPackaged && previewPath) {
+    try {
+      const notes = readFileSync(previewPath, 'utf8');
+      const m = notes.match(/what[’']?s\s+new\s+in\s+v?(\d+\.\d+\.\d+)/i) ?? notes.match(/\bv(\d+\.\d+\.\d+)\b/);
+      const version = m?.[1] ?? '9.9.9';
+      emit({ state: 'available-manual', version, notes, url: `https://github.com/${REPO}/releases/tag/v${version}`, downloadUrl: `https://github.com/${REPO}/releases/download/v${version}/Munder-Difflin-${version}-mac-${process.arch}.dmg` });
+      logLine(`SIMULATED available-manual ${version} from MD_DROP_PREVIEW=${previewPath} (dev only)`);
+    } catch (e) {
+      logLine(`MD_DROP_PREVIEW unreadable: ${errText(e)}`);
+    }
+  }
   ipcMain.handle('update:openRelease', (_evt, url: unknown) => {
     const href = typeof url === 'string' ? url : `https://github.com/${REPO}/releases/latest`;
     // Only ever open the project's releases page — this is not a generic opener.
