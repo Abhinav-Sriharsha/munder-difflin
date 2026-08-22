@@ -279,8 +279,11 @@ reviewed one, or filed the bug that led to one. The full list is in CHANGELOG.md
           <p>And you can edit an agent without leaving it.</p></div></li>
         <li><i>Workers</i><div><b>Hiring is reliable</b>
           <p>Spawn, teardown, floor cards and engine checks happen before a hire is committed.</p></div></li>
-        <li><i>Updates</i><div><b>Restart to update no longer gets stuck</b>
-          <p>A refused quit used to leave the button disabled forever.</p></div></li>
+        <li><i>Updates</i><div><b>Updating is one click, and you pick how</b>
+          <p>The version badge next to the logo downloads the build for your machine and walks you
+          through replacing the app, step by step for your OS. Auto update lives in Settings. Once
+          you are current the badge says latest, and the first launch after an update opens that
+          release's page. Restart to update no longer gets stuck either.</p></div></li>
         <li><i>Windows</i><div><b>Quitting the app quits the agents</b></div></li>
         <li><i>Engines</i><div><b>Gemini CLI and Cursor Agent join the floor</b></div></li>
         <li><i>Terminal</i><div><b>TUIs follow the window theme</b></div></li>
