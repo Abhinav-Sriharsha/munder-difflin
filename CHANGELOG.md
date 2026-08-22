@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`update_applied` telemetry.** The app now reports, once, on the first start after its own
+  version changes: `update_applied { from_version, to_version }`. Auto-update health was the one
+  thing we had no way to see — a release is delivered in place, and the only evidence we had was
+  installs that happened to show events on two versions. `from_version` is `unknown` for an
+  install that predates the event, so the first release carrying it is measurable rather than
+  silent for a cycle. Both values are version strings; nothing new about you is collected, the
+  same opt-outs apply, and [`TELEMETRY.md`](TELEMETRY.md) lists it like every other event.
+
 ## [0.4.4] — 2026-08-18
 
 **Windows agents can finally talk to each other** — and the first run stops silently failing.

@@ -49,6 +49,12 @@ const EVENTS: Record<string, ReadonlySet<string>> = {
   first_run: new Set<string>(),
   /** Every app start. The DAU/retention backbone. */
   app_launched: new Set<string>(),
+  /** Once per version change, on the first run after the version moved. Both
+   *  values are version strings of the same shape as the `app_version` every
+   *  event already carries; `from_version` is `unknown` for an install that
+   *  predates version stamping (i.e. anything upgrading INTO the first release
+   *  that ships this event). */
+  update_applied: new Set<string>(['from_version', 'to_version']),
   /** An agent PTY spawned. `provider` is the CLI engine name only. */
   agent_spawned: new Set<string>(['provider']),
   /** Coarse feature adoption; `feature` is a fixed enum (see FEATURES), fired
@@ -79,11 +85,19 @@ function dntSet(): boolean {
   return v !== undefined && v !== '' && v !== '0';
 }
 
-class Analytics {
+/** Exported for the unit test only — index.ts uses the `analytics` singleton
+ *  below. Constructing a fresh one is the only way to exercise the once-per-
+ *  install paths (first_run, update_applied) more than once in a process. */
+export class Analytics {
   private client: PostHog | null = null;
   private distinctId = '';
   private enabled = false;
   private firstRun = false;
+  /** False when the state dir was unwritable and loadOrMintInstallId fell back
+   *  to an ephemeral id. Such an install cannot be recognised across boots, so
+   *  it must never report a version transition — it would report one on EVERY
+   *  boot and inflate the exact number update_applied exists to produce. */
+  private idPersisted = false;
   private startedAt = 0;
   private sessionEnded = false;
   /** Session-scoped dedup for feature_used. */
@@ -119,7 +133,22 @@ class Analytics {
       this.client = null;
       return;
     }
+    // Version-change detection. Read BEFORE the stamp is refreshed, and stamp
+    // BEFORE sending: at-most-once beats at-least-once here, because a
+    // duplicated update_applied would corrupt the very count it exists to
+    // produce, while a lost one costs a single install out of thousands. The
+    // stamp is refreshed for opted-out users too — we record locally and let
+    // track() decide whether anything leaves the machine, so opting back in
+    // never back-fills a transition that happened while we were dark.
+    let transition: VersionTransition | null = null;
+    if (this.idPersisted) {
+      const previous = readVersionStamp(opts.stateDir);
+      transition = updateTransition(previous, opts.appVersion, this.firstRun);
+      if (previous !== opts.appVersion) writeVersionStamp(opts.stateDir, opts.appVersion);
+    }
+
     if (this.firstRun) this.track('first_run');
+    if (transition) this.track('update_applied', transition);
     this.track('app_launched');
   }
 
@@ -174,12 +203,16 @@ class Analytics {
     try {
       if (existsSync(file)) {
         const id = readFileSync(file, 'utf8').trim();
-        if (id) return id;
+        if (id) {
+          this.idPersisted = true;
+          return id;
+        }
       }
       const id = randomUUID();
       mkdirSync(stateDir, { recursive: true });
       writeFileSync(file, id + '\n', 'utf8');
       this.firstRun = true;
+      this.idPersisted = true;
       return id;
     } catch (e) {
       // Unwritable state dir: use an ephemeral id for this session rather than
@@ -187,6 +220,72 @@ class Analytics {
       console.error('[analytics] install-id persist failed (ephemeral id):', e);
       return randomUUID();
     }
+  }
+}
+
+/** The version this install last ran, kept beside the install id in userData.
+ *  Deleting the app's data dir clears it exactly like the install id. */
+const VERSION_STAMP_FILE = 'telemetry-last-version';
+
+/** Semver-shaped and nothing else. The stamp is an ordinary file in userData
+ *  that a user can edit, so it is re-validated on the way out — that keeps
+ *  `from_version` provably closed-form and honours TELEMETRY.md's "nothing
+ *  free-form" promise even against a hand-edited state dir. */
+const VERSION_RE = /^[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(?:-[0-9A-Za-z.]{1,32})?$/;
+
+/** A type alias, NOT an interface: `track()` takes `Record<string, string>` and
+ *  TypeScript only gives object *type aliases* an implicit index signature. */
+export type VersionTransition = {
+  from_version: string;
+  to_version: string;
+};
+
+/** The single place that decides whether a boot is a version change.
+ *
+ *  - `firstRun` (the install id was just minted) → a brand-new install, never
+ *    an update. This is what keeps update_applied and first_run disjoint.
+ *  - no stamp on an install that already had an id → the install predates
+ *    version stamping, so it arrived here from SOME earlier version:
+ *    `from_version: 'unknown'`. This is what makes the very first release
+ *    carrying the event measurable, instead of silent for one whole cycle.
+ *  - stamp !== current → a version change (a downgrade reports honestly, with
+ *    from > to).
+ *  - stamp === current → an ordinary relaunch. Nothing.
+ *
+ *  Pure and exported so the decision can be unit-tested without PostHog. */
+export function updateTransition(
+  previous: string | null,
+  current: string,
+  firstRun: boolean
+): VersionTransition | null {
+  if (firstRun) return null;
+  if (!VERSION_RE.test(current)) return null; // can't name where we landed
+  if (previous === current) return null;
+  return {
+    from_version: previous && VERSION_RE.test(previous) ? previous : 'unknown',
+    to_version: current
+  };
+}
+
+/** Raw stamp, or null when absent/unreadable. Never throws. */
+export function readVersionStamp(stateDir: string): string | null {
+  try {
+    const file = join(stateDir, VERSION_STAMP_FILE);
+    if (!existsSync(file)) return null;
+    return readFileSync(file, 'utf8').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort. A failed stamp just means the transition may be reported again
+ *  next boot; it must never take the app down. */
+export function writeVersionStamp(stateDir: string, version: string): void {
+  try {
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(join(stateDir, VERSION_STAMP_FILE), version + '\n', 'utf8');
+  } catch (e) {
+    console.error('[analytics] version stamp persist failed:', e);
   }
 }
 
