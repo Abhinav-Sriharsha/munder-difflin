@@ -11,7 +11,7 @@ import { homedir } from 'node:os';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
 import { resolveCommand as resolveCliCommand } from './shellEnv';
-import { initAutoUpdater } from './updater';
+import { initAutoUpdater, abortPendingRestart } from './updater';
 import { RealtimeFloorWatcher } from './realtimeFloorWatcher';
 import {
   readConfig, writeConfig, setAgentTokenCap, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
@@ -3581,7 +3581,11 @@ ipcMain.handle('app:confirmClose', () => {
   teardownAndQuit();
 });
 ipcMain.handle('app:cancelClose', () => {
-  // no-op — modal will close on the renderer side
+  // The modal closes on the renderer side. The one thing main owes anybody here
+  // is the truth about a restart-to-install: if this quit was one, it has just
+  // been called off, and whoever is waiting on it needs to hear that rather than
+  // sit disabled forever waiting for a process that is not going to die.
+  abortPendingRestart();
 });
 
 // Open a new floor (independent office window). Gated by the multiWindow flag

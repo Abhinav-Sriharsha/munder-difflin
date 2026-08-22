@@ -55,6 +55,38 @@ let started = false;
 let lastFallbackCheck = 0;
 /** Remembered so a status survives a renderer reload and can be re-served. */
 let lastStatus: UpdateStatus | null = null;
+/**
+ * Resolved when a restart-to-install is CALLED OFF.
+ *
+ * `quitAndInstall()` does not report an outcome. It asks the app to quit, and
+ * the app may refuse: with agents running, the quit warning goes up and the user
+ * can cancel it. The handler used to return `{ ok: true }` the instant it made
+ * that request, so the renderer was told the restart succeeded while the app was
+ * still sitting there. Every surface that had disabled its button waiting for a
+ * process that was never going to die then had nothing to wait for, and the
+ * button stayed "restarting…" with no way back.
+ *
+ * So the handler now waits on this instead. Exactly one of two things happens:
+ * the app really quits and this never settles (the process is gone, nothing is
+ * left to tell), or the user cancels and `abortPendingRestart()` settles it and
+ * the handler reports the truth.
+ */
+let pendingRestart: (() => void) | null = null;
+
+/**
+ * The user backed out of the quit that a restart-to-install asked for.
+ *
+ * Called from the cancel path of the quit warning, which is the only place that
+ * knows a requested quit was refused. Safe to call when no restart is pending —
+ * an ordinary quit the user cancels is not our business.
+ */
+export function abortPendingRestart(): void {
+  if (!pendingRestart) return;
+  const resolve = pendingRestart;
+  pendingRestart = null;
+  logLine('quitAndInstall cancelled by the user at the quit warning');
+  resolve();
+}
 
 /** Append-only breadcrumb trail in userData. The whole point of this file's
  *  existence is that the last failure left no trace anywhere. */
@@ -263,9 +295,17 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
     try {
       const autoUpdater = await loadAutoUpdater();
       logLine('quitAndInstall requested by the user');
+      // A restart already in flight is superseded rather than left dangling, so
+      // its caller is released instead of waiting on a resolve that never comes.
+      abortPendingRestart();
+      const cancelled = new Promise<void>((resolve) => { pendingRestart = resolve; });
       autoUpdater.quitAndInstall();
-      return { ok: true };
+      // Settles ONLY if the quit was called off. If the app is really going, the
+      // process exits here and the renderer's promise dies with the window.
+      await cancelled;
+      return { ok: false, error: 'cancelled' };
     } catch (e) {
+      pendingRestart = null;
       const error = errText(e);
       logLine(`quitAndInstall failed: ${error}`);
       emit({ state: 'error', message: error });
