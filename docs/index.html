@@ -683,6 +683,8 @@
   }
   .pg-label small { font-family: var(--font-body); font-weight: 400; font-size: 0.82rem; letter-spacing: 0; color: var(--faint); }
   .plans2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: stretch; flex: 1; }
+  .pgroup.wide { grid-column: 1 / -1; }
+  .plans2.plans3 { grid-template-columns: repeat(3, 1fr); }
   .plan > .btn { margin-top: auto; align-self: stretch; text-align: center; justify-content: center; }
   .pgroup > .seat-box { margin: -2px 4px 16px; }
   /* seat slider */
@@ -696,6 +698,7 @@
   .seat-scale { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.64rem; color: var(--faint); padding: 0 2px; }
   .seat-scale span.on { color: var(--accent); font-weight: 700; }
   @media (max-width: 1000px) { .pgroups { grid-template-columns: 1fr; } }
+  @media (max-width: 900px)  { .plans2.plans3 { grid-template-columns: 1fr; } }
   @media (max-width: 620px)  { .plans2 { grid-template-columns: 1fr; } }
 
   /* ------- FOR THE PROJECT — Founding Supporter strip ------- */
@@ -1600,10 +1603,10 @@
 <section id="pricing">
   <div class="wrap center">
     <span class="kicker">PRICING</span>
-    <h2>Your clone is free. Two services make it unstoppable.</h2>
+    <h2>Your clone is free. Plans for power users and teams.</h2>
     <p class="lead" style="margin:18px auto 0">
-      The app is open source and runs on your laptop forever. On top of it we sell
-      exactly two things — use either, both, or neither.
+      The app is open source and runs on your laptop forever. Paid plans add the
+      24/7 sandbox and the team network — take either, both, or neither.
     </p>
     <div class="svcs">
       <div class="svc rv">
@@ -1624,9 +1627,9 @@
       </div>
     </div>
     <div class="pgroups">
-      <div class="pgroup rv">
+      <div class="pgroup rv wide">
         <span class="pg-label">FOR YOU <small>one person, one clone</small></span>
-        <div class="plans2">
+        <div class="plans2 plans3">
           <div class="plan">
             <span class="plan-name">SOLO</span>
             <span class="svc-chips"><span class="off">LOCAL ONLY</span></span>
@@ -1639,19 +1642,30 @@
             <a class="btn primary" data-download href="https://github.com/chaitanyagiri/munder-difflin/releases/latest"><span class="ic">⤓</span> Download</a>
           </div>
           <div class="plan">
-            <span class="plan-name">SOLO + CLOUD</span>
-            <span class="svc-chips"><span>CLOUD</span></span>
-            <span class="plan-price">Indie<small>agents run on our cloud</small></span>
+            <span class="plan-name">PRO</span>
+            <span class="svc-chips"><span class="off">LOCAL ONLY</span></span>
+            <span class="plan-price">$20<small>/month · or $199/year — built for power users (individuals)</small></span>
             <ul>
               <li>Everything in Solo</li>
-              <li>Dedicated sandbox VM — your clone keeps working with the lid closed</li>
+              <li>Pro workflows, memory &amp; the multi-agent floor</li>
+              <li>Local-first — runs on your machine</li>
+            </ul>
+            <a class="btn" href="mailto:girichaitanya11@gmail.com?subject=Munder%20Difflin%20PRO">Get PRO</a>
+          </div>
+          <div class="plan">
+            <span class="plan-name">PRO + 24/7 SANDBOX</span>
+            <span class="svc-chips"><span>CLOUD</span></span>
+            <span class="plan-price">$99<small>/month · or $1,000/year</small></span>
+            <ul>
+              <li>Everything in PRO</li>
+              <li>Dedicated 24/7 sandbox VM — your clone keeps working with the lid closed</li>
               <li>Switch local ⇄ cloud anytime</li>
             </ul>
-            <a class="btn" href="mailto:girichaitanya11@gmail.com?subject=Munder%20Difflin%20—%20Indie%20(Solo%20%2B%20Cloud)">Contact us</a>
+            <a class="btn" href="mailto:girichaitanya11@gmail.com?subject=Munder%20Difflin%20PRO%20%2B%2024%2F7%20Sandbox">Get PRO + Sandbox</a>
           </div>
         </div>
       </div>
-      <div class="pgroup rv">
+      <div class="pgroup rv wide">
         <span class="pg-label">FOR YOUR TEAM <small>every member gets a clone</small></span>
         <div class="seat-box">
           <span class="seat-top"><span>TEAM SIZE · APPLIES TO BOTH PLANS</span><b id="seatLabel">up to 10 seats</b></span>
@@ -1660,8 +1674,9 @@
         </div>
         <div class="plans2">
           <div class="plan">
+            <span class="plan-name">TEAMS</span>
             <span class="svc-chips"><span>NETWORK</span></span>
-            <span class="plan-price">Teams Lite<small>agents use our network</small></span>
+            <span class="plan-price">$39<small>/seat/month · network &amp; collaboration, no sandbox</small></span>
             <ul>
               <li>E2E-encrypted clone-to-clone messaging</li>
               <li>Shared org knowledge base</li>
@@ -1672,17 +1687,29 @@
           </div>
           <div class="plan hot">
             <span class="flag">ALWAYS&nbsp;ON</span>
+            <span class="plan-name">TEAMS + 24/7 SANDBOX</span>
             <span class="svc-chips"><span>CLOUD</span><span>NETWORK</span></span>
-            <span class="plan-price">Teams PRO<small>agents use our network + run on our cloud</small></span>
+            <span class="plan-price">$149<small>/seat/month</small></span>
             <ul>
-              <li>Everything in Teams Lite</li>
-              <li>Dedicated sandbox VM per clone</li>
+              <li>Everything in Teams</li>
+              <li>Dedicated 24/7 sandbox VM per clone</li>
               <li>The whole floor ships with laptops closed</li>
               <li>Hosted org knowledge base, in your controlled environment</li>
             </ul>
             <a class="btn primary" id="ctaBoth" href="https://cal.com/chaitanya-giri-w3wrwi/munder-difflin-teams-demo" target="_blank" rel="noopener">Contact us</a>
           </div>
         </div>
+      </div>
+    </div>
+    <div class="support-strip rv" id="credits">
+      <div>
+        <span class="ss-label">ADD-ON <small>on any sandbox plan</small></span>
+        <h3>Sandbox compute credits</h3>
+        <p>Burst capacity when you need extra always-on days: <b>10 credits = 1 day</b>
+        of 24/7 sandbox runtime. Sold in multiples of 10.</p>
+      </div>
+      <div class="ss-cta">
+        <a class="btn ghost" href="mailto:girichaitanya11@gmail.com?subject=Sandbox%20compute%20credits">Buy credits</a>
       </div>
     </div>
     <!-- The name reaches the wall through the Razorpay Payment Page's
