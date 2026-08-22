@@ -17,9 +17,10 @@
  * same offline. A sponsor slot with nothing in it renders NOTHING rather than a
  * "your logo here" placeholder.
  *
- * Deliberately not a marketing panel: no gradient, no pitch. It sits above the
- * update section in a settings dialog, and anything louder than the settings it
- * introduces would be noise every time someone opens this to change a folder.
+ * Since 0.4.5 it is drawn in the release drop's idiom (ink border, hard offset
+ * shadow, dark mono title bar) and carries the v0.5.0 Pro announcement and the
+ * Founders' Wall offer, so the one card people see in Settings says the same
+ * thing the release modal does. Plan label and blurb still come from hero.json.
  */
 import { useEffect, useState } from 'react';
 import { PixelButton } from './PixelButton';
@@ -27,6 +28,7 @@ import { Icon } from './Icon';
 import { DEFAULT_HERO, type HeroPayload } from '@shared/heroPayload';
 
 const GITHUB_REPO_URL = 'https://github.com/chaitanyagiri/munder-difflin';
+const FOUNDERS_WALL_URL = 'https://munderdiffl.in/wall.html';
 
 export function SettingsHeroCard() {
   const [version, setVersion] = useState<string | null>(null);
@@ -55,103 +57,150 @@ export function SettingsHeroCard() {
     window.dispatchEvent(new CustomEvent('cth:show-release-notes'));
   };
 
+  const INK = 'var(--cth-ink-900)';
+  const MONO = 'var(--cth-font-mono, monospace)';
+
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', gap: 14,
-      padding: 16,
-      background: 'var(--cth-cream-100)',
-      boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
+      display: 'flex', flexDirection: 'column',
+      background: 'var(--cth-paper-100)',
+      border: `3px solid ${INK}`,
+      boxShadow: `8px 8px 0 ${INK}`,
+      marginRight: 8, marginBottom: 8
     }}>
-      {/* Identity */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{
-              fontFamily: 'var(--cth-font-display)', fontSize: 13, lineHeight: '20px',
-              color: 'var(--cth-ink-900)'
-            }}>MUNDER DIFFLIN</span>
-            {version && (
-              <span style={{
-                fontFamily: 'var(--cth-font-mono, monospace)', fontSize: 12,
-                color: 'var(--cth-ink-500)'
-              }}>v{version}</span>
-            )}
-            <span style={{
-              fontFamily: 'var(--cth-font-display)', fontSize: 9, letterSpacing: 0.5,
-              textTransform: 'uppercase', padding: '2px 7px',
-              background: 'var(--cth-mint-light)',
-              boxShadow: 'inset 0 0 0 1px var(--cth-mint)',
-              color: 'var(--cth-ink-900)'
-            }}>{PLAN.label}</span>
-          </div>
-          <div style={{
-            marginTop: 6, fontSize: 12.5, lineHeight: 1.5, color: 'var(--cth-ink-700)', maxWidth: '58ch'
-          }}>{PLAN.blurb}</div>
-        </div>
-
-        {PLAN.upgrade && (
-          <PixelButton
-            variant="primary"
-            size="sm"
-            onClick={() => void window.cth.openExternal(PLAN.upgrade!.url)}
-          >{PLAN.upgrade.label}</PixelButton>
-        )}
+      {/* Title bar, in the release drop's idiom. */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '8px 14px',
+        background: INK, color: 'var(--cth-paper-100)',
+        fontFamily: MONO, fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase'
+      }}>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          Munder Difflin{version ? ` · v${version}` : ''}
+        </span>
+        <span style={{
+          fontSize: 9, letterSpacing: '.12em', padding: '2px 7px',
+          background: 'var(--cth-mint-light)', color: INK
+        }}>{PLAN.label}</span>
       </div>
 
-      {/* A one-line notice (an incident, a migration heads-up), when set. */}
-      {hero.notice && (
-        <div style={{
-          padding: '8px 10px', fontSize: 12, lineHeight: 1.5,
-          color: 'var(--cth-ink-900)',
-          background: 'var(--cth-lemon-light)',
-          boxShadow: 'inset 0 0 0 1px var(--cth-lemon)'
-        }}>{hero.notice}</div>
-      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14 }}>
+        <div style={{ fontSize: 12.5, lineHeight: 1.5, color: 'var(--cth-ink-700)', maxWidth: '64ch' }}>
+          {PLAN.blurb}
+        </div>
 
-      {/* Sponsor — only when there is one. */}
-      {SPONSOR && (
+        {/* A one-line notice (an incident, a migration heads-up), when set. */}
+        {hero.notice && (
+          <div style={{
+            padding: '8px 10px', fontSize: 12, lineHeight: 1.5, color: INK,
+            background: 'var(--cth-lemon-light)', border: `2px solid ${INK}`
+          }}>{hero.notice}</div>
+        )}
+
+        {/* Pro announcement. Same block the release drop carries. */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-          padding: 10,
-          background: 'var(--cth-paper-100)',
-          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
+          padding: '12px 14px',
+          background: 'var(--cth-lilac-light)',
+          border: `2px solid ${INK}`, boxShadow: `5px 5px 0 ${INK}`,
+          marginRight: 5, marginBottom: 5
         }}>
           <span style={{
-            fontFamily: 'var(--cth-font-display)', fontSize: 9, letterSpacing: 0.5,
-            textTransform: 'uppercase', color: 'var(--cth-ink-500)', flexShrink: 0
-          }}>Sponsored by</span>
-          <span style={{ fontSize: 13, color: 'var(--cth-ink-900)', flexShrink: 0 }}>{SPONSOR.name}</span>
-          <span style={{ flex: 1, minWidth: 120, fontSize: 12, color: 'var(--cth-ink-700)' }}>{SPONSOR.blurb}</span>
-          <PixelButton variant="ghost" size="sm" onClick={() => void window.cth.openExternal(SPONSOR.url)}>
-            visit
-          </PixelButton>
+            display: 'inline-block', fontFamily: MONO, fontSize: 9, letterSpacing: '.18em',
+            textTransform: 'uppercase', padding: '2px 7px',
+            background: INK, color: 'var(--cth-paper-100)'
+          }}>Announcement</span>
+          <div style={{
+            marginTop: 8, fontFamily: MONO, fontSize: 14, fontWeight: 700, color: INK
+          }}>v0.5.0 launches with Munder Difflin Pro.</div>
+          <div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.5, color: 'var(--cth-ink-700)', maxWidth: '64ch' }}>
+            <b style={{ color: INK }}>Community stays free, stays open, and keeps getting updates.</b>{' '}
+            Pro ships with new features and integrations, with more posted throughout the year,
+            and it stays ahead of Community, for power users who want the full potential of
+            coding agents and agent harnesses. The Pro roadmap also includes a mobile app.
+          </div>
         </div>
-      )}
 
-      {/* Actions that belong to the app rather than to any setting below. */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <PixelButton variant="secondary" size="sm" onClick={showReleaseNotes}>
-          <span title="Show the release notes for the update you were last told about"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <Icon name="sparkle" /> what&rsquo;s new
-          </span>
-        </PixelButton>
-        <PixelButton variant="secondary" size="sm" onClick={() => void window.cth.openExternal(GITHUB_REPO_URL)}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            ⭐ star on GitHub
-          </span>
-        </PixelButton>
-        <PixelButton
-          variant="ghost"
-          size="sm"
-          onClick={() => void window.cth.openExternal(`${GITHUB_REPO_URL}/issues/new`)}
-        >report a problem</PixelButton>
-        <span style={{ flex: 1 }} />
-        <a
-          href={`${GITHUB_REPO_URL}/blob/main/CHANGELOG.md`}
-          onClick={(e) => { e.preventDefault(); void window.cth.openExternal(`${GITHUB_REPO_URL}/blob/main/CHANGELOG.md`); }}
-          style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}
-        >full changelog →</a>
+        {/* Founders' Wall offer. */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+          padding: '12px 14px',
+          background: INK, color: 'var(--cth-paper-100)',
+          marginTop: 2
+        }}>
+          <div style={{
+            fontFamily: MONO, fontSize: 30, fontWeight: 700, lineHeight: 0.9,
+            letterSpacing: '-.05em', color: 'var(--cth-lemon)', textAlign: 'center', flexShrink: 0
+          }}>
+            50<span style={{
+              display: 'block', fontSize: 8, letterSpacing: '.2em', fontWeight: 500,
+              color: 'var(--cth-paper-100)', opacity: 0.7, marginTop: 5
+            }}>% OFF</span>
+          </div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontFamily: MONO, fontSize: 12.5, fontWeight: 600 }}>On the Founders&rsquo; Wall?</div>
+            <div style={{ fontSize: 12, lineHeight: 1.45, opacity: 0.85, marginTop: 2 }}>
+              A month of Munder Difflin Pro free, then 50% off the annual plan. For the first
+              100 people on the wall.
+            </div>
+          </div>
+          <PixelButton variant="primary" size="sm" onClick={() => void window.cth.openExternal(FOUNDERS_WALL_URL)}>
+            see the wall
+          </PixelButton>
+          {PLAN.upgrade && (
+            <PixelButton variant="secondary" size="sm" onClick={() => void window.cth.openExternal(PLAN.upgrade!.url)}>
+              {PLAN.upgrade.label}
+            </PixelButton>
+          )}
+        </div>
+
+        {/* Sponsor — only when there is one. */}
+        {SPONSOR && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+            padding: 10,
+            background: 'var(--cth-cream-100)',
+            border: `2px solid ${INK}`
+          }}>
+            <span style={{
+              fontFamily: MONO, fontSize: 9, letterSpacing: '.18em',
+              textTransform: 'uppercase', color: 'var(--cth-ink-500)', flexShrink: 0
+            }}>Sponsored by</span>
+            <span style={{ fontSize: 13, color: INK, flexShrink: 0 }}>{SPONSOR.name}</span>
+            <span style={{ flex: 1, minWidth: 120, fontSize: 12, color: 'var(--cth-ink-700)' }}>{SPONSOR.blurb}</span>
+            <PixelButton variant="ghost" size="sm" onClick={() => void window.cth.openExternal(SPONSOR.url)}>
+              visit
+            </PixelButton>
+          </div>
+        )}
+
+        {/* Actions that belong to the app rather than to any setting below. */}
+        <div style={{
+          display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center',
+          paddingTop: 12, borderTop: `2px solid ${INK}`
+        }}>
+          <PixelButton variant="secondary" size="sm" onClick={showReleaseNotes}>
+            <span title="Show the release notes for the update you were last told about"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Icon name="sparkle" /> what&rsquo;s new
+            </span>
+          </PixelButton>
+          <PixelButton variant="secondary" size="sm" onClick={() => void window.cth.openExternal(GITHUB_REPO_URL)}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              ⭐ star on GitHub
+            </span>
+          </PixelButton>
+          <PixelButton
+            variant="ghost"
+            size="sm"
+            onClick={() => void window.cth.openExternal(`${GITHUB_REPO_URL}/issues/new`)}
+          >report a problem</PixelButton>
+          <span style={{ flex: 1 }} />
+          <a
+            href={`${GITHUB_REPO_URL}/blob/main/CHANGELOG.md`}
+            onClick={(e) => { e.preventDefault(); void window.cth.openExternal(`${GITHUB_REPO_URL}/blob/main/CHANGELOG.md`); }}
+            style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}
+          >full changelog →</a>
+        </div>
       </div>
     </div>
   );
