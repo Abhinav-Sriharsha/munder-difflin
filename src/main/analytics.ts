@@ -315,7 +315,14 @@ export function writeVersionStamp(stateDir: string, version: string): void {
  *
  *  Matching on the version is what makes it trustworthy: a leftover pair from a
  *  PREVIOUS upgrade names that older version, so it cannot be mistaken for this
- *  one. The log is read only to derive the closed enum below — no line, path or
+ *  one. The pair is necessary but not sufficient, because `quitAndInstall()`
+ *  can return without installing anything — so a launch that names a different
+ *  version after the request, or a refused quit warning, takes it back to
+ *  `manual`. That correction matters more from 0.4.5 on than it did before it:
+ *  the title-bar badge is now the MANUAL download, so the user whose automatic
+ *  install quietly did nothing is exactly the user who then reaches for manual,
+ *  and crediting that install to `auto` would flatter the path that failed.
+ *  The log is read only to derive the closed enum below — no line, path or
  *  message from it is ever sent, and updater.ts is not modified to support this
  *  (`test/update-applied.test.cjs` asserts the two literals still match, so a
  *  future reword fails the suite instead of silently degrading the metric).
@@ -324,6 +331,11 @@ const LOG_FILE = 'updater.log';
 const LOG_DOWNLOADED = 'update downloaded: ';
 const LOG_QUIT_REQUESTED = 'quitAndInstall requested by the user';
 const LOG_QUIT_FAILED = 'quitAndInstall failed:';
+/** Written once per packaged launch, naming the version that launched — in
+ *  v0.4.3 and v0.4.4 as shipped, so it is readable for the 0.4.5 hop. */
+const LOG_READY = /native updater ready \(current v([^)\s]+)\)/;
+/** Only in 0.4.5 and later, so it starts paying off for the 0.4.6 hop. */
+const LOG_QUIT_CANCELLED = 'quitAndInstall cancelled by the user at the quit warning';
 /** The log grows by a line or two per update, never on a routine check, so this
  *  is years of history — but it is a user-writable file, so the read is bounded
  *  rather than trusting. */
@@ -360,6 +372,25 @@ export function updateVia(logText: string | null, toVersion: string): UpdateVia 
   // an attempt that threw is the very next line — the app never quit, and
   // whatever moved the version afterwards was not us.
   if (lines[j + 1]?.includes(LOG_QUIT_FAILED)) return 'manual';
+
+  // A request that threw is the easy case. The one that matters is the request
+  // that returned cleanly and still did not install: `quitAndInstall()` reports
+  // no outcome (updater.ts says so in its own header), so a silent no-op and a
+  // successful install are the same line. The log tells them apart anyway,
+  // because the app that runs NEXT identifies itself:
+  //
+  //  - a launch naming any version other than the one we landed on means a
+  //    build that is not the target ran after the restart was asked for, so
+  //    that restart did not install this version;
+  //  - the user refusing the quit warning says the same thing outright.
+  //
+  // Both are disproof only. Their absence is not evidence of success, so this
+  // still cannot see an install that failed with nothing running afterwards.
+  for (let n = j + 1; n < lines.length; n++) {
+    if (lines[n].includes(LOG_QUIT_CANCELLED)) return 'manual';
+    const launched = LOG_READY.exec(lines[n]);
+    if (launched && launched[1] !== toVersion) return 'manual';
+  }
   return 'auto';
 }
 

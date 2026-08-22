@@ -50,8 +50,10 @@ identifiers, or API keys. Nothing free-form — the property allowlist in
   the app's data in the same way.
 - To set `via`, the app reads its own update log (`updater.log`, kept in the
   same user-data directory) to see whether the version it is now running is the
-  one its updater downloaded and you asked it to restart into. Only that
-  one-word result leaves the machine — no line, path or message from that log
+  one its updater downloaded and you asked it to restart into, and whether that
+  restart is what actually installed it: the log names each version as it
+  starts, so a build other than this one starting afterwards means something
+  else did the installing. Only that one-word result leaves the machine — no line, path or message from that log
   is ever sent.
 - IP-based geolocation is used only to derive a country for aggregate stats;
   PostHog does not retain the IP on the event.

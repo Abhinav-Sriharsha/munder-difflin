@@ -44,7 +44,8 @@ clickable paths in terminal output, one editor instead of two, and 23 community 
   A `via` property says whether the app's own updater installed it (`auto`), something else moved
   the version (`manual`), or there was no update log to read (`unknown`) — read from the update
   log the app already keeps, so it works for installs updating from a version released before
-  this one.
+  this one. A restart the user asked for that then quietly installed nothing counts as `manual`,
+  not `auto`, because the log names which build started next.
 
 ### Fixed
 

@@ -257,6 +257,7 @@ const L = {
   downloaded: (v) => `[2026-08-21T10:00:00.000Z] update downloaded: ${v} — waiting for the user to restart`,
   requested: '[2026-08-21T10:05:00.000Z] quitAndInstall requested by the user',
   failed: '[2026-08-21T10:05:00.001Z] quitAndInstall failed: ENOENT',
+  cancelled: '[2026-08-21T10:05:30.000Z] quitAndInstall cancelled by the user at the quit warning',
   downloadErr: '[2026-08-21T09:00:00.000Z] download failed: socket hang up'
 };
 const log = (...lines) => lines.join('\n') + '\n';
@@ -289,6 +290,58 @@ test('via: an attempt that threw is manual — the app never quit', () => {
 test('via: a failed attempt followed by a successful one is auto', () => {
   assert.equal(
     updateVia(log(L.downloaded('0.4.5'), L.requested, L.failed, L.requested), '0.4.5'),
+    'auto'
+  );
+});
+
+test('via: a restart that returned cleanly and still did not install is manual', () => {
+  // The failure mode the log is FOR: quitAndInstall() reports no outcome, so a
+  // silent no-op looked exactly like success. The old build launching again
+  // after the request is what gives it away — and this user is precisely the
+  // one who then uses the manual badge, so calling it auto would credit the
+  // path that failed.
+  assert.equal(
+    updateVia(log(L.downloaded('0.4.5'), L.requested, L.ready('0.4.4')), '0.4.5'),
+    'manual'
+  );
+});
+
+test('via: from_version is never needed for that — any version but ours is disproof', () => {
+  // Load-bearing, because the version stamp ships WITH this event: every 0.4.5
+  // upgrade reports from_version 'unknown', so a from-version-specific check
+  // would do nothing for the one release this is being shipped to measure.
+  assert.equal(
+    updateVia(log(L.downloaded('0.4.5'), L.requested, L.ready('0.3.9')), '0.4.5'),
+    'manual'
+  );
+});
+
+test('via: the target launching after the request is still auto', () => {
+  // The new build identifying itself is what success looks like, and updater.ts
+  // may well write it before analytics reads the tail in the same process.
+  assert.equal(
+    updateVia(log(L.downloaded('0.4.5'), L.requested, L.ready('0.4.5')), '0.4.5'),
+    'auto'
+  );
+});
+
+test('via: a launch BEFORE the request says nothing about it', () => {
+  assert.equal(
+    updateVia(log(L.ready('0.4.4'), L.downloaded('0.4.5'), L.requested), '0.4.5'),
+    'auto'
+  );
+});
+
+test('via: refusing the quit warning is manual', () => {
+  assert.equal(
+    updateVia(log(L.downloaded('0.4.5'), L.requested, L.cancelled), '0.4.5'),
+    'manual'
+  );
+});
+
+test('via: a refused quit followed by one that stuck is auto', () => {
+  assert.equal(
+    updateVia(log(L.downloaded('0.4.5'), L.requested, L.cancelled, L.requested), '0.4.5'),
     'auto'
   );
 });
@@ -349,6 +402,14 @@ test('updater.ts still emits the exact lines via reads', () => {
   assert.ok(
     src.includes('logLine(`quitAndInstall failed:'),
     'updater.ts no longer logs the failed attempt — update analytics.ts LOG_QUIT_FAILED'
+  );
+  assert.ok(
+    src.includes('logLine(`native updater ready (current v${app.getVersion()})`)'),
+    'updater.ts no longer names the launching version — update analytics.ts LOG_READY'
+  );
+  assert.ok(
+    src.includes("logLine('quitAndInstall cancelled by the user at the quit warning')"),
+    'updater.ts no longer logs the refused quit — update analytics.ts LOG_QUIT_CANCELLED'
   );
 });
 
