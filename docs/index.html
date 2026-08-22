@@ -683,7 +683,10 @@
   }
   .pg-label small { font-family: var(--font-body); font-weight: 400; font-size: 0.82rem; letter-spacing: 0; color: var(--faint); }
   .plans2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: stretch; flex: 1; }
+  .pgroup.wide { grid-column: 1 / -1; }
+  .plans2.plans3 { grid-template-columns: repeat(3, 1fr); }
   .plan > .btn { margin-top: auto; align-self: stretch; text-align: center; justify-content: center; }
+  .pgroup > .plan { flex: 1; } /* both pricing cards stretch to the taller one */
   .pgroup > .seat-box { margin: -2px 4px 16px; }
   /* seat slider */
   .seat-box { display: grid; gap: 6px; margin: 2px 0 4px; }
@@ -693,9 +696,29 @@
   }
   .seat-box .seat-top b { color: var(--accent); font-size: 0.78rem; letter-spacing: 0.04em; }
   .seat-box input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; margin: 0; }
+  .seat-ctl { display: flex; gap: 10px; align-items: center; }
+  .seat-ctl input[type="range"] { flex: 1; }
+  .seat-ctl input[type="text"] {
+    width: 88px; background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    padding: 6px 8px; font-family: var(--font-mono); font-size: 0.85rem; text-align: center;
+  }
+  .seat-ctl input[type="text"]:hover, .seat-ctl input[type="text"]:focus { border-color: var(--accent-line); outline: none; }
   .seat-scale { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.64rem; color: var(--faint); padding: 0 2px; }
   .seat-scale span.on { color: var(--accent); font-weight: 700; }
+  /* plan configurators (compute/storage adders) */
+  .cfg { display: grid; gap: 6px; margin: 2px 0; }
+  .cfg label { font-family: var(--font-mono); font-weight: 600; font-size: 0.66rem; letter-spacing: 0.12em; color: var(--faint); margin-top: 4px; }
+  .cfg label small { letter-spacing: 0.04em; text-transform: none; }
+  .cfg select {
+    background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    padding: 8px 10px; font-family: var(--font-body); font-size: 0.85rem; cursor: pointer;
+  }
+  .cfg select:hover, .cfg select:focus { border-color: var(--accent-line); outline: none; }
+  .plan-total { font-family: var(--font-mono); font-weight: 700; font-size: 0.95rem; color: var(--accent); }
   @media (max-width: 1000px) { .pgroups { grid-template-columns: 1fr; } }
+  @media (max-width: 900px)  { .plans2.plans3 { grid-template-columns: 1fr; } }
   @media (max-width: 620px)  { .plans2 { grid-template-columns: 1fr; } }
 
   /* ------- FOR THE PROJECT — Founding Supporter strip ------- */
@@ -1600,88 +1623,81 @@
 <section id="pricing">
   <div class="wrap center">
     <span class="kicker">PRICING</span>
-    <h2>Your clone is free. Two services make it unstoppable.</h2>
+    <h2>Plans for power users and teams.</h2>
     <p class="lead" style="margin:18px auto 0">
-      The app is open source and runs on your laptop forever. On top of it we sell
-      exactly two things — use either, both, or neither.
+      The app is open source and runs on your laptop forever. Paid plans add the
+      24/7 sandbox and the team network.
     </p>
-    <div class="svcs">
-      <div class="svc rv">
-        <span class="svc-tag">SERVICE 01 · CLOUD</span>
-        <h3>☁️ A place for your clone to run</h3>
-        <p>A dedicated sandbox VM per clone, in your controlled environment. Close
-        the laptop — your clone keeps its terminals open, keeps shipping, keeps
-        answering. Switch back to local anytime.</p>
-        <span class="fine">solves: "does my laptop need to stay on?"</span>
-      </div>
-      <div class="svc rv">
-        <span class="svc-tag">SERVICE 02 · NETWORK</span>
-        <h3>🔗 A wire between your team's clones</h3>
-        <p>End-to-end encrypted clone-to-clone messaging across teammates'
-        laptops, plus the shared org knowledge base. Your clone can ask Dwight's
-        clone — and answer for you when you're away.</p>
-        <span class="fine">solves: "can our clones work together?"</span>
-      </div>
-    </div>
     <div class="pgroups">
       <div class="pgroup rv">
         <span class="pg-label">FOR YOU <small>one person, one clone</small></span>
-        <div class="plans2">
-          <div class="plan">
-            <span class="plan-name">SOLO</span>
-            <span class="svc-chips"><span class="off">LOCAL ONLY</span></span>
-            <span class="plan-price">Free<small>open source · MIT</small></span>
-            <ul>
-              <li>Your clone, on your machine</li>
-              <li>Wraps the agent CLIs you already use</li>
-              <li>Personal memory &amp; workflows</li>
-            </ul>
-            <a class="btn primary" data-download href="https://github.com/chaitanyagiri/munder-difflin/releases/latest"><span class="ic">⤓</span> Download</a>
+        <div class="plan">
+          <span class="plan-name">PRO</span>
+          <span class="svc-chips"><span>CLOUD</span></span>
+          <span class="plan-price">$39<small>/month · for individuals</small></span>
+          <ul>
+            <li>Everything in the free app — memory, workflows, the multi-agent floor</li>
+            <li><b>24/7 sandbox included:</b> shared CPU · 1GB RAM · 20GB storage — your clone keeps shipping with the lid closed</li>
+            <li>Switch local ⇄ cloud anytime</li>
+            <li><b>First 100 <a href="/wall.html">Founding Supporters</a>:</b> 50% off + 1 month free</li>
+          </ul>
+          <div class="cfg">
+            <label for="proCompute">ADD COMPUTE <small>(billed monthly with the plan)</small></label>
+            <select id="proCompute">
+              <option data-add="0" selected>Included — Shared 1× CPU · 1GB RAM</option>
+              <option data-add="9">Shared 2× CPU · 2GB RAM — +$9/mo</option>
+              <option data-add="25">Shared 4× CPU · 4GB RAM — +$25/mo</option>
+              <option data-add="39">Dedicated 1× CPU · 2GB RAM — +$39/mo</option>
+              <option data-add="59">Shared 8× CPU · 8GB RAM — +$59/mo</option>
+            </select>
+            <label for="proStorage">ADD STORAGE</label>
+            <select id="proStorage">
+              <option data-add="0" selected>Included — 20GB volume</option>
+              <option data-add="8">50GB volume — +$8/mo</option>
+              <option data-add="20">100GB volume — +$20/mo</option>
+              <option data-add="58">250GB volume — +$58/mo</option>
+            </select>
           </div>
-          <div class="plan">
-            <span class="plan-name">SOLO + CLOUD</span>
-            <span class="svc-chips"><span>CLOUD</span></span>
-            <span class="plan-price">Indie<small>agents run on our cloud</small></span>
-            <ul>
-              <li>Everything in Solo</li>
-              <li>Dedicated sandbox VM — your clone keeps working with the lid closed</li>
-              <li>Switch local ⇄ cloud anytime</li>
-            </ul>
-            <a class="btn" href="mailto:girichaitanya11@gmail.com?subject=Munder%20Difflin%20—%20Indie%20(Solo%20%2B%20Cloud)">Contact us</a>
-          </div>
+          <span class="plan-total" id="proTotal">$39/month</span>
+          <a class="btn primary" href="/wall.html">Get PRO</a>
         </div>
       </div>
       <div class="pgroup rv">
-        <span class="pg-label">FOR YOUR TEAM <small>every member gets a clone</small></span>
-        <div class="seat-box">
-          <span class="seat-top"><span>TEAM SIZE · APPLIES TO BOTH PLANS</span><b id="seatLabel">up to 10 seats</b></span>
-          <input type="range" id="seatRange" min="0" max="4" step="1" value="0" aria-label="team size in seats" />
-          <span class="seat-scale"><span class="on">10</span><span>20</span><span>50</span><span>100</span><span>100+</span></span>
-        </div>
-        <div class="plans2">
-          <div class="plan">
-            <span class="svc-chips"><span>NETWORK</span></span>
-            <span class="plan-price">Teams Lite<small>agents use our network</small></span>
-            <ul>
-              <li>E2E-encrypted clone-to-clone messaging</li>
-              <li>Shared org knowledge base</li>
-              <li>Clone coordination protocol</li>
-              <li>Secure Org Network license</li>
-            </ul>
-            <a class="btn" id="ctaNet" href="https://cal.com/chaitanya-giri-w3wrwi/munder-difflin-teams-demo" target="_blank" rel="noopener">Contact us</a>
+        <span class="pg-label">FOR YOUR TEAM <small>per seat · every member gets a clone</small></span>
+        <div class="plan hot">
+          <span class="flag">ALWAYS&nbsp;ON</span>
+          <span class="plan-name">TEAMS</span>
+          <span class="svc-chips"><span>CLOUD</span><span>NETWORK</span></span>
+          <span class="plan-price">$149<small>/seat/month</small></span>
+          <ul>
+            <li>E2E-encrypted clone-to-clone messaging + shared org knowledge base</li>
+            <li><b>24/7 sandbox per seat:</b> shared 8× CPU · 8GB RAM · 100GB storage</li>
+            <li>The whole floor ships with laptops closed</li>
+          </ul>
+          <div class="seat-box">
+            <span class="seat-top"><span>TEAM SIZE</span></span>
+            <div class="seat-ctl">
+              <input type="range" id="seatRange" min="2" max="100" step="1" value="2" aria-label="team size in seats" />
+              <input type="text" inputmode="numeric" id="seatInput" value="2 seats" aria-label="team size, exact number" />
+            </div>
           </div>
-          <div class="plan hot">
-            <span class="flag">ALWAYS&nbsp;ON</span>
-            <span class="svc-chips"><span>CLOUD</span><span>NETWORK</span></span>
-            <span class="plan-price">Teams PRO<small>agents use our network + run on our cloud</small></span>
-            <ul>
-              <li>Everything in Teams Lite</li>
-              <li>Dedicated sandbox VM per clone</li>
-              <li>The whole floor ships with laptops closed</li>
-              <li>Hosted org knowledge base, in your controlled environment</li>
-            </ul>
-            <a class="btn primary" id="ctaBoth" href="https://cal.com/chaitanya-giri-w3wrwi/munder-difflin-teams-demo" target="_blank" rel="noopener">Contact us</a>
+          <div class="cfg">
+            <label for="teamCompute">ADD COMPUTE <small>(per seat, billed monthly)</small></label>
+            <select id="teamCompute">
+              <option data-add="0" selected>Included — Shared 8× CPU · 8GB RAM</option>
+              <option data-add="55">Dedicated 2× CPU · 8GB RAM — +$55/mo</option>
+              <option data-add="59">Shared 8× CPU · 16GB RAM — +$59/mo</option>
+              <option data-add="175">Dedicated 4× CPU · 16GB RAM — +$175/mo</option>
+            </select>
+            <label for="teamStorage">ADD STORAGE <small>(per seat)</small></label>
+            <select id="teamStorage">
+              <option data-add="0" selected>Included — 100GB volume</option>
+              <option data-add="38">250GB volume — +$38/mo</option>
+              <option data-add="100">500GB volume — +$100/mo</option>
+            </select>
           </div>
+          <span class="plan-total" id="teamTotal">$298/month · 2 seats × $149</span>
+          <a class="btn primary" id="ctaBoth" href="https://cal.com/chaitanya-giri-w3wrwi/munder-difflin-teams-demo" target="_blank" rel="noopener">Contact us</a>
         </div>
       </div>
     </div>
@@ -1692,7 +1708,8 @@
         <span class="ss-label">FOR THE PROJECT <small>keep it free for everyone</small></span>
         <h3>Founding Supporter — your name on the Wall</h3>
         <p>$20, one time. A permanent brass plaque on the
-        <a href="/wall.html">Founders' Wall</a>. Munder Difflin stays free for everyone.</p>
+        <a href="/wall.html">Founders' Wall</a> — and the first 100 get 50% off PRO plus a
+        free month of PRO. Munder Difflin stays free for everyone.</p>
       </div>
       <div class="ss-cta">
         <a class="btn primary" data-support="wall" href="https://rzp.io/rzp/munder-difflin" target="_blank" rel="noopener">Claim your plaque</a>
@@ -2766,21 +2783,42 @@
 
 
 <script>
-  // pricing seat slider → label; team CTAs book the enterprise discovery call
-  // (cal.com), so the slider no longer rewrites their hrefs
+  // pricing calculator: team-size slider + exact-entry box + per-plan
+  // compute/storage adders update the displayed totals live. Adder values
+  // live in each option's data-add. Seats clamp to 2–100; the input box is
+  // the single readout ("N seats"), synced from whichever control moved.
   (function () {
-    var r = document.getElementById('seatRange');
-    if (!r) return;
-    var stops = ['10', '20', '50', '100', '100+'];
-    var lbl = document.getElementById('seatLabel');
-    var marks = document.querySelectorAll('.seat-scale span');
-    function upd() {
-      var i = +r.value, v = stops[i];
-      lbl.textContent = (v === '100+' ? '100+ seats' : 'up to ' + v + ' seats');
-      marks.forEach(function (el, j) { el.classList.toggle('on', j === i); });
+    function add(id) {
+      var el = document.getElementById(id);
+      return el ? +(el.options[el.selectedIndex].dataset.add || 0) : 0;
     }
-    r.addEventListener('input', upd);
-    upd();
+    function money(n) { return '$' + n.toLocaleString('en-US'); }
+    var range = document.getElementById('seatRange');
+    var input = document.getElementById('seatInput');
+    function clamp(v) { return isNaN(v) ? 2 : Math.min(100, Math.max(2, v)); }
+    function upd(source) {
+      // read seats from the control that just moved — reading the other one
+      // is how the slider used to snap back and look dead
+      var s = source === range ? clamp(+range.value)
+                               : clamp(parseInt(String(input.value).replace(/[^0-9]/g, ''), 10));
+      if (source !== input) input.value = s + ' seats'; // don't fight the user mid-typing
+      if (source !== range) range.value = s;
+      var pt = document.getElementById('proTotal');
+      if (pt) pt.textContent = money(39 + add('proCompute') + add('proStorage')) + '/month';
+      var per = 149 + add('teamCompute') + add('teamStorage');
+      document.getElementById('teamTotal').textContent =
+        money(per * s) + '/month · ' + s + ' seats × ' + money(per);
+    }
+    if (range) range.addEventListener('input', function () { upd(range); });
+    if (input) {
+      input.addEventListener('input', function () { upd(input); });
+      input.addEventListener('change', function () { upd(null); }); // normalize to "N seats" on commit
+    }
+    ['proCompute', 'proStorage', 'teamCompute', 'teamStorage'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', function () { upd(null); });
+    });
+    upd(null);
   })();
 
   // theme toggle — icon swap is pure CSS off data-theme (see .theme-toggle svg)
