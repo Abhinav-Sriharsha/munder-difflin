@@ -29,6 +29,7 @@ import { DEFAULT_HERO, type HeroPayload } from '@shared/heroPayload';
 
 const GITHUB_REPO_URL = 'https://github.com/chaitanyagiri/munder-difflin';
 const FOUNDERS_WALL_URL = 'https://munderdiffl.in/wall.html';
+const DISCORD_URL = 'https://discord.gg/SEDzP5ZPk5';
 
 export function SettingsHeroCard() {
   const [version, setVersion] = useState<string | null>(null);
@@ -186,6 +187,11 @@ export function SettingsHeroCard() {
           <PixelButton variant="secondary" size="sm" onClick={() => void window.cth.openExternal(GITHUB_REPO_URL)}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               ⭐ star on GitHub
+            </span>
+          </PixelButton>
+          <PixelButton variant="secondary" size="sm" onClick={() => void window.cth.openExternal(DISCORD_URL)}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              💬 join Discord
             </span>
           </PixelButton>
           <PixelButton
