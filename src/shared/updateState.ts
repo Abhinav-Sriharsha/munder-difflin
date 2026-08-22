@@ -26,6 +26,9 @@ export type UpdateStatus =
        *  modal's primary button downloads it; without it the button falls back
        *  to the releases page. */
       downloadUrl?: string }
+  /** First launch after the version moved: `version` is the one now RUNNING and
+   *  `notes` its release body, so the renderer can show that release's page. */
+  | { state: 'just-updated'; version: string; notes?: string }
   | { state: 'error'; message: string };
 
 export type UpdateAction = 'none' | 'check' | 'download' | 'restart' | 'open-release';
@@ -73,6 +76,7 @@ function rank(s: UpdateStatus): number {
     case 'checking': return 1;
     case 'not-available': return 1;
     case 'error': return 1;
+    case 'just-updated': return 1;
     case 'available-manual': return 2;
     case 'available': return 3;
     case 'downloading': return 4;
@@ -129,12 +133,19 @@ export function describeUpdate(status: UpdateStatus | null, currentVersion: stri
         title: `v${status.version} is downloaded and ready — click to restart and apply it`
       };
     case 'available-manual':
-      return {
-        label: `v${status.version} — get it manually`, action: 'open-release', tone: 'warn', busy: false,
-        title: status.reason
-          ? `This install couldn't update itself (${status.reason}) — click to open the release page`
-          : `This install can't update itself — click to open the release page`
-      };
+      return status.downloadUrl
+        ? {
+          label: `v${status.version} · download`, action: 'open-release', tone: 'ready', busy: false,
+          title: `Click to download v${status.version}, then replace the app you have`
+        }
+        : {
+          label: `v${status.version} — get it manually`, action: 'open-release', tone: 'warn', busy: false,
+          title: status.reason
+            ? `This install couldn't update itself (${status.reason}) — click to open the release page`
+            : `This install can't update itself — click to open the release page`
+        };
+    case 'just-updated':
+      return { label: null, action: 'check', tone: 'idle', busy: false, title: `v${v} is the latest version — click to check again` };
     case 'error':
       return {
         label: 'update check failed', action: 'check', tone: 'warn', busy: false,
@@ -208,7 +219,14 @@ export function describeUpdateSettings(
         detail: status.reason
           ? `This install can't update itself (${status.reason}) — download it from the release page.`
           : `This install can't update itself — download it from the release page.`,
-        button: 'Open release page', action: 'open-release', busy: false, tone: 'warn'
+        button: status.downloadUrl ? `Download v${status.version}` : 'Open release page',
+        action: 'open-release', busy: false, tone: 'warn'
+      };
+    case 'just-updated':
+      return {
+        headline: `You're on v${v}`,
+        detail: 'Freshly updated. This is the latest release.',
+        button: 'Check for updates', action: 'check', busy: false, tone: 'idle'
       };
     case 'error':
       return {
@@ -230,4 +248,34 @@ export function describeUpdateSettings(
         button: 'Check for updates', action: 'check', busy: false, tone: 'idle'
       };
   }
+}
+
+/** What to do with the installer once it has downloaded, per platform. Shown
+ *  on the title-bar badge's hover card and in the notice after the click. */
+export function manualInstallSteps(platform: string): { os: string; steps: string[] } {
+  if (platform === 'darwin') {
+    return {
+      os: 'macOS',
+      steps: [
+        'Open the .dmg and drag Munder Difflin onto Applications. Choose Replace when asked.',
+        'Quit this app, open the new one from Applications, and pick the same project.'
+      ]
+    };
+  }
+  if (platform === 'win32') {
+    return {
+      os: 'Windows',
+      steps: [
+        'Quit this app, then run the downloaded setup .exe. It replaces the installed version.',
+        'Open Munder Difflin again and pick the same project.'
+      ]
+    };
+  }
+  return {
+    os: 'Linux',
+    steps: [
+      'Make the downloaded .AppImage executable (chmod +x) and move it over the one you run now.',
+      'Quit this app, launch the new AppImage, and pick the same project.'
+    ]
+  };
 }

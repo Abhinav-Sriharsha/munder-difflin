@@ -44,10 +44,10 @@ import type { UpdateStatus } from '@shared/updateState';
 /** The toast is the LOUD half — it only interrupts for the two states a user has
  *  to act on. Everything else (checking, available, download progress, errors)
  *  lives quietly in the toolbar badge next to the logo. */
-type ToastStatus = Extract<UpdateStatus, { state: 'downloaded' | 'available-manual' }>;
+type ToastStatus = Extract<UpdateStatus, { state: 'downloaded' | 'available-manual' | 'just-updated' }>;
 
 function toastable(s: UpdateStatus): ToastStatus | null {
-  return s.state === 'downloaded' || s.state === 'available-manual' ? s : null;
+  return s.state === 'downloaded' || s.state === 'available-manual' || s.state === 'just-updated' ? s : null;
 }
 
 const GITHUB_REPO_URL = 'https://github.com/chaitanyagiri/munder-difflin';
@@ -201,6 +201,8 @@ export function UpdateToast() {
       />
     );
   }
+  // Freshly updated with nothing authored for this release: nothing to say.
+  if (status.state === 'just-updated') return null;
 
   const buttonStyle: React.CSSProperties = {
     padding: '3px 10px 1px',

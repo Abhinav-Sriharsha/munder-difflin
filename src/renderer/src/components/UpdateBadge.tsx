@@ -13,13 +13,18 @@
  * is wiring and pixels.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { describeUpdate, reduceStatus, type UpdateStatus } from '@shared/updateState';
+import { describeUpdate, manualInstallSteps, reduceStatus, type UpdateStatus } from '@shared/updateState';
+import { PixelButton } from './PixelButton';
 
 declare const __APP_VERSION__: string;
 
 export function UpdateBadge() {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  const [hover, setHover] = useState(false);
+  /** The version whose download was just started, for the "now replace the
+   *  app" notice. Local state: it is a one-off explanation, not an update state. */
+  const [started, setStarted] = useState<string | null>(null);
 
   useEffect(() => {
     // Subscribe first, then pull — main may have emitted before this window
@@ -41,7 +46,11 @@ export function UpdateBadge() {
       else if (view.action === 'download') await window.cth.updateDownload();
       else if (view.action === 'check') await window.cth.updateCheckNow();
       else if (view.action === 'open-release') {
-        await window.cth.updateOpenRelease(status?.state === 'available-manual' ? status.url : undefined);
+        // With a direct installer for this machine the click IS the download;
+        // the release page is only for installs the release has no asset for.
+        const manual = status?.state === 'available-manual' ? status : null;
+        await window.cth.updateOpenRelease(manual ? (manual.downloadUrl ?? manual.url) : undefined);
+        if (manual?.downloadUrl) setStarted(manual.version);
       }
     } catch { /* the emitted status carries the failure — nothing to do here */ }
     setBusy(false);
@@ -56,7 +65,16 @@ export function UpdateBadge() {
       : view.tone === 'warn' ? 'var(--cth-amber-light, #f6e2b3)'
         : 'transparent';
 
+  const manual = status?.state === 'available-manual' && status.downloadUrl ? status : null;
+  const steps = manualInstallSteps(window.cth.platform ?? 'darwin');
+  const INK = 'var(--cth-ink-900)';
+
   return (
+    <span
+      style={{ position: 'relative', display: 'inline-flex' }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
     <button
       className="cth-titlebar-nodrag"
       onClick={() => { void onClick(); }}
@@ -87,5 +105,65 @@ export function UpdateBadge() {
         </>
       )}
     </button>
+
+    {/* Hover card: what the click does and what to do with the file, for this OS. */}
+    {manual && hover && !started && (
+      <div
+        role="tooltip"
+        className="cth-titlebar-nodrag"
+        style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 400,
+          width: 340, padding: '10px 12px',
+          background: 'var(--cth-paper-100)', color: INK,
+          border: `2px solid ${INK}`, boxShadow: `4px 4px 0 ${INK}`,
+          fontFamily: 'var(--cth-font-ui)', fontSize: 12, lineHeight: 1.5, textAlign: 'left'
+        }}
+      >
+        <div style={{ fontFamily: 'var(--cth-font-mono, monospace)', fontWeight: 700, fontSize: 12.5 }}>
+          Click to download v{manual.version}
+        </div>
+        <div style={{ marginTop: 4, color: 'var(--cth-ink-700)' }}>
+          This build cannot update itself. Download the latest version and replace the app you have.
+        </div>
+        <div style={{
+          marginTop: 8, fontFamily: 'var(--cth-font-mono, monospace)', fontSize: 9,
+          letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--cth-ink-500)'
+        }}>On {steps.os}</div>
+        <ol style={{ margin: '4px 0 0', paddingLeft: 18, color: 'var(--cth-ink-700)' }}>
+          {steps.steps.map((t) => <li key={t}>{t}</li>)}
+        </ol>
+      </div>
+    )}
+
+    {/* After the click: the download is in the browser, here is what to do next. */}
+    {started && (
+      <div
+        role="dialog"
+        aria-label="Install the update"
+        className="cth-titlebar-nodrag"
+        style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 400,
+          width: 380, padding: '12px 14px',
+          background: 'var(--cth-paper-100)', color: INK,
+          border: `2px solid ${INK}`, boxShadow: `4px 4px 0 ${INK}`,
+          fontFamily: 'var(--cth-font-ui)', fontSize: 12.5, lineHeight: 1.5, textAlign: 'left'
+        }}
+      >
+        <div style={{ fontFamily: 'var(--cth-font-mono, monospace)', fontWeight: 700, fontSize: 13 }}>
+          v{started} is downloading in your browser.
+        </div>
+        <div style={{ marginTop: 6, color: 'var(--cth-ink-700)' }}>
+          When it lands, quit this app and install the new version over the current one. Open it and
+          pick the same project. Your agents, memory and settings stay where they are.
+        </div>
+        <ol style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--cth-ink-700)' }}>
+          {steps.steps.map((t) => <li key={t}>{t}</li>)}
+        </ol>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+          <PixelButton variant="ghost" size="sm" onClick={() => setStarted(null)}>got it</PixelButton>
+        </div>
+      </div>
+    )}
+    </span>
   );
 }

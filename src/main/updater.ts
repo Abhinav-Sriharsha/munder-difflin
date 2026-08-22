@@ -1,7 +1,7 @@
 import { app, ipcMain, shell } from 'electron';
 import type { WebContents } from 'electron';
 import { request as httpsRequest } from 'node:https';
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readConfig } from './config';
 import { DEFAULT_DROP_HTML } from '../shared/releaseDrop';
@@ -167,6 +167,35 @@ export function pickDownloadAsset(
   if (!want) return null;
   const hit = assets.find((a) => typeof a.name === 'string' && want.test(a.name) && typeof a.browser_download_url === 'string');
   return hit?.browser_download_url ?? null;
+}
+
+/** Body of the release tagged v{version}, or undefined. Never throws. */
+function fetchReleaseBody(version: string, done: (notes: string | undefined) => void): void {
+  try {
+    const req = httpsRequest(
+      {
+        hostname: 'api.github.com',
+        path: `/repos/${REPO}/releases/tags/v${version}`,
+        method: 'GET',
+        headers: { 'User-Agent': 'munder-difflin-updater', Accept: 'application/vnd.github+json' },
+        timeout: 10_000
+      },
+      (res) => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (d) => { body += d; if (body.length > 262_144) req.destroy(); });
+        res.on('end', () => {
+          try {
+            const rel = JSON.parse(body) as { body?: string };
+            done(typeof rel.body === 'string' ? rel.body : undefined);
+          } catch { done(undefined); }
+        });
+      }
+    );
+    req.on('error', () => done(undefined));
+    req.on('timeout', () => { req.destroy(); done(undefined); });
+    req.end();
+  } catch { done(undefined); }
 }
 
 /** Notify-only check against releases/latest (no download). Never throws. */
@@ -367,6 +396,31 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
       logLine(`SIMULATED available-manual ${version} from MD_DROP_PREVIEW=${previewPath} (dev only)`);
     } catch (e) {
       logLine(`MD_DROP_PREVIEW unreadable: ${errText(e)}`);
+    }
+  }
+  // First launch after the version moved: show THIS release's page. The stamp
+  // is the updater's own (analytics keeps a separate one that only exists when
+  // telemetry initialised). Skipped when a preview is being forced, and the
+  // fetch failing just means no page, never a broken boot.
+  if (!previewPath) {
+    try {
+      const stampFile = join(app.getPath('userData'), 'last-run-version');
+      let previous: string | null = null;
+      try { previous = readFileSync(stampFile, 'utf8').trim() || null; } catch { /* first run */ }
+      const current = app.getVersion();
+      if (previous !== current) {
+        mkdirSync(app.getPath('userData'), { recursive: true });
+        writeFileSync(stampFile, current + '\n', 'utf8');
+      }
+      if (previous && previous !== current && isNewer(current, previous)) {
+        logLine(`first run after update ${previous} -> ${current}; fetching its release page`);
+        fetchReleaseBody(current, (notes) => {
+          emit({ state: 'just-updated', version: current, notes });
+          logLine(`just-updated ${current} ${notes ? 'with' : 'without'} release notes`);
+        });
+      }
+    } catch (e) {
+      logLine(`post-update check failed: ${errText(e)}`);
     }
   }
   ipcMain.handle('update:openRelease', (_evt, url: unknown) => {

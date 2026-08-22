@@ -188,3 +188,29 @@ test('failures reach Settings verbatim, same as the tooltip', () => {
   assert.match(manual.detail, /win-portable/);
   assert.equal(manual.action, 'open-release');
 });
+
+test('manual update with a direct installer reads as a download, not a page to hunt on', () => {
+  const { manualInstallSteps } = loadTs('src/shared/updateState.ts');
+  const v = describeUpdate(
+    { state: 'available-manual', version: '0.4.5', url: 'https://x', downloadUrl: 'https://x/a.dmg' },
+    '0.4.4'
+  );
+  assert.match(v.label, /download/);
+  assert.equal(v.action, 'open-release');
+  assert.equal(v.tone, 'ready');
+  for (const p of ['darwin', 'win32', 'linux']) {
+    const s = manualInstallSteps(p);
+    assert.equal(s.steps.length, 2);
+    assert.match(s.steps.join(' '), /same project/);
+  }
+});
+
+test('just-updated is quiet on the badge and loses to a newer available release', () => {
+  const v = describeUpdate({ state: 'just-updated', version: '0.4.5' }, '0.4.5');
+  assert.equal(v.label, null);
+  const next = reduceStatus(
+    { state: 'just-updated', version: '0.4.5' },
+    { state: 'available', version: '0.4.6' }
+  );
+  assert.equal(next.state, 'available');
+});
