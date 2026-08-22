@@ -15,7 +15,7 @@ could not talk to each other reliably. All three are fixed. Plus weekday schedul
 paths everywhere, one editor instead of two, and 23 community pull requests.
 
 - **Costs are reported right.** The telemetry counter reset on every app restart while the
-  session id stayed the same, so the floor under reported spend by 59 percent. It is now folded
+  session id stayed the same, so the floor under reported spend by a wide margin. It is now folded
   from the ledger, with a separate session figure kept alongside.
 - **Semantic memory works on Apple Silicon.** CoreML overflowed the quantized embedding graph,
   every vector came back NaN, and chroma rejected every upsert. Embeddings are pinned to CPU
@@ -244,7 +244,7 @@ reviewed one, or filed the bug that led to one. The full list is in CHANGELOG.md
           <span class="tag">Costs</span>
           <h2>Spend is reported right.</h2>
           <p>The counter reset on every app restart while the session id stayed the same, so the
-          floor under reported by <b>59 percent</b>. It is now folded from the ledger, with a
+          floor under reported <b>by a wide margin</b>. It is now folded from the ledger, with a
           session figure kept alongside.</p>
         </div>
         <div class="card sky">
