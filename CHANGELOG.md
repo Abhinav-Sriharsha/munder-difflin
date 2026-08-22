@@ -15,6 +15,10 @@ All notable changes to this project are documented here. The format is based on
   install that predates the event, so the first release carrying it is measurable rather than
   silent for a cycle. Both values are version strings; nothing new about you is collected, the
   same opt-outs apply, and [`TELEMETRY.md`](TELEMETRY.md) lists it like every other event.
+  A `via` property says whether the app's own updater installed it (`auto`), something else moved
+  the version (`manual`), or there was no update log to read (`unknown`) — read from the update
+  log the app already keeps, so it works for installs updating from a version released before
+  this one.
 
 ## [0.4.4] — 2026-08-18
 

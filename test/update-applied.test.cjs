@@ -24,7 +24,7 @@ require.cache[posthogPath] = {
   id: posthogPath, filename: posthogPath, loaded: true, exports: { PostHog: FakePostHog }
 };
 
-const { updateTransition, readVersionStamp, writeVersionStamp, Analytics } =
+const { updateTransition, readVersionStamp, writeVersionStamp, updateVia, readUpdaterLogTail, Analytics } =
   loadTs('src/main/analytics.ts');
 
 function stateDir() {
@@ -246,4 +246,147 @@ test('e2e: the allowlist still drops a property nobody declared', () => {
   const props = captured[before].properties;
   assert.equal(props.from_version, '0.4.4');
   assert.equal('repo_path' in props, false);
+});
+
+
+// ── via: was it OUR updater, or a manual reinstall? ─────────────────────────
+
+/** Lines exactly as updater.ts appends them. */
+const L = {
+  ready: (v) => `[2026-08-20T10:00:00.000Z] native updater ready (current v${v})`,
+  downloaded: (v) => `[2026-08-21T10:00:00.000Z] update downloaded: ${v} — waiting for the user to restart`,
+  requested: '[2026-08-21T10:05:00.000Z] quitAndInstall requested by the user',
+  failed: '[2026-08-21T10:05:00.001Z] quitAndInstall failed: ENOENT',
+  downloadErr: '[2026-08-21T09:00:00.000Z] download failed: socket hang up'
+};
+const log = (...lines) => lines.join('\n') + '\n';
+
+test('via: the ordered pair from our own updater reads as auto', () => {
+  assert.equal(updateVia(log(L.ready('0.4.4'), L.downloaded('0.4.5'), L.requested), '0.4.5'), 'auto');
+});
+
+test('via: downloaded but never restarted is manual, not auto', () => {
+  // The update sat there and the user installed 0.4.5 some other way.
+  assert.equal(updateVia(log(L.ready('0.4.4'), L.downloaded('0.4.5')), '0.4.5'), 'manual');
+});
+
+test('via: a leftover pair from the PREVIOUS upgrade cannot be mistaken for this one', () => {
+  // This is the whole reason the match is version-aware. Without it, anyone who
+  // ever used restart-to-install would read as auto forever.
+  assert.equal(
+    updateVia(log(L.downloaded('0.4.4'), L.requested, L.ready('0.4.4')), '0.4.5'),
+    'manual'
+  );
+});
+
+test('via: an attempt that threw is manual — the app never quit', () => {
+  assert.equal(
+    updateVia(log(L.downloaded('0.4.5'), L.requested, L.failed), '0.4.5'),
+    'manual'
+  );
+});
+
+test('via: a failed attempt followed by a successful one is auto', () => {
+  assert.equal(
+    updateVia(log(L.downloaded('0.4.5'), L.requested, L.failed, L.requested), '0.4.5'),
+    'auto'
+  );
+});
+
+test('via: the request must come AFTER the download, not before', () => {
+  assert.equal(updateVia(log(L.requested, L.downloaded('0.4.5')), '0.4.5'), 'manual');
+});
+
+test('via: no log at all is unknown, never a guess in either direction', () => {
+  assert.equal(updateVia(null, '0.4.5'), 'unknown');
+  assert.equal(readUpdaterLogTail(stateDir()), null);
+  assert.equal(readUpdaterLogTail('/nope/does/not/exist'), null);
+});
+
+test('via: an empty log is unknown, a non-empty log with no pair is manual', () => {
+  const dir = stateDir();
+  fs.writeFileSync(path.join(dir, 'updater.log'), '');
+  assert.equal(readUpdaterLogTail(dir), null);
+  assert.equal(updateVia(log(L.ready('0.4.4'), L.downloadErr), '0.4.5'), 'manual');
+});
+
+test('via: a version prefix does not match a longer version', () => {
+  assert.equal(updateVia(log(L.downloaded('0.4.55'), L.requested), '0.4.5'), 'manual');
+  assert.equal(updateVia(log(L.downloaded('0.4.5-beta.1'), L.requested), '0.4.5'), 'manual');
+  // and the mirror: a stable download is no evidence for a prerelease target
+  assert.equal(updateVia(log(L.downloaded('0.4.5'), L.requested), '0.4.5-beta.1'), 'manual');
+  assert.equal(updateVia(log(L.downloaded('0.4.5-beta.1'), L.requested), '0.4.5-beta.1'), 'auto');
+});
+
+test('via: the log read is bounded and still finds a recent pair', () => {
+  const dir = stateDir();
+  const filler = Array.from({ length: 20000 }, (_, n) => `[2026-01-01T00:00:00.000Z] noise ${n}`).join('\n');
+  fs.writeFileSync(
+    path.join(dir, 'updater.log'),
+    `${L.downloaded('0.4.4')}\n${filler}\n${L.downloaded('0.4.5')}\n${L.requested}\n`
+  );
+  const tail = readUpdaterLogTail(dir);
+  assert.ok(tail.length <= 128 * 1024);
+  assert.ok(tail.length < fs.statSync(path.join(dir, 'updater.log')).size); // actually truncated
+  assert.equal(updateVia(tail, '0.4.5'), 'auto');
+});
+
+// ── the literals this depends on must stay in updater.ts ────────────────────
+
+test('updater.ts still emits the exact lines via reads', () => {
+  // via parses updater.log rather than adding a marker, which is what lets the
+  // 0.4.4 -> 0.4.5 hop be measured at all. The cost of that choice is this
+  // coupling, so it fails here rather than silently degrading the metric.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src/main/updater.ts'), 'utf8');
+  assert.ok(
+    src.includes('logLine(`update downloaded: ${info.version}'),
+    'updater.ts no longer logs "update downloaded: <version>" — update analytics.ts LOG_DOWNLOADED'
+  );
+  assert.ok(
+    src.includes("logLine('quitAndInstall requested by the user')"),
+    'updater.ts no longer logs the restart request — update analytics.ts LOG_QUIT_REQUESTED'
+  );
+  assert.ok(
+    src.includes('logLine(`quitAndInstall failed:'),
+    'updater.ts no longer logs the failed attempt — update analytics.ts LOG_QUIT_FAILED'
+  );
+});
+
+// ── via, end to end ─────────────────────────────────────────────────────────
+
+test('e2e: a real 0.4.4 install that auto-updated reports via auto', () => {
+  const dir = stateDir();
+  fs.writeFileSync(path.join(dir, 'telemetry-install-id'), 'a-uuid-from-0.4.4\n');
+  fs.writeFileSync(path.join(dir, 'updater.log'), log(L.downloaded('0.4.5'), L.requested));
+
+  const sent = bootApp(dir, '0.4.5');
+  assert.deepEqual(sent.map((e) => e.event), ['update_applied', 'app_launched']);
+  assert.equal(sent[0].props.from_version, 'unknown');
+  assert.equal(sent[0].props.via, 'auto');
+});
+
+test('e2e: the same install reinstalled by hand reports via manual', () => {
+  const dir = stateDir();
+  fs.writeFileSync(path.join(dir, 'telemetry-install-id'), 'a-uuid-from-0.4.4\n');
+  fs.writeFileSync(path.join(dir, 'updater.log'), log(L.ready('0.4.4')));
+
+  assert.equal(bootApp(dir, '0.4.5')[0].props.via, 'manual');
+});
+
+test('e2e: an install with no updater.log reports via unknown', () => {
+  const dir = stateDir();
+  fs.writeFileSync(path.join(dir, 'telemetry-install-id'), 'a-uuid-from-0.4.4\n');
+  assert.equal(bootApp(dir, '0.4.5')[0].props.via, 'unknown');
+});
+
+test('e2e: via is only ever one of the three enum values', () => {
+  const dir = stateDir();
+  fs.writeFileSync(path.join(dir, 'telemetry-install-id'), 'a-uuid\n');
+  fs.writeFileSync(path.join(dir, 'updater.log'), log(L.downloaded('0.4.5'), L.requested));
+  const props = bootApp(dir, '0.4.5')[0].props;
+  assert.ok(['auto', 'manual', 'unknown'].includes(props.via));
+  // and nothing from the log itself rode along
+  assert.deepEqual(Object.keys(props).sort(), [
+    '$process_person_profile', 'app_version', 'arch', 'from_version', 'os', 'to_version', 'via'
+  ]);
 });

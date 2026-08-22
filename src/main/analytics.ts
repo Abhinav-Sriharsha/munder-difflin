@@ -31,7 +31,7 @@
  * Deliberately free of any `electron` import (paths/version are injected via
  * init) so it can be smoke-tested as a plain Node module, like telemetry.ts.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { PostHog } from 'posthog-node';
@@ -53,8 +53,9 @@ const EVENTS: Record<string, ReadonlySet<string>> = {
    *  values are version strings of the same shape as the `app_version` every
    *  event already carries; `from_version` is `unknown` for an install that
    *  predates version stamping (i.e. anything upgrading INTO the first release
-   *  that ships this event). */
-  update_applied: new Set<string>(['from_version', 'to_version']),
+   *  that ships this event). `via` is a fixed three-value enum saying whether
+   *  OUR updater moved the version or something else did. */
+  update_applied: new Set<string>(['from_version', 'to_version', 'via']),
   /** An agent PTY spawned. `provider` is the CLI engine name only. */
   agent_spawned: new Set<string>(['provider']),
   /** Coarse feature adoption; `feature` is a fixed enum (see FEATURES), fired
@@ -137,9 +138,12 @@ export class Analytics {
     // BEFORE sending: at-most-once beats at-least-once here, because a
     // duplicated update_applied would corrupt the very count it exists to
     // produce, while a lost one costs a single install out of thousands. The
-    // stamp is refreshed for opted-out users too — we record locally and let
-    // track() decide whether anything leaves the machine, so opting back in
-    // never back-fills a transition that happened while we were dark.
+    // stamp is refreshed for a user who opted out IN THE APP — we record
+    // locally and let track() decide whether anything leaves the machine, so
+    // turning it back on never back-fills a transition from the dark period.
+    // It is NOT refreshed under DO_NOT_TRACK or without a build key, because
+    // init() returns above before anything here runs: those installs write no
+    // file at all, and a DNT user who later unsets it reports 'unknown' once.
     let transition: VersionTransition | null = null;
     if (this.idPersisted) {
       const previous = readVersionStamp(opts.stateDir);
@@ -148,7 +152,10 @@ export class Analytics {
     }
 
     if (this.firstRun) this.track('first_run');
-    if (transition) this.track('update_applied', transition);
+    if (transition) {
+      const via = updateVia(readUpdaterLogTail(opts.stateDir), transition.to_version);
+      this.track('update_applied', { ...transition, via });
+    }
     this.track('app_launched');
   }
 
@@ -286,6 +293,94 @@ export function writeVersionStamp(stateDir: string, version: string): void {
     writeFileSync(join(stateDir, VERSION_STAMP_FILE), version + '\n', 'utf8');
   } catch (e) {
     console.error('[analytics] version stamp persist failed:', e);
+  }
+}
+
+/** ── Was it OUR updater, or did the user reinstall by hand? ──────────────────
+ *
+ *  `update_applied` on its own says the version moved; it cannot say what moved
+ *  it, because an auto-update and a manual re-download both keep userData, keep
+ *  the install id, and advance the version. The obvious fix is a marker written
+ *  by the OLD process when the user clicks restart-to-install — but the old
+ *  process is a build already in the wild, so a marker added now would be
+ *  useless for exactly the release we need to watch and would only start
+ *  telling the truth one cycle later.
+ *
+ *  It turns out we do not need a new marker: `updater.ts` has appended one to
+ *  `updater.log` since v0.3.7, and both lines below are byte-identical in the
+ *  shipped v0.4.3 and v0.4.4 builds. An auto-update leaves this ordered pair:
+ *
+ *      update downloaded: <version> — waiting for the user to restart
+ *      quitAndInstall requested by the user
+ *
+ *  Matching on the version is what makes it trustworthy: a leftover pair from a
+ *  PREVIOUS upgrade names that older version, so it cannot be mistaken for this
+ *  one. The log is read only to derive the closed enum below — no line, path or
+ *  message from it is ever sent, and updater.ts is not modified to support this
+ *  (`test/update-applied.test.cjs` asserts the two literals still match, so a
+ *  future reword fails the suite instead of silently degrading the metric).
+ */
+const LOG_FILE = 'updater.log';
+const LOG_DOWNLOADED = 'update downloaded: ';
+const LOG_QUIT_REQUESTED = 'quitAndInstall requested by the user';
+const LOG_QUIT_FAILED = 'quitAndInstall failed:';
+/** The log grows by a line or two per update, never on a routine check, so this
+ *  is years of history — but it is a user-writable file, so the read is bounded
+ *  rather than trusting. */
+const LOG_TAIL_BYTES = 128 * 1024;
+
+/** `auto` our updater installed it, `manual` something else moved the version,
+ *  `unknown` there is no log to read (and therefore no evidence either way). */
+export type UpdateVia = 'auto' | 'manual' | 'unknown';
+
+/** Pure: the whole decision, given the log text and where we landed. */
+export function updateVia(logText: string | null, toVersion: string): UpdateVia {
+  if (logText === null) return 'unknown';
+  const lines = logText.split('\n');
+  // The lookahead excludes every character a version can CONTINUE with, so
+  // `0.4.5` matches neither `0.4.55` nor the prerelease `0.4.5-beta.1` — both
+  // are different builds, and a download of one is no evidence about the other.
+  const downloaded = new RegExp(
+    `${LOG_DOWNLOADED}${toVersion.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')}(?![0-9.\\-])`
+  );
+
+  // The LAST download of THIS version — anything earlier belongs to a previous
+  // upgrade and would name a different version anyway.
+  let i = -1;
+  for (let n = 0; n < lines.length; n++) if (downloaded.test(lines[n])) i = n;
+  if (i < 0) return 'manual';
+
+  // A restart request that came AFTER that download. The log is append-only, so
+  // file order is time order.
+  let j = -1;
+  for (let n = i + 1; n < lines.length; n++) if (lines[n].includes(LOG_QUIT_REQUESTED)) j = n;
+  if (j < 0) return 'manual';
+
+  // updater.ts logs the failure from the catch immediately after the request, so
+  // an attempt that threw is the very next line — the app never quit, and
+  // whatever moved the version afterwards was not us.
+  if (lines[j + 1]?.includes(LOG_QUIT_FAILED)) return 'manual';
+  return 'auto';
+}
+
+/** Last LOG_TAIL_BYTES of updater.log, or null when there is none to read.
+ *  Never throws — a missing log is an answer ('unknown'), not a failure. */
+export function readUpdaterLogTail(stateDir: string): string | null {
+  let fd: number | null = null;
+  try {
+    const file = join(stateDir, LOG_FILE);
+    if (!existsSync(file)) return null;
+    fd = openSync(file, 'r');
+    const size = fstatSync(fd).size;
+    if (size === 0) return null;
+    const length = Math.min(size, LOG_TAIL_BYTES);
+    const buf = Buffer.allocUnsafe(length);
+    readSync(fd, buf, 0, length, size - length);
+    return buf.toString('utf8');
+  } catch {
+    return null;
+  } finally {
+    if (fd !== null) { try { closeSync(fd); } catch { /* nothing left to do */ } }
   }
 }
 
