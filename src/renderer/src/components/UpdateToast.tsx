@@ -97,6 +97,19 @@ export function UpdateToast() {
     if (t) setStatus(t);
   }), []);
 
+  // Main may have emitted before this window existed (a downloaded update
+  // from a previous session, or the dev-only MD_DROP_PREVIEW boot hook), and a
+  // push nobody was listening to is gone. Pull the last status once on mount so
+  // that state is not lost.
+  useEffect(() => {
+    let alive = true;
+    void window.cth.updateCurrent?.().then((cur) => {
+      const t = toastable(cur);
+      if (alive && t) setStatus((prev) => prev ?? t);
+    }).catch(() => { /* nothing to show */ });
+    return () => { alive = false; };
+  }, []);
+
   // Settings' hero card asks to re-open the release notes. This surface owns the
   // last status and the drop renderer, so it answers rather than duplicating
   // either. `updateCurrent()` is used instead of the remembered state because
