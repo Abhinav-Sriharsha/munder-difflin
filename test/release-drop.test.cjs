@@ -7,10 +7,15 @@
  * execution with the app's authority, available to anyone who can publish a
  * release.
  *
- * The controls are (1) `sandbox=""` on the iframe and (2) `default-src 'none'`
- * in the document's own CSP. This file pins the half that lives in shared code.
- * The sandbox attribute is asserted in ReleaseDrop.tsx and is deliberately NOT
- * the only thing standing between a release body and the user's machine.
+ * The controls are (1) a minimal sandbox on the iframe and (2) `default-src
+ * 'none'` in the document's own CSP. Neither is the only thing standing between
+ * a release body and the user's machine.
+ *
+ * The drop modal carries no buttons, so authored links are how a release offers
+ * an action, and the sandbox grants `allow-popups` to make them reach the OS
+ * browser. That single grant is now the widest thing in the blast radius, so the
+ * last suite here pins it by reading ReleaseDrop.tsx as text — the shared code
+ * cannot see the attribute, and a widened sandbox would otherwise pass silently.
  */
 
 const test = require('node:test');
@@ -88,4 +93,31 @@ test('the document is self-contained and declares its charset before content', (
   assert.match(doc, /^<!doctype html>/i);
   assert.ok(doc.indexOf('charset') < doc.indexOf('<body'), 'charset precedes the body');
   assert.match(doc, /🎉/);
+});
+
+// ─── The iframe sandbox attribute ────────────────────────────────────────────
+// Source-level, on purpose: the attribute lives in a .tsx the loader cannot
+// import, and it is the one control this suite would otherwise miss entirely.
+// Only the ATTRIBUTE is inspected, never the file text — the doc block above it
+// names allow-scripts and allow-same-origin precisely to say they are banned,
+// and a grep over prose would fail on the warning rather than on a real grant.
+const readDrop = () => require('node:fs').readFileSync(
+  require('node:path').join(__dirname, '..', 'src/renderer/src/components/ReleaseDrop.tsx'),
+  'utf8'
+);
+
+test('ReleaseDrop grants allow-popups and nothing else', () => {
+  const attrs = [...readDrop().matchAll(/sandbox="([^"]*)"/g)].map((m) => m[1]);
+  // Exactly one frame, granting exactly one capability. allow-scripts alone is
+  // already arbitrary code in the frame; paired with allow-same-origin it lets
+  // the frame delete its own sandbox. allow-top-navigation would let a release
+  // body replace the app, and allow-forms is an unscripted exfiltration path.
+  assert.deepEqual(attrs, ['allow-popups']);
+});
+
+// The drop is presentation only. A button here would be an app control wearing
+// the release author's page; every action a release wants to offer belongs in
+// the authored HTML, which is why the frame can open links at all.
+test('ReleaseDrop renders no buttons', () => {
+  assert.ok(!/<button/.test(readDrop()), 'the release drop must carry no chrome buttons');
 });

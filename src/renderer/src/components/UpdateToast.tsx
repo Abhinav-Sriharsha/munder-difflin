@@ -130,7 +130,10 @@ export function UpdateToast() {
   // A drop-only release body digests to zero bullets while being the richest
   // release page we ship, so it has to count too — otherwise the star ask
   // silently disappears on exactly the releases most worth starring.
-  const showStar = starAsk && (notes.length > 0 || !!dropHtml)
+  // A drop no longer counts. The star ask is a BUTTON, the drop has none, and
+  // spending a once-ever ask on a surface that cannot show it burns it for
+  // nothing — a drop release that wants a star authors the link in its own HTML.
+  const showStar = starAsk && notes.length > 0
     && (starSpentOn === null || starSpentOn === version);
   useEffect(() => {
     if (showStar && version && starSpentOn === null) {
@@ -156,19 +159,17 @@ export function UpdateToast() {
   };
 
   // An authored release: hand the whole moment to the centered drop instead of
-  // the corner toast. Every action it can take is passed in from here, so the
-  // sandboxed frame never needs (and never gets) a route back into the app.
+  // the corner toast. Nothing is passed in but the content — the drop carries no
+  // app buttons, and its own links go out through the OS browser.
+  //
+  // Restart-to-install is NOT lost with the button: autoInstallOnAppQuit is off,
+  // so the update needs an explicit restart, and the title-bar UpdateBadge (and
+  // Settings -> Updates) still offer it after this is dismissed.
   if (dropHtml && version) {
     return (
       <ReleaseDrop
         version={version}
         html={dropHtml}
-        canRestart={status.state === 'downloaded'}
-        busy={busy}
-        showStar={showStar}
-        onRestart={() => void restart()}
-        onOpenRelease={openRelease}
-        onStar={() => void window.cth.openExternal(GITHUB_REPO_URL)}
         onDismiss={() => setStatus(null)}
       />
     );

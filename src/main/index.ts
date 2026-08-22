@@ -2256,8 +2256,14 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
 
   win.once('ready-to-show', () => win.show());
 
+  // Never opens a window; hands the URL to the OS browser instead.
+  //
+  // Scheme-checked, because this is now reachable from AUTHOR-CONTROLLED markup:
+  // a release drop's iframe has `allow-popups`, so a target="_blank" link in a
+  // release body arrives here. http(s) only — an unguarded openExternal will
+  // happily launch file://, or a registered custom scheme, on the user's machine.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
 

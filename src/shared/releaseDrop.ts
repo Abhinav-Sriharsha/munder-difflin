@@ -19,18 +19,26 @@
  * it is arbitrary code execution on the user's machine with the app's full
  * authority, reachable by anyone who can publish a release (or MITM the fetch).
  *
- * So the drop NEVER runs in the app's renderer. It is handed to an iframe with
- * `sandbox=""` — the maximally restrictive value: no scripts, no same-origin, no
- * forms, no popups, no top-level navigation — and, inside that, a CSP of
- * `default-src 'none'` that re-blocks scripts independently. Two unrelated
+ * So the drop NEVER runs in the app's renderer. It is handed to an iframe whose
+ * sandbox grants exactly one thing — `allow-popups` — and, inside that, a CSP of
+ * `default-src 'none'` that blocks scripts independently. Two unrelated
  * mechanisms, either sufficient alone. `allow-scripts` must NEVER be added
  * alongside `allow-same-origin`: that pair lets the frame reach out and remove
  * its own sandbox.
  *
- * What still works, which is everything a launch page actually needs: images,
- * video, audio, web fonts, gradients, transforms, keyframe animations, grid.
- * What does not: scripts, forms, and links (there is no way to honour a click
- * without a script bridge) — the modal's own chrome carries the real actions.
+ * Why `allow-popups` and nothing else. The modal deliberately carries no buttons
+ * of its own, so the actions a release wants to offer are authored here as
+ * ordinary `<a target="_blank">` links. A popup is the weakest possible way to
+ * honour one: the frame cannot navigate itself or the top window, it can only
+ * ASK for a new window, and main's setWindowOpenHandler denies the window and
+ * hands the URL to the OS browser only when it is http(s). No script runs, on
+ * either side. A same-frame `<a href>` without target="_blank" still does
+ * nothing, which is correct — the drop must never be able to replace itself.
+ *
+ * What works, which is everything a launch page actually needs: images, video,
+ * audio, web fonts, gradients, transforms, keyframe animations, grid, and
+ * target="_blank" links out. What does not: scripts, forms, same-frame or
+ * top-level navigation, and any URL scheme other than http and https.
  */
 
 const DROP_OPEN = '<!-- drop -->';

@@ -3,21 +3,29 @@
  *
  * A corner toast with three clipped bullets is a changelog notification. This is
  * the other thing: a page the release author designs, shown once, at the size the
- * work deserves. The chrome here is deliberately thin — a header, a frame, a
- * footer of actions — because everything that should carry personality lives
- * inside the authored HTML, and the app's job is to present it and get out of
- * the way.
+ * work deserves.
  *
- * The authored HTML runs in an iframe with `sandbox=""` and a `default-src 'none'`
- * CSP (see shared/releaseDrop.ts for why that is not negotiable). Two consequences
- * shape this component:
+ * There is NO chrome button here, on purpose. The app frames the drop and gets
+ * out of the way; every action the release wants to offer — read the notes, star
+ * the repo, join the Discord — is authored INSIDE the HTML as an ordinary link,
+ * where the person writing the release controls the wording and the placement.
  *
- *   1. Links inside the drop cannot navigate — no scripts, no popups. So every
- *      real action (read the release, star, dismiss, restart) is a chrome button
- *      OUT here, where it is ordinary app code with ordinary permissions.
- *   2. The frame's height cannot be measured (that needs a postMessage bridge,
- *      which needs allow-scripts). So the modal is a fixed viewport-relative box
- *      and the drop scrolls inside it, rather than the box growing to fit.
+ * The authored HTML runs in an iframe with a `default-src 'none'` CSP and a
+ * sandbox that grants exactly one capability: `allow-popups` (see
+ * shared/releaseDrop.ts for why everything else stays shut). That is what makes
+ * an authored `<a target="_blank">` work — the frame cannot navigate anything
+ * itself, it can only ASK for a window, and main's setWindowOpenHandler denies
+ * the window and hands the URL to the OS browser if and only if it is http(s).
+ * No scripts, no same-origin, no forms, no top-level navigation.
+ *
+ * One consequence still shapes the layout: the frame's height cannot be measured
+ * (that needs a postMessage bridge, which needs allow-scripts). So the modal is a
+ * fixed viewport-relative box and the drop scrolls inside it, rather than the box
+ * growing to fit.
+ *
+ * Dismissal is Esc or a click on the backdrop. Both were always here; with the
+ * close button gone the header says so in words, because a modal this large with
+ * no visible way out is a trap.
  */
 import { useEffect, useMemo } from 'react';
 import { buildDropSrcDoc } from '../../../shared/releaseDrop';
@@ -26,20 +34,10 @@ export interface ReleaseDropProps {
   version: string;
   /** Authored HTML, already extracted from the release body. */
   html: string;
-  /** 'downloaded' offers a restart; 'available-manual' offers the releases page. */
-  canRestart: boolean;
-  busy: boolean;
-  showStar: boolean;
-  onRestart: () => void;
-  onOpenRelease: () => void;
-  onStar: () => void;
   onDismiss: () => void;
 }
 
-export function ReleaseDrop({
-  version, html, canRestart, busy, showStar,
-  onRestart, onOpenRelease, onStar, onDismiss
-}: ReleaseDropProps) {
+export function ReleaseDrop({ version, html, onDismiss }: ReleaseDropProps) {
   const srcDoc = useMemo(() => buildDropSrcDoc(html), [html]);
 
   // Esc dismisses. A modal this large with no keyboard exit feels like a trap,
@@ -53,19 +51,8 @@ export function ReleaseDrop({
   // The chrome deliberately drops the app's pixel idiom. Inside this dialog the
   // drop is the subject and the surrounding UI should read as a quiet frame
   // around it — sharp 2px borders and hard drop-shadows fight a modern page.
-  const INK = '#14131A';
   const INK_SOFT = '#6C6875';
   const LINE = 'rgba(20,19,26,0.10)';
-  const button = (primary: boolean): React.CSSProperties => ({
-    padding: '9px 18px',
-    borderRadius: 999,
-    background: primary ? INK : 'transparent',
-    color: primary ? '#FBFAF8' : INK_SOFT,
-    border: primary ? '1px solid ' + INK : `1px solid ${LINE}`,
-    fontFamily: 'inherit', fontSize: 13.5, fontWeight: primary ? 600 : 500,
-    cursor: busy ? 'not-allowed' : 'pointer',
-    opacity: busy && primary ? 0.6 : 1
-  });
 
   return (
     <div
@@ -102,70 +89,39 @@ export function ReleaseDrop({
           boxShadow: '0 24px 70px rgba(20,19,26,0.34), 0 2px 8px rgba(20,19,26,0.18)',
           // The app's own UI font is part of its pixel identity and reads as
           // retro chrome wrapped around a modern page. The dialog uses the system
-          // stack instead, matching the drop inside it — one typographic voice
-          // from the title bar to the buttons.
+          // stack instead, matching the drop inside it — one typographic voice.
           fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif'
         }}
       >
-        {/* Header — a thin, quiet bar. The drop supplies its own title. */}
+        {/* Header — a thin, quiet bar. The drop supplies its own title, and the
+            only thing out here is a label plus how to leave. Both are inert
+            text: the whole point of this dialog is that it holds no controls. */}
         <div style={{
           flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10,
           padding: '14px 18px 12px', borderBottom: `1px solid ${LINE}`,
-          background: '#FBFAF8'
+          background: '#FBFAF8',
+          fontSize: 11.5, fontWeight: 600, letterSpacing: '.1em',
+          textTransform: 'uppercase', color: INK_SOFT
         }}>
-          <span style={{
-            fontSize: 11.5, fontWeight: 600, letterSpacing: '.1em',
-            textTransform: 'uppercase', color: INK_SOFT, flex: 1, minWidth: 0
-          }}>
-            Munder Difflin · {version}
+          <span style={{ flex: 1, minWidth: 0 }}>Munder Difflin · {version}</span>
+          <span aria-hidden style={{ flexShrink: 0, opacity: 0.75, letterSpacing: '.08em' }}>
+            Esc to close
           </span>
-          <button
-            onClick={onDismiss}
-            aria-label="Close"
-            style={{
-              width: 28, height: 28, borderRadius: 999, flexShrink: 0,
-              border: `1px solid ${LINE}`, background: 'transparent', cursor: 'pointer',
-              fontFamily: 'inherit', fontSize: 14, lineHeight: 1, color: INK_SOFT,
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}
-          >✕</button>
         </div>
 
-        {/* The drop itself — authored HTML, fully sandboxed. */}
+        {/* The drop itself. `allow-popups` is the ONLY grant: it is what lets an
+            authored <a target="_blank"> reach the OS browser, and it carries no
+            script, same-origin, form or navigation rights with it. */}
         <iframe
           title={`What's new in ${version}`}
           srcDoc={srcDoc}
-          sandbox=""
+          sandbox="allow-popups"
           referrerPolicy="no-referrer"
           style={{
             flex: 1, minHeight: 0, width: '100%', border: 'none',
             background: '#FBFAF8'
           }}
         />
-
-        {/* Actions live out here: the frame cannot navigate, by design. */}
-        <div style={{
-          flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-          padding: '14px 18px', borderTop: `1px solid ${LINE}`,
-          background: '#FBFAF8'
-        }}>
-          {showStar && (
-            <button onClick={onStar} style={{
-              border: 'none', background: 'transparent', cursor: 'pointer', padding: 0,
-              fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
-              color: INK_SOFT, textDecoration: 'underline', textUnderlineOffset: 3
-            }}>⭐ Star us on GitHub</button>
-          )}
-          <span style={{ flex: 1 }} />
-          <button onClick={onDismiss} style={button(false)}>Later</button>
-          {canRestart ? (
-            <button onClick={onRestart} disabled={busy} style={button(true)}>
-              {busy ? 'Restarting…' : 'Restart to update'}
-            </button>
-          ) : (
-            <button onClick={onOpenRelease} style={button(true)}>Open releases</button>
-          )}
-        </div>
       </div>
     </div>
   );
