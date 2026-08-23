@@ -717,6 +717,18 @@
   }
   .cfg select:hover, .cfg select:focus { border-color: var(--accent-line); outline: none; }
   .plan-total { font-family: var(--font-mono); font-weight: 700; font-size: 0.95rem; color: var(--accent); }
+  .compare {
+    font-family: var(--font-mono); font-size: 0.8rem; color: var(--faint);
+    margin: 16px auto 0; max-width: 620px;
+  }
+  .compare b { color: var(--accent); }
+  .cfg input.cfg-num {
+    width: 96px; background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    padding: 8px 10px; font-family: var(--font-mono); font-size: 0.85rem; text-align: center;
+  }
+  .cfg input.cfg-num:hover, .cfg input.cfg-num:focus { border-color: var(--accent-line); outline: none; }
+  .cfg select:disabled { opacity: 0.45; cursor: not-allowed; }
   @media (max-width: 1000px) { .pgroups { grid-template-columns: 1fr; } }
   @media (max-width: 900px)  { .plans2.plans3 { grid-template-columns: 1fr; } }
   @media (max-width: 620px)  { .plans2 { grid-template-columns: 1fr; } }
@@ -1624,38 +1636,37 @@
   <div class="wrap center">
     <span class="kicker">PRICING</span>
     <h2>Plans for power users and teams.</h2>
-    <p class="lead" style="margin:18px auto 0">
-      The app is open source and runs on your laptop forever. Paid plans add the
-      24/7 sandbox and the team network.
-    </p>
+    <p class="compare"><b>Individuals:</b> try PRO, or PRO with a 24/7 sandbox.
+    <b>Teams:</b> your clones talk to each other and run everything locally on the
+    network plan, or add cloud sandboxes seat by seat as you need them.</p>
     <div class="pgroups">
       <div class="pgroup rv">
         <span class="pg-label">FOR YOU <small>one person, one clone</small></span>
         <div class="plan">
           <span class="plan-name">PRO</span>
           <span class="svc-chips"><span>CLOUD</span></span>
-          <span class="plan-price">$39<small>/month · for individuals</small></span>
+          <span class="plan-price">From $20<small>/month · or $200/year · sandbox optional</small></span>
           <ul>
-            <li>Everything in the free app — memory, workflows, the multi-agent floor</li>
-            <li><b>24/7 sandbox included:</b> shared CPU · 1GB RAM · 20GB storage — your clone keeps shipping with the lid closed</li>
-            <li>Switch local ⇄ cloud anytime</li>
-            <li><b>First 100 <a href="/wall.html">Founding Supporters</a>:</b> 50% off + 1 month free</li>
+            <li>Every pro feature: memory, workflows, the full agent floor</li>
+            <li>Add a 24/7 sandbox (shared 1× CPU, 1GB RAM, 20GB storage) for +$19/mo</li>
+            <li>First 100 <a href="/wall.html">Founding Supporters</a>: 50% off and 1 month free</li>
           </ul>
           <div class="cfg">
-            <label for="proCompute">ADD COMPUTE <small>(billed monthly with the plan)</small></label>
+            <label for="proCompute">SANDBOX COMPUTE</label>
             <select id="proCompute">
-              <option data-add="0" selected>Included — Shared 1× CPU · 1GB RAM</option>
-              <option data-add="9">Shared 2× CPU · 2GB RAM — +$9/mo</option>
-              <option data-add="25">Shared 4× CPU · 4GB RAM — +$25/mo</option>
-              <option data-add="39">Dedicated 1× CPU · 2GB RAM — +$39/mo</option>
-              <option data-add="59">Shared 8× CPU · 8GB RAM — +$59/mo</option>
+              <option data-add="0">No sandbox ($20/mo or $200/yr)</option>
+              <option data-add="19" selected>Shared 1× CPU · 1GB RAM · 20GB (+$19/mo)</option>
+              <option data-add="28">Shared 2× CPU · 2GB RAM · 20GB (+$28/mo)</option>
+              <option data-add="44">Shared 4× CPU · 4GB RAM · 20GB (+$44/mo)</option>
+              <option data-add="58">Dedicated 1× CPU · 2GB RAM · 20GB (+$58/mo)</option>
+              <option data-add="78">Shared 8× CPU · 8GB RAM · 20GB (+$78/mo)</option>
             </select>
-            <label for="proStorage">ADD STORAGE</label>
+            <label for="proStorage">EXTRA STORAGE</label>
             <select id="proStorage">
-              <option data-add="0" selected>Included — 20GB volume</option>
-              <option data-add="8">50GB volume — +$8/mo</option>
-              <option data-add="20">100GB volume — +$20/mo</option>
-              <option data-add="58">250GB volume — +$58/mo</option>
+              <option data-add="0" selected>None (included volume only)</option>
+              <option data-add="8">+50GB (+$8/mo)</option>
+              <option data-add="15">+100GB (+$15/mo)</option>
+              <option data-add="38">+250GB (+$38/mo)</option>
             </select>
           </div>
           <span class="plan-total" id="proTotal">$39/month</span>
@@ -1668,35 +1679,41 @@
           <span class="flag">ALWAYS&nbsp;ON</span>
           <span class="plan-name">TEAMS</span>
           <span class="svc-chips"><span>CLOUD</span><span>NETWORK</span></span>
-          <span class="plan-price">$149<small>/seat/month</small></span>
+          <span class="plan-price">From $39<small>/seat/month · 1 seat = 1 Munder Difflin app with unlimited local agents</small></span>
           <ul>
-            <li>E2E-encrypted clone-to-clone messaging + shared org knowledge base</li>
-            <li><b>24/7 sandbox per seat:</b> shared 8× CPU · 8GB RAM · 100GB storage</li>
-            <li>The whole floor ships with laptops closed</li>
+            <li>Clones that talk: end to end encrypted messaging, shared org knowledge</li>
+            <li>Starter sandbox: shared 1× CPU, 1GB RAM, 20GB storage</li>
+            <li>Mix freely: only the seats you choose get a sandbox</li>
           </ul>
           <div class="seat-box">
             <span class="seat-top"><span>TEAM SIZE</span></span>
             <div class="seat-ctl">
-              <input type="range" id="seatRange" min="2" max="100" step="1" value="2" aria-label="team size in seats" />
-              <input type="text" inputmode="numeric" id="seatInput" value="2 seats" aria-label="team size, exact number" />
+              <input type="range" id="seatRange" min="1" max="100" step="1" value="1" aria-label="team size in seats" />
+              <input type="text" inputmode="numeric" id="seatInput" value="1 seat" aria-label="team size, exact number" />
             </div>
           </div>
           <div class="cfg">
-            <label for="teamCompute">ADD COMPUTE <small>(per seat, billed monthly)</small></label>
+            <label for="teamSandboxSeats">HOW MANY RUN 24/7 ON CLOUD?</label>
+            <input type="text" inputmode="numeric" id="teamSandboxSeats" value="0 seats" aria-label="how many seats run 24/7 on cloud" class="cfg-num" />
+            <label for="teamCompute">SANDBOX TIER <small>(per cloud seat)</small></label>
             <select id="teamCompute">
-              <option data-add="0" selected>Included — Shared 8× CPU · 8GB RAM</option>
-              <option data-add="55">Dedicated 2× CPU · 8GB RAM — +$55/mo</option>
-              <option data-add="59">Shared 8× CPU · 16GB RAM — +$59/mo</option>
-              <option data-add="175">Dedicated 4× CPU · 16GB RAM — +$175/mo</option>
+              <option data-add="19" selected>Starter: Shared 1× CPU · 1GB RAM · 20GB ($58/seat)</option>
+              <option data-add="35">Shared 2× CPU · 2GB RAM · 20GB ($74/seat)</option>
+              <option data-add="55">Shared 4× CPU · 4GB RAM · 20GB ($94/seat)</option>
+              <option data-add="110">Standard: Shared 8× CPU · 8GB RAM · 100GB ($149/seat)</option>
+              <option data-add="165">Dedicated 2× CPU · 8GB RAM · 100GB ($204/seat)</option>
+              <option data-add="169">Shared 8× CPU · 16GB RAM · 100GB ($208/seat)</option>
+              <option data-add="285">Dedicated 4× CPU · 16GB RAM · 100GB ($324/seat)</option>
             </select>
-            <label for="teamStorage">ADD STORAGE <small>(per seat)</small></label>
+            <label for="teamStorage">EXTRA STORAGE <small>(per cloud seat)</small></label>
             <select id="teamStorage">
-              <option data-add="0" selected>Included — 100GB volume</option>
-              <option data-add="38">250GB volume — +$38/mo</option>
-              <option data-add="100">500GB volume — +$100/mo</option>
+              <option data-add="0" selected>None (included volume only)</option>
+              <option data-add="8">+50GB (+$8/seat/mo)</option>
+              <option data-add="15">+100GB (+$15/seat/mo)</option>
+              <option data-add="38">+250GB (+$38/seat/mo)</option>
             </select>
           </div>
-          <span class="plan-total" id="teamTotal">$298/month · 2 seats × $149</span>
+          <span class="plan-total" id="teamTotal">$39/month · 1 seat · network only</span>
           <a class="btn primary" id="ctaBoth" href="https://cal.com/chaitanya-giri-w3wrwi/munder-difflin-teams-demo" target="_blank" rel="noopener">Contact us</a>
         </div>
       </div>
@@ -1706,9 +1723,9 @@
     <div class="support-strip rv" id="support">
       <div>
         <span class="ss-label">FOR THE PROJECT <small>keep it free for everyone</small></span>
-        <h3>Founding Supporter — your name on the Wall</h3>
+        <h3>Founding Supporter: your name on the Wall</h3>
         <p>$20, one time. A permanent brass plaque on the
-        <a href="/wall.html">Founders' Wall</a> — and the first 100 get 50% off PRO plus a
+        <a href="/wall.html">Founders' Wall</a>. The first 100 get 50% off PRO plus a
         free month of PRO. Munder Difflin stays free for everyone.</p>
       </div>
       <div class="ss-cta">
@@ -2783,42 +2800,71 @@
 
 
 <script>
-  // pricing calculator: team-size slider + exact-entry box + per-plan
-  // compute/storage adders update the displayed totals live. Adder values
-  // live in each option's data-add. Seats clamp to 2–100; the input box is
-  // the single readout ("N seats"), synced from whichever control moved.
+  // pricing calculator. Model: PRO = $20 base + optional sandbox tier + storage;
+  // TEAMS = seats × $39 network fee + cloud seats × (sandbox tier + storage).
+  // Adder values live in each option's data-add. Seats clamp 1–100; cloud seats
+  // are a strict subset of the team (max seats − 1). Seat boxes show "N seats"
+  // at rest but edit only the bare number.
   (function () {
     function add(id) {
       var el = document.getElementById(id);
       return el ? +(el.options[el.selectedIndex].dataset.add || 0) : 0;
     }
     function money(n) { return '$' + n.toLocaleString('en-US'); }
+    function digits(v) { var d = parseInt(String(v).replace(/[^0-9]/g, ''), 10); return isNaN(d) ? null : d; }
+    function clamp(v, lo, hi) { return v === null ? lo : Math.min(hi, Math.max(lo, v)); }
     var range = document.getElementById('seatRange');
     var input = document.getElementById('seatInput');
-    function clamp(v) { return isNaN(v) ? 2 : Math.min(100, Math.max(2, v)); }
-    function upd(source) {
-      // read seats from the control that just moved — reading the other one
-      // is how the slider used to snap back and look dead
-      var s = source === range ? clamp(+range.value)
-                               : clamp(parseInt(String(input.value).replace(/[^0-9]/g, ''), 10));
-      if (source !== input) input.value = s + ' seats'; // don't fight the user mid-typing
-      if (source !== range) range.value = s;
+    var sb = document.getElementById('teamSandboxSeats');
+    var proStorage = document.getElementById('proStorage');
+    var tc = document.getElementById('teamCompute'), ts = document.getElementById('teamStorage');
+    var seats = 1, cloud = 0;
+
+    function render() {
+      var maxCloud = Math.max(0, seats - 1); // cloud is a strict subset of the team
+      if (cloud > maxCloud) cloud = maxCloud;
+      if (document.activeElement !== input) input.value = seats + (seats === 1 ? ' seat' : ' seats');
+      if (document.activeElement !== sb) sb.value = cloud + (cloud === 1 ? ' seat' : ' seats');
+      range.value = seats;
+      if (tc) tc.disabled = cloud === 0;
+      if (ts) ts.disabled = cloud === 0;
+      var pc = add('proCompute');
+      if (proStorage) { proStorage.disabled = pc === 0; if (pc === 0) proStorage.selectedIndex = 0; }
       var pt = document.getElementById('proTotal');
-      if (pt) pt.textContent = money(39 + add('proCompute') + add('proStorage')) + '/month';
-      var per = 149 + add('teamCompute') + add('teamStorage');
-      document.getElementById('teamTotal').textContent =
-        money(per * s) + '/month · ' + s + ' seats × ' + money(per);
+      if (pt) {
+        pt.textContent = money(20 + pc + (pc === 0 ? 0 : add('proStorage'))) + '/month'
+          + (pc === 0 ? ' · or $200/year' : '');
+      }
+      var per = 39 + add('teamCompute') + add('teamStorage');
+      var tt = document.getElementById('teamTotal');
+      if (tt) {
+        tt.textContent = money(seats * 39 + cloud * (per - 39)) + '/month · '
+          + seats + (seats === 1 ? ' seat' : ' seats')
+          + (cloud > 0 ? ', ' + cloud + ' on cloud (' + money(per) + ' each)' : ' · network only');
+      }
     }
-    if (range) range.addEventListener('input', function () { upd(range); });
-    if (input) {
-      input.addEventListener('input', function () { upd(input); });
-      input.addEventListener('change', function () { upd(null); }); // normalize to "N seats" on commit
+
+    // A seat box shows "N seats" at rest but edits only the number: focus swaps
+    // to the bare digits and selects them, typing strips non-digits, blur
+    // restores the words. The cursor can never land inside "seats".
+    function wireBox(el, get, set) {
+      el.addEventListener('focus', function () { el.value = String(get()); el.select(); });
+      el.addEventListener('input', function () {
+        var d = String(el.value).replace(/[^0-9]/g, '');
+        if (el.value !== d) el.value = d;
+        set(digits(d));
+        render();
+      });
+      el.addEventListener('blur', function () { set(digits(el.value)); render(); });
     }
+    wireBox(input, function () { return seats; }, function (v) { seats = clamp(v, 1, 100); });
+    wireBox(sb, function () { return cloud; }, function (v) { cloud = clamp(v, 0, Math.max(0, seats - 1)); });
+    if (range) range.addEventListener('input', function () { seats = clamp(+range.value, 1, 100); render(); });
     ['proCompute', 'proStorage', 'teamCompute', 'teamStorage'].forEach(function (id) {
       var el = document.getElementById(id);
-      if (el) el.addEventListener('input', function () { upd(null); });
+      if (el) el.addEventListener('input', render);
     });
-    upd(null);
+    render();
   })();
 
   // theme toggle — icon swap is pure CSS off data-theme (see .theme-toggle svg)
