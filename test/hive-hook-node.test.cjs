@@ -66,7 +66,7 @@ function walk(dir, out = []) {
 /** Sweep every config an installer wrote for commands that invoke one of our
  *  shims. Path-agnostic on purpose, so a new installer cannot be missed. */
 function hookCommandsUnder(home) {
-  const shim = /(cth-hook\.cjs|agy-hook\.cjs|grok-hook\.cjs)/;
+  const shim = /(cth-hook\.cjs|agy-hook\.cjs|grok-hook\.cjs|gemini-hook\.cjs)/;
   const found = [];
   for (const file of walk(home)) {
     let text;
@@ -142,6 +142,7 @@ test('every hook installer routes through the launcher — none left on bare nod
 
   hive.installAgyHooks();
   hive.installGrokHooks();
+  hive.installGeminiHooks(path.join(home, 'hive/agents/a1'));
   hive.installCodexHooks(path.join(home, 'hive/agents/a1'), 'a1');
 
   const launcher = launcherIn(home);
@@ -151,7 +152,7 @@ test('every hook installer routes through the launcher — none left on bare nod
   const bare = commands.filter((c) => !usesLauncher(c, launcher));
   assert.deepEqual(bare, [], 'these hook commands would exit 127 wherever node is not on the bare PATH');
 
-  for (const shim of ['agy-hook.cjs', 'grok-hook.cjs']) {
+  for (const shim of ['agy-hook.cjs', 'grok-hook.cjs', 'gemini-hook.cjs']) {
     assert.ok(commands.some((c) => c.includes(shim)), `${shim} installer produced no command`);
   }
 });
@@ -268,6 +269,32 @@ test('reset cleanup removes only exposed Munder rollouts', (t) => {
 
   assert.equal(fs.existsSync(exposed), false, 'reset left Munder rollout data behind');
   assert.equal(fs.readFileSync(personal, 'utf8'), 'personal\n', 'reset touched a personal Codex session');
+});
+
+test('Gemini gets isolated lifecycle settings and an interactive protocol seed', async (t) => {
+  const home = tmpHome();
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const hive = new HiveManager(() => home);
+  const injection = await hive.ensureAgent({
+    id: 'gemini-1',
+    name: 'Gemini',
+    provider: 'gemini',
+    cwd: home
+  });
+
+  const settingsPath = injection.env.GEMINI_CLI_SYSTEM_SETTINGS_PATH;
+  assert.equal(typeof settingsPath, 'string');
+  assert.ok(settingsPath.startsWith(path.join(home, 'hive', 'agents', 'gemini-1')));
+  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  assert.deepEqual(
+    Object.keys(settings.hooks),
+    ['SessionStart', 'BeforeAgent', 'BeforeTool', 'AfterTool', 'AfterAgent']
+  );
+  assert.equal(settings.hooksConfig.enabled, true);
+  assert.equal(settings.hooks.BeforeTool[0].matcher, '.*');
+  assert.ok(settings.hooks.AfterAgent[0].hooks[0].command.includes('gemini-hook.cjs'));
+  assert.equal(injection.args[0], '-i');
+  assert.match(injection.args[1], /HIVE PROTOCOL/);
 });
 
 test('a hook fires with NO node on PATH, and its payload reaches HIVE_SOCK', { skip: !POSIX }, async (t) => {
