@@ -675,6 +675,7 @@
     border: 1px dashed var(--border-strong); border-radius: var(--radius);
     padding: 18px 18px 20px;
     display: flex; flex-direction: column;
+    min-width: 0; /* let grid children shrink below content width on mobile */
   }
   .pg-label {
     display: flex; align-items: baseline; gap: 10px; margin: 0 4px 14px;
@@ -697,7 +698,7 @@
   .seat-box .seat-top b { color: var(--accent); font-size: 0.78rem; letter-spacing: 0.04em; }
   .seat-box input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; margin: 0; }
   .seat-ctl { display: flex; gap: 10px; align-items: center; }
-  .seat-ctl input[type="range"] { flex: 1; }
+  .seat-ctl input[type="range"] { flex: 1; min-width: 0; /* WebKit range has an intrinsic min-width */ }
   .seat-ctl input[type="text"] {
     width: 88px; background: var(--surface-2); color: var(--ink);
     border: 1px solid var(--border-strong); border-radius: 8px;
@@ -707,13 +708,15 @@
   .seat-scale { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.64rem; color: var(--faint); padding: 0 2px; }
   .seat-scale span.on { color: var(--accent); font-weight: 700; }
   /* plan configurators (compute/storage adders) */
-  .cfg { display: grid; gap: 6px; margin: 2px 0; }
+  .cfg { display: grid; gap: 6px; margin: 2px 0; min-width: 0; }
   .cfg label { font-family: var(--font-mono); font-weight: 600; font-size: 0.66rem; letter-spacing: 0.12em; color: var(--faint); margin-top: 4px; }
   .cfg label small { letter-spacing: 0.04em; text-transform: none; }
   .cfg select {
     background: var(--surface-2); color: var(--ink);
     border: 1px solid var(--border-strong); border-radius: 8px;
     padding: 8px 10px; font-family: var(--font-body); font-size: 0.85rem; cursor: pointer;
+    width: 100%; min-width: 0; /* Safari sizes selects to the longest option — contain it */
+    text-overflow: ellipsis;
   }
   .cfg select:hover, .cfg select:focus { border-color: var(--accent-line); outline: none; }
   .plan-total { font-family: var(--font-mono); font-weight: 700; font-size: 0.95rem; color: var(--accent); }
@@ -800,6 +803,7 @@
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 24px;
     display: flex; flex-direction: column; gap: 12px;
+    min-width: 0; /* shrink below content width on narrow screens */
     transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
   }
   .plan:hover { transform: translateY(-3px); border-color: var(--accent-line); }
