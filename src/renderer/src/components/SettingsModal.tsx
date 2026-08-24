@@ -1237,10 +1237,6 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               {brkHardStop ? 'kill on trip' : 'steer first'}
                             </PixelButton>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <PixelButton variant="secondary" size="sm" onClick={saveBudget}>save</PixelButton>
-                            {budgetNote && <span style={{ fontSize: 12, color: 'var(--cth-mint)' }}>{budgetNote}</span>}
-                          </div>
                         </div>
                       </div>
                     </>
@@ -2026,10 +2022,16 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
               <div style={{
                 borderTop: '2px solid var(--cth-ink-300)',
                 padding: '10px 16px',
-                display: 'flex', justifyContent: 'flex-end',
+                display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8,
                 background: 'var(--cth-cream-50)'
               }}>
+                {activeSection === 'Autonomy & Budgets' && budgetNote && (
+                  <span style={{ fontSize: 12, color: 'var(--cth-mint)' }}>{budgetNote}</span>
+                )}
                 <PixelButton variant="secondary" size="md" onClick={onClose}>close</PixelButton>
+                {activeSection === 'Autonomy & Budgets' && (
+                  <PixelButton variant="primary" size="md" onClick={saveBudget}>save</PixelButton>
+                )}
               </div>
             </>
           )}
