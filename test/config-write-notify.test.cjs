@@ -23,18 +23,25 @@ const { writeConfig, readConfig, onConfigWritten, setAgentTokenCap, resetConfig 
 
 test.after(() => fs.rmSync(userData, { recursive: true, force: true }));
 
+// The app has a config on disk and reads it during start-up, which is what runs
+// the one-shot trigger migration. Reproduce both here before any test subscribes,
+// so these compare a write against a settled config rather than racing the
+// migration — on a bare directory readConfig short-circuits and never runs it.
+writeConfig({});
+readConfig();
+
+
 test('a config write notifies subscribers with the persisted config', () => {
   const seen = [];
   const off = onConfigWritten((next) => seen.push(next));
 
-  const returned = writeConfig({ orchestratorMaySpawn: true });
+  writeConfig({ orchestratorMaySpawn: true });
 
   // A single logical write can persist more than once — reading the config runs
-  // any pending migration, which persists in its own right. The contract is
-  // that subscribers end up holding what the caller was handed back, not that
-  // exactly one notification arrives.
+  // any pending migration, which persists in its own right. The contract is what
+  // subscribers end up holding, not that exactly one notification arrives.
   assert.ok(seen.length >= 1);
-  assert.deepEqual(seen[seen.length - 1], returned);
+  assert.deepEqual(seen[seen.length - 1], readConfig());
   assert.equal(seen[seen.length - 1].orchestratorMaySpawn, true);
   off();
 });
@@ -47,10 +54,10 @@ test('a token-cap write notifies too, not just writeConfig', () => {
   const seen = [];
   const off = onConfigWritten((next) => seen.push(next));
 
-  const returned = setAgentTokenCap('jim', 100);
+  setAgentTokenCap('jim', 100);
 
   assert.ok(seen.length >= 1);
-  assert.deepEqual(seen[seen.length - 1], returned);
+  assert.deepEqual(seen[seen.length - 1], readConfig());
   assert.equal(seen[seen.length - 1].agentTokenCaps.jim, 100);
   off();
 });
@@ -94,4 +101,19 @@ test('a listener that throws neither fails the write nor starves the next listen
   assert.equal(readConfig().autoMode, true);
   assert.ok(reached.length >= 1);
   offBad(); offGood();
+});
+
+// The renderer keeps one `config` in state fed from two sources: config:get and
+// this notification. If they disagree in shape, a consumer reads a deep-filled
+// object one moment and a half-filled one the next. A patch that touches part of
+// a trigger is where that bites, because the merge on the way in is one level
+// deep (see withTriggerDefaults).
+test('subscribers receive the same shape a config read returns', () => {
+  const seen = [];
+  const off = onConfigWritten((next) => seen.push(next));
+
+  writeConfig({ contextTrigger: { compact: { enabled: true } } });
+
+  assert.deepEqual(seen[seen.length - 1], readConfig());
+  off();
 });

@@ -646,11 +646,19 @@ function persistConfig(next: HarnessConfig): HarnessConfig {
   const p = configPath();
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, JSON.stringify(next, null, 2), 'utf8');
+  // Subscribers get the config in the same shape `readConfig` hands out, NOT the
+  // object we just wrote. They are the second source feeding a renderer that also
+  // calls config:get, and a patch touching one nested key persists a half-filled
+  // sub-object — `withTriggerDefaults` is what deep-fills it on the way out, so
+  // skipping it here would let a consumer read `undefined` from a trigger it had
+  // read a number from a moment earlier. The migration is deliberately not run:
+  // it persists, and it has already been applied to the config this patch built on.
+  const view = normalizeStoredHomes(withTriggerDefaults({ ...DEFAULTS, ...next }));
   // A listener is a renderer send, which can fail while a window is closing.
   // The config is already on disk by this point, so a throwing subscriber must
   // neither fail the write for its caller nor starve the subscribers after it.
   for (const listener of configWriteListeners) {
-    try { listener(next); } catch { /* a broken listener is not a failed write */ }
+    try { listener(view); } catch { /* a broken listener is not a failed write */ }
   }
   return next;
 }
