@@ -177,7 +177,7 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
             <span style={{
               fontSize: 12, color: 'var(--cth-ink-500)',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-            }}>Michael runs the floor</span>
+            }}>{agent.name} runs the floor</span>
           </div>
         </div>
         {/* v0.3.4: floor-wide auto-delivery lives HERE (one switch for every
