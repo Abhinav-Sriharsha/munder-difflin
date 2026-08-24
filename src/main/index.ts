@@ -5161,11 +5161,13 @@ app.on('before-quit', (e) => {
   }
 });
 
-// The window loads the config once at start-up, so tell it when a setting is
-// saved — otherwise it keeps showing the values it started with.
-onConfigWritten((next) => {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.send('config:changed', next);
+// Every window loads the config once at start-up, so tell them all when a
+// setting is saved — a floor left out would keep showing what it opened with.
+onConfigWritten((config) => {
+  for (const w of allWindows) {
+    if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
+    w.webContents.send('config:changed', config);
+  }
 });
 
 app.on('window-all-closed', () => {
