@@ -930,6 +930,15 @@ const api = {
   }> =>
     ipcRenderer.invoke('hire:openFile'),
 
+  // ─── Config changes ──────────────────────────────────────────────────────
+  /** Fired after every persisted config write, with the config as written, so a
+   *  renderer holding it as state never drifts from what is on disk. */
+  onConfigChanged: (cb: (config: HarnessConfig) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, config: HarnessConfig) => cb(config);
+    ipcRenderer.on('config:changed', listener);
+    return () => ipcRenderer.removeListener('config:changed', listener);
+  },
+
   // ─── Quit confirmation ───────────────────────────────────────────────────
   onCloseRequested: (cb: (info: { ptyCount: number }) => void): (() => void) => {
     const listener = (_e: IpcRendererEvent, info: { ptyCount: number }) => cb(info);

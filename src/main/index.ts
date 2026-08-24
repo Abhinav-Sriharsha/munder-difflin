@@ -14,7 +14,7 @@ import { resolveCommand as resolveCliCommand } from './shellEnv';
 import { initAutoUpdater, abortPendingRestart } from './updater';
 import { RealtimeFloorWatcher } from './realtimeFloorWatcher';
 import {
-  readConfig, writeConfig, setAgentTokenCap, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
+  readConfig, writeConfig, setAgentTokenCap, resetConfig, onConfigWritten, ensureHarnessHome, ensureClaudePermissionsAccepted,
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
 } from './config';
 import { listDir, readFileText, readFileBinary, writeFileText, statAbs, expandTilde } from './fs';
@@ -5159,6 +5159,16 @@ app.on('before-quit', (e) => {
     mainWindow.focus();
     mainWindow.webContents.send('app:closeRequested', { ptyCount: count });
   }
+});
+
+// Keep the renderer's copy of the config current. The renderer loads the config
+// once at start-up and hands it down as a prop, so without this a write reached
+// disk while every view seeded from that prop kept rendering the pre-write value
+// until the next launch (#263). Subscribing to the write itself covers Slack,
+// freeflow, notifications and the rest, each of which persists by its own route.
+onConfigWritten((next) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('config:changed', next);
 });
 
 app.on('window-all-closed', () => {

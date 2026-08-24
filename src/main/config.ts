@@ -621,10 +621,37 @@ function normalizeStoredHomes(cfg: HarnessConfig): HarnessConfig {
   return cfg;
 }
 
+/** Every persisted config write is announced here.
+ *
+ *  The renderer holds the config as a snapshot loaded once at start-up, so
+ *  before this existed a write reached disk but nothing told the UI, and any
+ *  view seeded from that snapshot kept showing the pre-write value until the
+ *  app restarted. Settings was the visible casualty: a toggle wrote correctly,
+ *  then re-read the stale snapshot on reopen and displayed the old state (#263).
+ *
+ *  This sits on `persistConfig` rather than on `writeConfig` deliberately —
+ *  `writeConfig` is one of 23 callers across the main process, and Slack,
+ *  freeflow and notifications each persist through their own path. The file
+ *  write is the only point every one of them has in common, so subscribing here
+ *  is the difference between "the fields we remembered" and "all of them". */
+type ConfigWriteListener = (next: HarnessConfig) => void;
+const configWriteListeners = new Set<ConfigWriteListener>();
+
+export function onConfigWritten(listener: ConfigWriteListener): () => void {
+  configWriteListeners.add(listener);
+  return () => { configWriteListeners.delete(listener); };
+}
+
 function persistConfig(next: HarnessConfig): HarnessConfig {
   const p = configPath();
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, JSON.stringify(next, null, 2), 'utf8');
+  // A listener is a renderer send, which can fail while a window is closing.
+  // The config is already on disk by this point, so a throwing subscriber must
+  // neither fail the write for its caller nor starve the subscribers after it.
+  for (const listener of configWriteListeners) {
+    try { listener(next); } catch { /* a broken listener is not a failed write */ }
+  }
   return next;
 }
 
@@ -693,9 +720,9 @@ export function setAgentTokenCap(agentId: unknown, tokenCap: unknown): HarnessCo
 /** Wipe the persisted config back to first-run defaults so the app boots into
  *  onboarding again. Used by the "reset & start over" flow. */
 export function resetConfig(): HarnessConfig {
-  const p = configPath();
-  mkdirSync(dirname(p), { recursive: true });
-  writeFileSync(p, JSON.stringify(DEFAULTS, null, 2), 'utf8');
+  // Routed through persistConfig so the reset announces itself like any other
+  // write; the bytes written are the same DEFAULTS as before.
+  persistConfig({ ...DEFAULTS });
   // Drop the migration latch too: the file on disk is back to `triggersMigratedV1:
   // false`, and a latch left set would keep the flag from ever being written again
   // in this process. The migration itself is a no-op on defaults either way.
