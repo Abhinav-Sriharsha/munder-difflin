@@ -621,19 +621,11 @@ function normalizeStoredHomes(cfg: HarnessConfig): HarnessConfig {
   return cfg;
 }
 
-/** Every persisted config write is announced here.
+/** Announces every saved setting, so a screen showing one can update.
  *
- *  The renderer holds the config as a snapshot loaded once at start-up, so
- *  before this existed a write reached disk but nothing told the UI, and any
- *  view seeded from that snapshot kept showing the pre-write value until the
- *  app restarted. Settings was the visible casualty: a toggle wrote correctly,
- *  then re-read the stale snapshot on reopen and displayed the old state (#263).
- *
- *  This sits on `persistConfig` rather than on `writeConfig` deliberately —
- *  `writeConfig` is one of 23 callers across the main process, and Slack,
- *  freeflow and notifications each persist through their own path. The file
- *  write is the only point every one of them has in common, so subscribing here
- *  is the difference between "the fields we remembered" and "all of them". */
+ *  Settings, Slack, voice and notifications each save by their own route, and
+ *  all of them end up writing the file below — so one subscription here covers
+ *  every setting rather than the ones anybody remembered to wire up. */
 type ConfigWriteListener = (next: HarnessConfig) => void;
 const configWriteListeners = new Set<ConfigWriteListener>();
 
@@ -646,19 +638,15 @@ function persistConfig(next: HarnessConfig): HarnessConfig {
   const p = configPath();
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, JSON.stringify(next, null, 2), 'utf8');
-  // Subscribers get the config in the same shape `readConfig` hands out, NOT the
-  // object we just wrote. They are the second source feeding a renderer that also
-  // calls config:get, and a patch touching one nested key persists a half-filled
-  // sub-object — `withTriggerDefaults` is what deep-fills it on the way out, so
-  // skipping it here would let a consumer read `undefined` from a trigger it had
-  // read a number from a moment earlier. The migration is deliberately not run:
-  // it persists, and it has already been applied to the config this patch built on.
+  // Saving one setting stores only that setting, so fill the rest back in first:
+  // subscribers must see the same complete config a read gives them, never a
+  // half-filled one. Skip the migration — it saves in its own right, and has
+  // already run against what this change was built on.
   const view = normalizeStoredHomes(withTriggerDefaults({ ...DEFAULTS, ...next }));
-  // A listener is a renderer send, which can fail while a window is closing.
-  // The config is already on disk by this point, so a throwing subscriber must
-  // neither fail the write for its caller nor starve the subscribers after it.
+  // The change is already saved, so one failed subscriber must not fail the save
+  // for its caller, nor stop the subscribers after it.
   for (const listener of configWriteListeners) {
-    try { listener(view); } catch { /* a broken listener is not a failed write */ }
+    try { listener(view); } catch { /* a broken listener is not a failed save */ }
   }
   return next;
 }
@@ -728,8 +716,7 @@ export function setAgentTokenCap(agentId: unknown, tokenCap: unknown): HarnessCo
 /** Wipe the persisted config back to first-run defaults so the app boots into
  *  onboarding again. Used by the "reset & start over" flow. */
 export function resetConfig(): HarnessConfig {
-  // Routed through persistConfig so the reset announces itself like any other
-  // write; the bytes written are the same DEFAULTS as before.
+  // Saved like any other change, so a reset announces itself too.
   persistConfig({ ...DEFAULTS });
   // Drop the migration latch too: the file on disk is back to `triggersMigratedV1:
   // false`, and a latch left set would keep the flag from ever being written again

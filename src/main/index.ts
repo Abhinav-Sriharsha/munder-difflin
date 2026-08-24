@@ -5161,11 +5161,8 @@ app.on('before-quit', (e) => {
   }
 });
 
-// Keep the renderer's copy of the config current. The renderer loads the config
-// once at start-up and hands it down as a prop, so without this a write reached
-// disk while every view seeded from that prop kept rendering the pre-write value
-// until the next launch (#263). Subscribing to the write itself covers Slack,
-// freeflow, notifications and the rest, each of which persists by its own route.
+// The window loads the config once at start-up, so tell it when a setting is
+// saved — otherwise it keeps showing the values it started with.
 onConfigWritten((next) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send('config:changed', next);

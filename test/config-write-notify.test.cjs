@@ -23,10 +23,8 @@ const { writeConfig, readConfig, onConfigWritten, setAgentTokenCap, resetConfig 
 
 test.after(() => fs.rmSync(userData, { recursive: true, force: true }));
 
-// The app has a config on disk and reads it during start-up, which is what runs
-// the one-shot trigger migration. Reproduce both here before any test subscribes,
-// so these compare a write against a settled config rather than racing the
-// migration — on a bare directory readConfig short-circuits and never runs it.
+// A real app has a config on disk and reads it at start-up, which settles the
+// one-shot migration. Do the same first, so no test below races it.
 writeConfig({});
 readConfig();
 
@@ -37,19 +35,16 @@ test('a config write notifies subscribers with the persisted config', () => {
 
   writeConfig({ orchestratorMaySpawn: true });
 
-  // A single logical write can persist more than once — reading the config runs
-  // any pending migration, which persists in its own right. The contract is what
-  // subscribers end up holding, not that exactly one notification arrives.
+  // What subscribers end up holding is the contract; one save can legitimately
+  // write more than once, so the number of notifications is not.
   assert.ok(seen.length >= 1);
   assert.deepEqual(seen[seen.length - 1], readConfig());
   assert.equal(seen[seen.length - 1].orchestratorMaySpawn, true);
   off();
 });
 
-// Not every field is written through writeConfig — agent token caps, and the
-// reset flow below, each persist by their own route. Subscribing at the file
-// write is what makes them all announce; these two tests are what stop a future
-// refactor from quietly moving the hook back up into writeConfig.
+// Token caps and the reset below each save by their own route. These two keep
+// the announcement where every route passes through it.
 test('a token-cap write notifies too, not just writeConfig', () => {
   const seen = [];
   const off = onConfigWritten((next) => seen.push(next));
@@ -68,9 +63,8 @@ test('resetting the config notifies as well', () => {
 
   resetConfig();
 
-  // Listeners receive the config as PERSISTED. resetConfig hands its caller a
-  // trigger-enriched view of the same defaults, so the two differ by design and
-  // this asserts the reset reached subscribers rather than equality with it.
+  // A reset hands its caller a slightly fuller view than it stores, so check the
+  // reset reached subscribers rather than comparing the two.
   assert.ok(seen.length >= 1);
   assert.equal(seen[seen.length - 1].onboardingComplete, false);
   off();
@@ -103,11 +97,9 @@ test('a listener that throws neither fails the write nor starves the next listen
   offBad(); offGood();
 });
 
-// The renderer keeps one `config` in state fed from two sources: config:get and
-// this notification. If they disagree in shape, a consumer reads a deep-filled
-// object one moment and a half-filled one the next. A patch that touches part of
-// a trigger is where that bites, because the merge on the way in is one level
-// deep (see withTriggerDefaults).
+// The window fills one copy of the config from both a read and this
+// announcement, so a screen must never get a fuller answer from one than the
+// other. Saving part of a setting is where that would show.
 test('subscribers receive the same shape a config read returns', () => {
   const seen = [];
   const off = onConfigWritten((next) => seen.push(next));

@@ -125,9 +125,8 @@ export function App() {
   // (solo-hold threshold, aborts on any other key). See freeflow/holdOption.ts.
   useHoldOptionToTalk();
 
-  // The config is loaded once above and handed down as a prop, so anything that
-  // writes it — Settings, Slack, freeflow, onboarding — has to be able to tell us,
-  // or those views keep rendering the value from start-up (#263).
+  // Config subscription — the copy loaded above would otherwise go stale the
+  // moment anything saves a setting.
   useEffect(() => window.cth.onConfigChanged(setConfig), []);
 
   // Quit warning subscription
