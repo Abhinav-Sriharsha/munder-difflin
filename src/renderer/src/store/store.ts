@@ -146,6 +146,13 @@ export interface QueuedMessage {
    *  from, and delivering it afterwards costs a full turn to discover nothing is
    *  there. Declarative (a string, not a closure) so it survives persistQueues. */
   precondition?: 'inbox-nonempty';
+    /** Token count captured when a /compact was enqueued for this agent, carried
+   *  through to the point of successful delivery so the "already compacted at
+   *  N tokens" latch (see useHive) can be written there instead of at enqueue
+   *  time. Enqueue time is too early: a /compact stuck behind an undeliverable
+   *  status would otherwise latch out every future compact attempt for a
+   *  compaction that never actually happened. */
+  compactUsed?: number;
 }
 
 // 'files' retired in v0.3.4 (the per-agent IDE button superseded it) — a
@@ -292,7 +299,7 @@ interface State {
   /** Park a message for an agent. Returns nothing; the flush loop delivers it.
    *  `meta.instruction`, when set, is what gets typed into the PTY instead of
    *  `text` (UI/card surfaces still show `text`). */
-  enqueueMessage: (agentId: string, text: string, meta?: { slack?: { channel: string; thread_ts: string }; instruction?: string; precondition?: QueuedMessage['precondition'] }) => void;
+    enqueueMessage: (agentId: string, text: string, meta?: { slack?: { channel: string; thread_ts: string }; instruction?: string; precondition?: QueuedMessage['precondition']; compactUsed?: number }) => void;
   /** Drop a single queued message (user removed it, or it was just delivered). */
   removeQueuedMessage: (agentId: string, messageId: string) => void;
   /** "Send now" while floor auto-delivery is paused: marks the message manual
@@ -888,11 +895,12 @@ export const useStore = create<State>((set, get) => ({
       if (isInboxNudge(trimmed) && queued.some((m) => isInboxNudge(m.text))) {
         return s;
       }
-      const msg: QueuedMessage = {
+            const msg: QueuedMessage = {
         id: newQueuedId(), text: trimmed, ts: Date.now(),
         ...(meta?.slack ? { slack: meta.slack } : {}),
         ...(meta?.instruction ? { instruction: meta.instruction } : {}),
-        ...(meta?.precondition ? { precondition: meta.precondition } : {})
+        ...(meta?.precondition ? { precondition: meta.precondition } : {}),
+        ...(meta?.compactUsed !== undefined ? { compactUsed: meta.compactUsed } : {})
       };
       const messageQueues = { ...s.messageQueues, [agentId]: [...(s.messageQueues[agentId] ?? []), msg] };
       persistQueues(messageQueues);

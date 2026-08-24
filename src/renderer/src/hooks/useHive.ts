@@ -337,6 +337,15 @@ export function useHive(config: HarnessConfig | null): void {
   // listPtys on exactly the cadence the drain needs, and one reading keeps the
   // two loops from disagreeing about whether an agent is quiet.
   const ptyLastOutput = useRef<Record<string, number>>({});
+    /** How long this terminal has been silent, or null when we have no reading
+   *  (never polled, PTY gone, or it has emitted nothing at all). canDeliverToAgent
+   *  fails closed on null — unmeasured silence is not evidence of silence.
+   *  Hook-level (not effect-local) because both the drain effect and the
+   *  context-trigger effect gate delivery through the same check. */
+  const ptyQuietMs = (ptyId: string, now: number): number | null => {
+    const last = ptyLastOutput.current[ptyId];
+    return typeof last === 'number' && last > 0 ? now - last : null;
+  };
   // #5C/#7C.4 — latest circuit-breaker level per agent. When 'constrained'/
   // 'stopped' the avatar is pinned to 'looping' and hook events must NOT flip it
   // back to 'working' (the flicker the spec calls out); only a genuine Stop clears it.
@@ -772,13 +781,6 @@ export function useHive(config: HarnessConfig | null): void {
     const inFlight = new Set<string>();
     const sendFailures: Record<string, number> = {};
 
-    /** How long this terminal has been silent, or null when we have no reading
-     *  (never polled, PTY gone, or it has emitted nothing at all). canDeliverToAgent
-     *  fails closed on null — unmeasured silence is not evidence of silence. */
-    const ptyQuietMs = (ptyId: string, now: number): number | null => {
-      const last = ptyLastOutput.current[ptyId];
-      return typeof last === 'number' && last > 0 ? now - last : null;
-    };
 
     // Send the front of `srcId`'s queue into `target`'s pty (verbatim or wrapped),
     // gated on the target being idle, free of interactive menus, and off
@@ -920,8 +922,13 @@ export function useHive(config: HarnessConfig | null): void {
         // the one inside dispatch would have changed nothing.
         if (!a.ptyId || !canDeliverToAgent(a.status, ptyQuietMs(a.ptyId, now), QUIESCE_IDLE_MS)) continue;
         if (!messageQueues[a.id]?.length) continue;
-        void dispatch(a.id, a).then(({ sent, message }) => {
+                void dispatch(a.id, a).then(({ sent, message }) => {
           if (sent && message?.slack) void ensureSlackCard(message);
+          // Write the compact latch only once delivery genuinely happened — see
+          // the comment in fire() above.
+          if (sent && message?.compactUsed !== undefined) {
+            lastCompactUsed.current[a.id] = message.compactUsed;
+          }
         });
       }
     };
@@ -1076,10 +1083,18 @@ export function useHive(config: HarnessConfig | null): void {
   useEffect(() => {
     if (!config?.onboardingComplete) return;
 
-    const fire = (action: 'compact' | 'clear', rule: ContextRule): void => {
+       const fire = (action: 'compact' | 'clear', rule: ContextRule): void => {
       const { agents, messageQueues, enqueueMessage } = useStore.getState();
+      const now = Date.now();
       for (const a of agents) {
         if (!a.ptyId) continue;
+        // Gate #109-2: don't enqueue a context command for an agent that cannot
+        // currently receive one (e.g. god 'blocked' on a human prompt). Enqueuing
+        // anyway left a stuck /compact at the head of the queue that dedupe then
+        // collapsed every subsequent hourly attempt against, forever — the exact
+        // same check the drain itself uses immediately before typing, so a
+        // command is never queued in a state the drain would refuse to deliver.
+        if (!canDeliverToAgent(a.status, ptyQuietMs(a.ptyId, now), QUIESCE_IDLE_MS)) continue;
         const provider = inferAgentProvider(a.command, a.provider);
         const command = action === 'clear'
           ? clearCommandForProvider(provider, rule.message)
@@ -1108,12 +1123,16 @@ export function useHive(config: HarnessConfig | null): void {
         // state those thresholds cannot reason about, because nothing they could do
         // would ever change it. /clear needs no equivalent — the queue drain zeroes
         // the store reading when it lands.
-        const used = a.contextTokens ?? 0;
-        if (action === 'compact') {
-          if (lastCompactUsed.current[a.id] === used) continue;
-          lastCompactUsed.current[a.id] = used;
-        }
-        enqueueMessage(a.id, command);
+               const used = a.contextTokens ?? 0;
+        if (action === 'compact' && lastCompactUsed.current[a.id] === used) continue;
+        // The latch is written at successful DELIVERY (see the flush() dispatch
+        // callback below), not here. Writing it at enqueue time recorded
+        // "already compacted at N tokens" for a compaction that might never
+        // actually happen — e.g. blocked by the gate just above, or a failed
+        // send — silently latching out every future attempt at that count.
+        // compactUsed rides on the queued message so the delivery site knows
+        // which count to latch.
+        enqueueMessage(a.id, command, action === 'compact' ? { compactUsed: used } : undefined);
       }
     };
 
