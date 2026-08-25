@@ -67,6 +67,8 @@ export function UpdateBadge() {
           if (!st || st === 'not-available' || st === 'idle' || st === 'just-updated') setCheckedOk(true);
         }
       }
+      else if (view.action === 'download') await window.cth.updateDownload();
+      else if (view.action === 'restart') await window.cth.updateRestartAndInstall();
       else if (view.action === 'manual' && status) {
         // The click IS the download. Auto-update lives in Settings.
         const url = manualDownloadUrl(status, window.cth.platform, window.cth.arch);
@@ -131,7 +133,7 @@ export function UpdateBadge() {
     </button>
 
     {/* Hover card: what the click does and what to do with the file, for this OS. */}
-    {pending && hover && !started && (
+    {view.action === 'manual' && hover && !started && (
       <div
         role="tooltip"
         className="cth-titlebar-nodrag"
