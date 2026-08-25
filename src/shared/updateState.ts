@@ -158,6 +158,23 @@ export function describeUpdate(status: UpdateStatus | null, currentVersion: stri
   }
   const pending = pendingVersion(status, v);
   if (pending) {
+    // When the native updater has staged the update, the badge drives the SAME
+    // auto-update the Settings pane does: restart to install once it is
+    // downloaded, or kick the download while it is 'available'. Manual download
+    // is reserved for 'available-manual', the notify-only fallback where the
+    // native updater could NOT fetch it, so the user replaces the app by hand.
+    if (status?.state === 'downloaded') {
+      return {
+        label: `v${pending} · restart`, action: 'restart', tone: 'ready', busy: false,
+        title: `Click to restart and install v${pending}`
+      };
+    }
+    if (status?.state === 'available') {
+      return {
+        label: `v${pending} · update`, action: 'download', tone: 'ready', busy: false,
+        title: `Downloading v${pending} in the background; click to start it if it has not begun`
+      };
+    }
     const why = status?.state === 'available-manual' && status.reason
       ? ` (this install could not update itself: ${status.reason})` : '';
     return {
