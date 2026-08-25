@@ -1,8 +1,9 @@
 # Telemetry
 
 Munder Difflin collects a small set of **anonymous** usage events so we can
-understand adoption (how many people launch the app, which features get used)
-and make the product better. This document is the complete, authoritative
+understand adoption (how many people launch the app, whether they get a first
+agent running, which features get used) and make the product better. This
+document is the complete, authoritative
 contract: **if an event or property is not listed here, the app does not send
 it.** The implementation lives in [`src/main/analytics.ts`](src/main/analytics.ts)
 and enforces this list as a hard allowlist — the code and this file are kept in
@@ -26,6 +27,11 @@ The events:
 | `app_launched` | — | Each app start |
 | `update_applied` | `from_version`, `to_version` — version strings, or `unknown` for an install older than this event; `via` — one of `auto` (the app's own updater installed it), `manual`, `unknown` | Once, on the first start after the app's version changes |
 | `agent_spawned` | `provider` (CLI engine name, e.g. `claude`, `codex`) | An agent terminal is spawned |
+| `onboarding_completed` | `provider` (the CLI engine chosen in the setup wizard) | Once, when onboarding finishes |
+| `agent_spawn_attempted` | `provider` | Every time an agent spawn is requested, so it can be compared against `agent_spawned` |
+| `agent_spawn_failed` | `provider`; `reason` is one of `cli_missing`, `cwd_missing`, `already_running`, `spawn_error` | A requested spawn did not start an agent |
+| `agent_install_started` | `provider`; `rung` is one of `npm`, `node-then-npm`, `native` | The engine CLI was missing, so the bundled auto-installer began |
+| `agent_install_finished` | `provider`; `rung` as above; `outcome` is one of `agent_launched`, `install_failed` | The auto-installer exited |
 | `feature_used` | `feature` — one of `slack_trigger`, `webhook_trigger`, `hire_install`, `voice_dictation` | At most once per feature per app session |
 | `session_ended` | `duration_bucket` — one of `<5m`, `5-30m`, `30m-2h`, `2-8h`, `8h+` | On quit (coarse bucket, never raw duration) |
 

@@ -58,6 +58,29 @@ const EVENTS: Record<string, ReadonlySet<string>> = {
   update_applied: new Set<string>(['from_version', 'to_version', 'via']),
   /** An agent PTY spawned. `provider` is the CLI engine name only. */
   agent_spawned: new Set<string>(['provider']),
+  /** ── The activation funnel (v0.4.7): app_launched → onboarding_completed →
+   *  agent_spawn_attempted → {agent_spawned | agent_spawn_failed |
+   *  agent_install_started → agent_install_finished}. Every added property is a
+   *  closed enum or a closed CLI name — nothing free-form, same allowlist rule. */
+  /** Onboarding wizard finished (the install crossed onboardingComplete
+   *  false→true). `provider` is the engine chosen, a closed CLI name. The top of
+   *  the funnel: what share of installs finish setup, and which engine they pick. */
+  onboarding_completed: new Set<string>(['provider']),
+  /** A spawn was REQUESTED — every path through spawnAgentCore. Mirrors
+   *  agent_spawned; (attempted − spawned) is the activation fallout. */
+  agent_spawn_attempted: new Set<string>(['provider']),
+  /** A spawn did NOT produce a running agent. `reason` is a fixed enum (see
+   *  SpawnFailReason): `cli_missing` (engine absent and no auto-installer, manual
+   *  only), `cwd_missing`, `already_running`, `spawn_error`. */
+  agent_spawn_failed: new Set<string>(['provider', 'reason']),
+  /** The engine CLI was absent, so the auto-installer PTY started. `rung` is a
+   *  fixed enum (see InstallRung): `npm`, `node-then-npm`, `native`. */
+  agent_install_started: new Set<string>(['provider', 'rung']),
+  /** The auto-installer PTY exited. `outcome` is a fixed enum (see
+   *  InstallOutcome): `agent_launched` (clean exit, the agent is relaunching) or
+   *  `install_failed` (non-zero exit — e.g. an installer that cannot complete
+   *  unattended). This is the signal that a first agent never actually started. */
+  agent_install_finished: new Set<string>(['provider', 'rung', 'outcome']),
   /** Coarse feature adoption; `feature` is a fixed enum (see FEATURES), fired
    *  at most once per feature per app session. */
   feature_used: new Set<string>(['feature']),
@@ -71,6 +94,18 @@ export type AnalyticsFeature =
   | 'webhook_trigger'
   | 'hire_install'
   | 'voice_dictation';
+
+/** The only values `agent_spawn_failed.reason` may take. A closed enum so the
+ *  "why didn't the agent start" split can never carry a free-form message. */
+export type SpawnFailReason = 'cli_missing' | 'cwd_missing' | 'already_running' | 'spawn_error';
+
+/** The only values the install events' `rung` may take. Mirrors
+ *  cliInstall.InstallRungKind minus `manual` — a manual rung spawns no installer,
+ *  so it never reaches agent_install_started; it is an agent_spawn_failed:cli_missing. */
+export type InstallRung = 'npm' | 'node-then-npm' | 'native';
+
+/** The only values `agent_install_finished.outcome` may take. */
+export type InstallOutcome = 'agent_launched' | 'install_failed';
 
 export interface AnalyticsInitOptions {
   /** Directory for the install-id file (userData). Created if missing. */

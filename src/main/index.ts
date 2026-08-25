@@ -56,6 +56,7 @@ import type { TaskCard, InboxMessage } from './realtimeCompletionWatcher';
 import { TelemetryCollector } from './telemetry';
 import { CostLedgerTotals } from './costLifetime';
 import { analytics } from './analytics';
+import type { SpawnFailReason } from './analytics';
 import { IntegrationBroker } from './integrationBroker';
 import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
@@ -228,7 +229,7 @@ const ptyToAgent = new Map<string, string>();
  *  in this PTY; when it exits cleanly the exit handler re-runs the SAME spawn (with
  *  install disabled) so the freshly-installed CLI launches in the SAME pty/window —
  *  no user click. Cleared the moment it's consumed, so it can never loop installs. */
-const pendingInstallRelaunch = new Map<string, { opts: AgentSpawnOptions; owner: Electron.WebContents | null; bin: string }>();
+const pendingInstallRelaunch = new Map<string, { opts: AgentSpawnOptions; owner: Electron.WebContents | null; bin: string; rung: string }>();
 const hive = new HiveManager(
   () => readConfig().harnessHome,
   (channel, payload) => {
@@ -579,7 +580,11 @@ ptyManager.setExitHandler((id, exitCode) => {
   const pending = pendingInstallRelaunch.get(id);
   if (pending) {
     pendingInstallRelaunch.delete(id);
+    // Activation funnel: did the auto-installer actually complete? A non-zero exit
+    // is the Linux-installer-cannot-finish-unattended signal that used to be silent.
+    const provider = pending.opts.provider ?? inferAgentProvider(pending.opts.command, undefined);
     if (exitCode === 0) {
+      analytics.track('agent_install_finished', { provider, rung: pending.rung, outcome: 'agent_launched' });
       // Re-arm the renderer's pooled terminal (clear the "process exited" line +
       // re-enable input) so the freshly-spawned CLI paints onto a clean, typeable
       // grid, then re-run the normal spawn — which now finds the installed binary.
@@ -589,6 +594,7 @@ ptyManager.setExitHandler((id, exitCode) => {
       return; // an install PTY has no agent/worktree to tear down
     }
     // Non-zero exit = install failed; leave its honest manual-fix message on screen.
+    analytics.track('agent_install_finished', { provider, rung: pending.rung, outcome: 'install_failed' });
   }
   teardownPty(id);
 });
@@ -2499,6 +2505,16 @@ function findCodexHomeForSession(sessionId: string, siblingsRoot: string): strin
  *  ephemeral-worker watcher. */
 type AgentSpawnOptions = SpawnOptions & { hive?: AgentMeta; isolate?: boolean; resume?: boolean; requireResume?: boolean; resumeSessionId?: string; provider?: AgentProvider; noAutoInstall?: boolean };
 
+/** Map a `ptyManager.spawn` failure string to the closed `agent_spawn_failed.reason`
+ *  enum (analytics.ts). The two known strings come from PtyManager.spawn; anything
+ *  else is a generic `spawn_error`. The raw message never leaves the machine — only
+ *  the enum value does, per TELEMETRY.md. */
+function spawnFailReason(error?: string): SpawnFailReason {
+  if (error?.startsWith('cwd does not exist')) return 'cwd_missing';
+  if (error?.includes('already exists')) return 'already_running';
+  return 'spawn_error';
+}
+
 ipcMain.handle('pty:spawn', async (evt, opts: AgentSpawnOptions) => {
   if (!opts || typeof opts.id !== 'string' || typeof opts.cwd !== 'string' || typeof opts.command !== 'string') {
     return { ok: false, error: 'invalid SpawnOptions' };
@@ -2534,6 +2550,11 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   const claudeProvider = isClaudeProvider(provider);
   opts.provider = provider;
   if (opts.hive) opts.hive = { ...opts.hive, provider };
+  // Activation-funnel entry (v0.4.7): every spawn REQUEST, so (attempted − spawned)
+  // measures the fallout the whole rebuild exists to see. Gated on !noAutoInstall so
+  // the missing-CLI relaunch (the only re-entry, index.ts install-exit handler) does
+  // NOT double-count a single user attempt — it is the SAME attempt continuing.
+  if (!opts.noAutoInstall) analytics.track('agent_spawn_attempted', { provider });
   // ── Missing engine CLI → run its installer visibly (pre-spawn) ───────────────
   // If the agent's engine binary (claude/codex/…) isn't installed, spawning it
   // just dies with "— process exited (code 1) —" and the user has no idea why.
@@ -2587,7 +2608,18 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       // binary and die with the bare "process exited (code 1)" this whole path exists
       // to replace.
       if (res.ok && rung.command) {
-        pendingInstallRelaunch.set(opts.id, { opts, owner, bin });
+        pendingInstallRelaunch.set(opts.id, { opts, owner, bin, rung: rung.kind });
+        // The auto-installer PTY is running; agent_install_finished on its exit says
+        // whether it actually produced an agent (rung is non-manual here by construction).
+        analytics.track('agent_install_started', { provider, rung: rung.kind });
+      } else if (res.ok) {
+        // Manual rung: the PTY only printed a hint (no installer to run, no relaunch
+        // armed), so no agent will start. This is the Mode 2 case that used to send
+        // NOTHING — an absent engine with no unattended install path.
+        analytics.track('agent_spawn_failed', { provider, reason: 'cli_missing' });
+      } else {
+        // The install PTY itself failed to spawn (cwd gone, id clash, throw).
+        analytics.track('agent_spawn_failed', { provider, reason: spawnFailReason(res.error) });
       }
       syncKeepAwake();
       return res;
@@ -2887,6 +2919,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   }
   const res = ptyManager.spawn(opts, owner);
   if (res.ok) analytics.track('agent_spawned', { provider });
+  else analytics.track('agent_spawn_failed', { provider, reason: spawnFailReason(res.error) });
   syncKeepAwake(); // arm the power-save blocker while ≥1 agent PTY is alive (#18)
   // Hand the resolved worktree path back to the renderer so it can persist it on
   // the agent (only set when isolation actually provisioned a worktree above).
@@ -3062,9 +3095,16 @@ ipcMain.handle('config:update', (_evt, patch: Partial<HarnessConfig>) => {
   // relaunch, so bootstrap here on the null → set transition. Gated on the
   // transition so ordinary config writes never re-enter it.
   const hiveWasEnabled = hive.enabled();
+  const wasOnboarded = readConfig().onboardingComplete;
   const next = writeConfig(patch);
   // Live opt-in/out from Settings → Privacy (TELEMETRY.md).
   if (typeof patch?.telemetryEnabled === 'boolean') analytics.setEnabled(patch.telemetryEnabled);
+  // Activation funnel (v0.4.7): onboarding just finished (false → true) — the top of
+  // the launch → first-agent funnel. `provider` is the engine chosen in the wizard.
+  // Fired here (main), not in the renderer, so it rides the same allowlist as the rest.
+  if (!wasOnboarded && next.onboardingComplete) {
+    analytics.track('onboarding_completed', { provider: next.godProvider ?? 'claude' });
+  }
   // Keep the hive's mirror of the spawn gate current. The queue itself reads
   // config per tick so it gates immediately; this is for the PROMPT, which is
   // built per spawn, so flipping the toggle reaches god the next time he starts.
