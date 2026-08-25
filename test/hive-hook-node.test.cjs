@@ -73,7 +73,13 @@ async function run(cmd, env) {
     // that is already gone makes this write EPIPE, and an unhandled 'error' on
     // stdin rejects the test rather than the command under test failing. The exit
     // code is what this helper reports, so a lost write is not a lost signal.
-    child.stdin.on('error', () => { /* child exited before reading stdin */ });
+    // Narrow on purpose: EPIPE is the expected one and is swallowed, anything
+    // else (EACCES, ERR_STREAM_DESTROYED) is surfaced through the stderr this
+    // helper already returns, so an unexpected stdin fault names itself instead
+    // of vanishing.
+    child.stdin.on('error', (e) => {
+      if (e.code !== 'EPIPE') stderr += `stdin: ${e.message}\n`;
+    });
     child.stdin.end(JSON.stringify({ hook_event_name: 'Stop', session_id: 's1' }));
     child.on('close', (code) => resolve({ code, stderr }));
   });
