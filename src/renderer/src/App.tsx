@@ -127,6 +127,10 @@ export function App() {
   // (solo-hold threshold, aborts on any other key). See freeflow/holdOption.ts.
   useHoldOptionToTalk();
 
+  // Config subscription — the copy loaded above would otherwise go stale the
+  // moment anything saves a setting.
+  useEffect(() => window.cth.onConfigChanged(setConfig), []);
+
   // Quit warning subscription
   useEffect(() => window.cth.onCloseRequested((info) => setQuitWarn(info)), []);
 

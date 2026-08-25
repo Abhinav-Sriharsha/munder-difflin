@@ -930,6 +930,14 @@ const api = {
   }> =>
     ipcRenderer.invoke('hire:openFile'),
 
+  // ─── Config changes ──────────────────────────────────────────────────────
+  /** Fired whenever a setting is saved, with the full updated config. */
+  onConfigChanged: (cb: (config: HarnessConfig) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, config: HarnessConfig) => cb(config);
+    ipcRenderer.on('config:changed', listener);
+    return () => ipcRenderer.removeListener('config:changed', listener);
+  },
+
   // ─── Quit confirmation ───────────────────────────────────────────────────
   onCloseRequested: (cb: (info: { ptyCount: number }) => void): (() => void) => {
     const listener = (_e: IpcRendererEvent, info: { ptyCount: number }) => cb(info);

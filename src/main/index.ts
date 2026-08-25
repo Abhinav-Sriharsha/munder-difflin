@@ -14,7 +14,7 @@ import { resolveCommand as resolveCliCommand } from './shellEnv';
 import { initAutoUpdater, abortPendingRestart } from './updater';
 import { RealtimeFloorWatcher } from './realtimeFloorWatcher';
 import {
-  readConfig, writeConfig, setAgentTokenCap, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
+  readConfig, writeConfig, setAgentTokenCap, resetConfig, onConfigWritten, ensureHarnessHome, ensureClaudePermissionsAccepted,
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
 } from './config';
 import { listDir, readFileText, readFileBinary, writeFileText, statAbs, expandTilde } from './fs';
@@ -5170,6 +5170,15 @@ app.on('before-quit', (e) => {
   if (mainWindow) {
     mainWindow.focus();
     mainWindow.webContents.send('app:closeRequested', { ptyCount: count });
+  }
+});
+
+// Every window loads the config once at start-up, so tell them all when a
+// setting is saved — a floor left out would keep showing what it opened with.
+onConfigWritten((config) => {
+  for (const w of allWindows) {
+    if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
+    w.webContents.send('config:changed', config);
   }
 });
 
