@@ -112,7 +112,7 @@ const SLACK_CONNECT_STEPS = `Connect Munder Difflin to Slack
  *  shares one server and one tunnel and is told apart by its id in the path, so
  *  `<tunnel>` is the public base URL and `<webhookId>` picks the endpoint. The
  *  secret/token go in headers so they stay out of URLs and access logs. */
-const WEBHOOK_API_DOC = `Webhook API
+const webhookApiDoc = (godName: string): string => `Webhook API
 
 Every webhook has its own URL, its own secret and its own mode. They share one
 server and one tunnel; the id in the path says which one you are calling.
@@ -139,7 +139,7 @@ token you were handed still reads that task once it is routed. The secret
 authorizes new work, the token only reads one task's status. Keep both private.
 
 Each webhook checks bodies against its own JSON schema — edit that in the
-Triggers tab of Michael's Command Center.`;
+Triggers tab of ${godName}'s Command Center.`;
 
 /** Clear every renderer-side persisted key so a relaunch starts truly empty. */
 function clearLocalState(): void {
@@ -160,6 +160,7 @@ export type Section = 'General' | 'Prerequisites' | 'Agents & Models' | 'Autonom
 const NAV_SECTIONS: Section[] = ['General', 'Prerequisites', 'Agents & Models', 'Autonomy & Budgets', 'Connections', 'Voice', 'Memory & Knowledge'];
 
 export function SettingsModal({ config, onClose, initialSection }: SettingsModalProps) {
+  const godName = useStore((s) => s.agents.find((a) => a.isGod)?.name) ?? 'the orchestrator';
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [activeSection, setActiveSection] = useState<Section>(initialSection ?? 'General');
@@ -811,7 +812,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                   <Icon name="bell" />
                 </div>
                 <div style={{ flex: 1, fontSize: 15, lineHeight: '22px', color: 'var(--cth-ink-700)' }}>
-                  This permanently erases all of Michael's memories and the entire hive,
+                  This permanently erases all of {godName}'s memories and the entire hive,
                   and cannot be undone. Any running sessions will be terminated and the app
                   will relaunch into onboarding. Are you sure?
                 </div>
@@ -1069,7 +1070,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                            Every newly spawned Claude agent (Michael included) starts on this model unless picked per-agent.
+                            Every newly spawned Claude agent ({godName} included) starts on this model unless picked per-agent.
                             Marked “· default” in the model pickers.
                           </span>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -1154,12 +1155,12 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
                               {orchSpawnOn
-                                ? 'Michael can hire on his own. Every agent he starts spends tokens you did not approve.'
-                                : 'Only you. Michael can still ask, and his request waits in the queue instead of failing.'}
+                                ? `${godName} can hire on his own. Every agent he starts spends tokens you did not approve.`
+                                : `Only you. ${godName} can still ask, and his request waits in the queue instead of failing.`}
                             </span>
                           </div>
                           <PixelButton variant={orchSpawnOn ? 'primary' : 'secondary'} size="sm" onClick={toggleOrchSpawn}>
-                            {orchSpawnOn ? 'me and Michael' : 'only me'}
+                            {orchSpawnOn ? `me and ${godName}` : 'only me'}
                           </PixelButton>
                         </div>
                       </div>
@@ -1357,7 +1358,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               >i</button>
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Pipe a Slack channel's messages straight into Michael's queue.
+                              Pipe a Slack channel's messages straight into {godName}'s queue.
                             </span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1561,7 +1562,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
                             fontFamily: 'var(--cth-font-mono)', fontSize: 11, lineHeight: '16px',
                             color: 'var(--cth-ink-700)'
-                          }}>{WEBHOOK_API_DOC}</pre>
+                          }}>{webhookApiDoc(godName)}</pre>
                         )}
 
                         {/* Public surface warning. Loud, not buried. */}
@@ -1701,7 +1702,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
                           Callers POST to a webhook's URL with its secret in the{' '}
                           <code>x-md-webhook-secret</code> header. Each one checks bodies against its own JSON
-                          schema — edit that in the Triggers tab of Michael's Command Center, where the history
+                          schema — edit that in the Triggers tab of {godName}'s Command Center, where the history
                           of everything that arrived lives too.
                         </span>
 
@@ -1894,10 +1895,10 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                            Voice chat with Michael
+                            Voice chat with {godName}
                           </span>
                           <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                            Talk to the orchestrator in real time. Toggle it on from Michael's tab; choose which
+                            Talk to the orchestrator in real time. Toggle it on from {godName}'s tab; choose which
                             microphone and speaker the voice loop uses here.
                           </span>
                         </div>
@@ -1922,7 +1923,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             OpenAI API key · voice
                           </span>
                           <span style={{ fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
-                            Talking to Michael runs on OpenAI&rsquo;s Realtime API — speech in, speech out, over a
+                            Talking to {godName} runs on OpenAI&rsquo;s Realtime API — speech in, speech out, over a
                             live connection to <strong style={{ fontFamily: 'var(--cth-font-mono)' }}>{REALTIME_MODEL}</strong>.
                             That is a different service from the Claude subscription your agents run on, so it needs
                             its own <strong>OpenAI API key</strong>.
@@ -1962,7 +1963,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
                             }} />
                             {openAiVoiceNote || (hasOpenAiKey
-                              ? 'Key saved — Talk is ready. Start it from Michael’s card.'
+                              ? `Key saved — Talk is ready. Start it from ${godName}’s card.`
                               : 'No key yet — Talk stays disabled until one is saved.')}
                           </span>
                         </div>
@@ -2007,7 +2008,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         color: '#6E1423'
                       }}>DANGER ZONE</div>
                       <p style={{ margin: 0, fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-700)' }}>
-                        Reset wipes Michael's memories, the entire hive (every agent, message,
+                        Reset wipes {godName}'s memories, the entire hive (every agent, message,
                         task, and the board), the semantic-memory palace, and all settings -
                         then takes you back to onboarding.
                       </p>
