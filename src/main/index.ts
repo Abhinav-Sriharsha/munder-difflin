@@ -64,6 +64,7 @@ import { buildWorkerLaunch } from './workerLaunch';
 import { ControlRegistry } from './control';
 import { WorkerWakeWatchdog, type WorkerWakeFacts } from './workerWake';
 import { inboxNudgeText } from '../shared/hiveNudge';
+import { resolveGodName } from '../shared/godIdentity';
 import { fetchHireManifest, readHireManifestFiles } from './hire';
 import { parseHireDeepLink, type HireManifest } from '../shared/hire';
 import { ClosingTimeController } from './closingTime';
@@ -4261,7 +4262,14 @@ const completionWatcher = initCompletionWatcher({
       return [];
     }
   },
-  onNotify: (evt) => { try { if (Notification.isSupported()) new Notification({ title: 'Michael', body: evt.summary }).show(); } catch { /* best-effort */ } }
+  onNotify: (evt) => {
+    try {
+      if (!Notification.isSupported()) return;
+      const reg = hive.registry();
+      const title = resolveGodName(reg.agents[reg.godId ?? 'god']?.name);
+      new Notification({ title, body: evt.summary }).show();
+    } catch { /* best-effort */ }
+  }
 });
 
 registerRealtimeActionIpc({
