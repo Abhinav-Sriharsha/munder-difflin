@@ -12,7 +12,9 @@ import { hexToNumber, DEFAULT_CHARACTER } from './cast';
 import { pickSoloLine, pickExchange, type BreakSpot } from './cafeteriaLines';
 import { colors } from '@/design/tokens';
 import { loadTheme, resolveThemeMap, themeTilesetUrls } from './themeLoader';
-import { installContextLossRecovery } from './glRecovery';
+import {
+  installContextLossRecovery, planInitFailure, DEFAULT_MAX_INIT_RETRIES
+} from './glRecovery';
 import type { Tile, Facing, ErrandKind, ErrandSpot } from './themeRegistry';
 
 // The map, tileset atlases, desk-claim order, errand spots, coffee-economy
@@ -164,6 +166,10 @@ export function OfficeFloor() {
   // whole scene is torn down and rebuilt through the existing mount path rather
   // than through a second, parallel recovery routine.
   const [glGeneration, setGlGeneration] = useState(0);
+  // Retries spent on an init that could not GET a context (see glRecovery.ts).
+  // A ref, not state: the budget has to survive the rebuilds it schedules, which
+  // re-run the effect below and would reset anything scoped to it.
+  const initRetriesRef = useRef(0);
   // The active office theme (store mirror of config.officeTheme). Changing it
   // tears down and rebuilds the whole scene on the new map/cast (see deps below).
   const officeTheme = useStore((s) => s.officeTheme);
@@ -258,15 +264,10 @@ export function OfficeFloor() {
         onRebuild: () => { if (mountIdRef.current === mountId) setGlGeneration((n) => n + 1); },
         onGiveUp: () => {
           if (mountIdRef.current !== mountId) return;
-          const note = document.createElement('div');
-          note.style.cssText =
-            'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' +
-            'padding:24px;color:#ffd0b5;font-family:monospace;font-size:13px;text-align:center;white-space:pre-wrap;';
-          note.textContent =
+          host.appendChild(floorNote(
             'The office floor lost its GPU context.\n\n' +
             'Too many terminals are using the GPU at once.\n' +
-            'Close a few agent terminals, or restart the app, to bring it back.';
-          host.appendChild(note);
+            'Close a few agent terminals, or restart the app, to bring it back.'));
         }
       });
 
@@ -1710,17 +1711,42 @@ export function OfficeFloor() {
       });
       resize.observe(host);
       (app as any).__resize = resize;
+      // The floor is up: give the next crowded start-up a full budget again.
+      initRetriesRef.current = 0;
     };
 
     init().catch((err) => {
       if (mountIdRef.current !== mountId) return;
+      const plan = planInitFailure(err, initRetriesRef.current);
+
+      // Pixi could not get a context — usually the GPU process restarting under
+      // us — and reports that as "this browser does not support WebGL". Retry
+      // through the same rebuild path an eviction uses; the half-built app is
+      // torn down by this effect's cleanup when the generation bump re-runs it.
+      if (plan.action === 'retry') {
+        initRetriesRef.current = plan.attempt;
+        console.warn(`[OfficeFloor] could not get a WebGL context (the GPU process may be restarting) — retrying, attempt ${plan.attempt}/${DEFAULT_MAX_INIT_RETRIES}`);
+        setTimeout(() => {
+          if (mountIdRef.current === mountId) setGlGeneration((n) => n + 1);
+        }, plan.delayMs);
+        return;
+      }
+
+      // Out of budget. The stack would say "does not support WebGL", which is
+      // both untrue and unactionable; say what actually helps instead.
+      if (plan.action === 'give-up') {
+        console.error(`[OfficeFloor] still no WebGL context after ${DEFAULT_MAX_INIT_RETRIES} retries:`, err);
+        host.appendChild(floorNote(
+          'The office floor could not get a GPU context.\n\n' +
+          'The GPU may still be restarting, or too many terminals are\n' +
+          'using it at once. Close a few agent terminals, or restart\n' +
+          'the app, to bring the floor back.'));
+        return;
+      }
+
       console.error('[OfficeFloor] init failed:', err);
-      const banner = document.createElement('div');
-      banner.style.cssText =
-        'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' +
-        'padding:24px;color:#ffd0b5;font-family:monospace;font-size:13px;text-align:center;white-space:pre-wrap;';
-      banner.textContent = 'OfficeFloor failed to start:\n' + (err?.stack || err?.message || String(err));
-      host.appendChild(banner);
+      host.appendChild(floorNote(
+        'OfficeFloor failed to start:\n' + (err?.stack || err?.message || String(err))));
     });
 
     return () => {
@@ -1753,6 +1779,16 @@ export function OfficeFloor() {
   );
 }
 
+/** A message where the floor should be — the only thing the user sees when the
+ *  scene cannot run, so all three failure paths share one look. */
+function floorNote(text: string): HTMLDivElement {
+  const note = document.createElement('div');
+  note.style.cssText =
+    'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' +
+    'padding:24px;color:#ffd0b5;font-family:monospace;font-size:13px;text-align:center;white-space:pre-wrap;';
+  note.textContent = text;
+  return note;
+}
 function hexNum(n: number): number { return n; }
 function hex(n: number): string { return '#' + n.toString(16).padStart(6, '0'); }
 function safeDestroy(app: Application) {
