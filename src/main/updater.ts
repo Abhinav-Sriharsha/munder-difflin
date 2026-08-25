@@ -71,7 +71,7 @@ let lastStatus: UpdateStatus | null = null;
  * left to tell), or the user cancels and `abortPendingRestart()` settles it and
  * the handler reports the truth.
  */
-let pendingRestart: (() => void) | null = null;
+let pendingRestart: ((outcome: { ok: boolean; error?: string }) => void) | null = null;
 
 /**
  * The user backed out of the quit that a restart-to-install asked for.
@@ -85,7 +85,24 @@ export function abortPendingRestart(): void {
   const resolve = pendingRestart;
   pendingRestart = null;
   logLine('quitAndInstall cancelled by the user at the quit warning');
-  resolve();
+  resolve({ ok: false, error: 'cancelled' });
+}
+
+/**
+ * A restart-to-install that the native updater REFUSED (Squirrel emits "The
+ * command is disabled and cannot be executed" rather than throwing) reports
+ * through the autoUpdater error event, not the handler's try/catch. Without
+ * this, the handler's `await` would hang forever, the button would spin, the
+ * user would click again, and the repeated quitAndInstall is exactly what keeps
+ * Squirrel wedged. Settling here reports the failure back so the UI shows it and
+ * stops the user re-clicking. Safe when nothing is pending (an ordinary check
+ * error is not our business).
+ */
+function failPendingRestart(error: string): void {
+  if (!pendingRestart) return;
+  const resolve = pendingRestart;
+  pendingRestart = null;
+  resolve({ ok: false, error });
 }
 
 /** Append-only breadcrumb trail in userData. The whole point of this file's
@@ -321,18 +338,22 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
 
   // IPC surface is registered unconditionally so the renderer can always call it.
   ipcMain.handle('update:restartAndInstall', async () => {
+    // Re-entry guard: a restart is already in flight. Firing quitAndInstall a
+    // second time hits a native command Squirrel has already disabled and it
+    // throws "The command is disabled and cannot be executed", the recurring
+    // wedge behind the six-clicks-to-install reports. Refuse the duplicate and
+    // let the caller wait on the one already running instead of starting another.
+    if (pendingRestart) return { ok: false, error: 'a restart is already in progress' };
     try {
       const autoUpdater = await loadAutoUpdater();
       logLine('quitAndInstall requested by the user');
-      // A restart already in flight is superseded rather than left dangling, so
-      // its caller is released instead of waiting on a resolve that never comes.
-      abortPendingRestart();
-      const cancelled = new Promise<void>((resolve) => { pendingRestart = resolve; });
+      const cancelled = new Promise<{ ok: boolean; error?: string }>((resolve) => { pendingRestart = resolve; });
       autoUpdater.quitAndInstall();
-      // Settles ONLY if the quit was called off. If the app is really going, the
-      // process exits here and the renderer's promise dies with the window.
-      await cancelled;
-      return { ok: false, error: 'cancelled' };
+      // Settles ONLY if the quit was called off (abortPendingRestart) or the
+      // native updater reported it failed (failPendingRestart, from the error
+      // event). If the app is really going, the process exits here and the
+      // renderer's promise dies with the window.
+      return await cancelled;
     } catch (e) {
       pendingRestart = null;
       const error = errText(e);
@@ -464,6 +485,11 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
         const message = errText(err);
         logLine(`native updater error: ${message}`);
         emit({ state: 'error', message });
+        // A restart-to-install that failed reports here, not as a throw. Settle
+        // the pending restart (no-op if none) so the handler stops awaiting and
+        // the UI shows the error instead of spinning, and so the user does not
+        // click again, which is the repeated quitAndInstall that wedges Squirrel.
+        failPendingRestart(message);
         // Notify-only for THIS failure; the next tick still tries native.
         fallbackCheck(message);
       });
