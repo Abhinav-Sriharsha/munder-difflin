@@ -243,6 +243,30 @@ function fallbackCheck(reason: string | undefined, force = false): void {
   } catch { /* never let the fallback take the app down */ }
 }
 
+/** electron-updater's checkForUpdates has no timeout of its own. If the feed
+ *  request opens but never responds (a stalled connection, a captive portal, a
+ *  half-open socket after the machine sleeps), the promise never settles, so
+ *  runCheck never leaves 'checking', the badge spins forever, and nothing is
+ *  logged. And electron-updater caches its in-flight check promise, so once one
+ *  check hangs, every later check returns that same hung promise. A hard cap is
+ *  what guarantees the check always reaches a terminal state, and it is why a
+ *  wedged updater shows a definite error on every tick instead of a permanent
+ *  spinner. Generous, because the feed payload (a few-hundred-byte YAML) is
+ *  tiny, so anything past this is hung, not merely slow. */
+const CHECK_TIMEOUT_MS = 30_000;
+
+/** Reject after `ms` if `p` has not settled; clears the timer either way so a
+ *  slow-but-successful check leaves no dangling handle. */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
 /**
  * One check. Native first; on failure, report the real error AND degrade to the
  * notify-only poll for THIS check only — the next tick tries native again, so a
@@ -251,8 +275,14 @@ function fallbackCheck(reason: string | undefined, force = false): void {
 async function runCheck(): Promise<{ ok: boolean; error?: string }> {
   emit({ state: 'checking' });
   try {
-    const autoUpdater = await loadAutoUpdater();
-    const result = await autoUpdater.checkForUpdates();
+    // Hard-capped so a stalled feed request cannot leave the badge on 'checking'
+    // forever (see withTimeout above); a timeout falls through to the catch,
+    // which logs it, shows an error state, and runs the notify-only fallback.
+    const result = await withTimeout(
+      loadAutoUpdater().then((autoUpdater) => autoUpdater.checkForUpdates()),
+      CHECK_TIMEOUT_MS,
+      'update check'
+    );
     if (!result || !isNewer(result.updateInfo.version, app.getVersion())) {
       emit({ state: 'not-available' });
     }
