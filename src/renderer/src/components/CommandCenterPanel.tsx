@@ -34,6 +34,7 @@ import {
   type AgentProvider
 } from '@/store/config';
 import { canReceiveInbox } from '@shared/agentProvider';
+import { isComposingKey } from '@shared/imeGuard';
 
 /** Michael's control surface. Shown instead of the plain terminal/files panel
  *  when the god agent is selected: terminal + queue, the floor roster (with
@@ -1085,7 +1086,7 @@ function MemoryTab({ godId, who: controlledWho, onWho }: { godId: string; who?: 
           <input
             value={textQuery}
             onChange={(e) => setTextQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') textSearch(); }}
+            onKeyDown={(e) => { if (isComposingKey(e)) return; if (e.key === 'Enter') textSearch(); }}
             placeholder="Find exact text across hive files…"
             style={{ ...textareaStyle, height: 30 }}
           />
@@ -1111,7 +1112,7 @@ function MemoryTab({ godId, who: controlledWho, onWho }: { godId: string; who?: 
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') search(); }}
+            onKeyDown={(e) => { if (isComposingKey(e)) return; if (e.key === 'Enter') search(); }}
             placeholder="What does the hive know about…"
             style={{ ...textareaStyle, height: 30 }}
           />
@@ -1191,6 +1192,7 @@ function TokenLimitEditor({ value, onSet }: { value?: number; onSet: (tokens: nu
         type="number" min="0" step="100000" value={text} autoFocus
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
+          if (isComposingKey(e)) return;
           if (e.key === 'Enter') commit();
           else if (e.key === 'Escape') { skipBlur.current = true; setEditing(false); }
         }}

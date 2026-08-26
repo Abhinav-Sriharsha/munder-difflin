@@ -7,6 +7,7 @@ import { clearTerminalDraft, dismissTerminalPicker, terminalAutomationBlockFor }
 import type { TerminalAutomationBlock } from './terminalAutomation';
 import { freeflowRecorder, useFreeflow } from '@/freeflow/recorder';
 import { useTerminalFontSize } from './terminalFontSize';
+import { isComposingKey } from '@shared/imeGuard';
 
 const EMPTY_QUEUE: QueuedMessage[] = [];
 
@@ -142,6 +143,7 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
   };
 
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isComposingKey(e)) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       queueIt();

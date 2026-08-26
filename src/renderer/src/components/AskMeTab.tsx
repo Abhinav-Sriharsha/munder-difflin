@@ -5,6 +5,7 @@ import { useStore } from '@/store/store';
 import { MarkdownPreview } from '@/markdown/MarkdownPreview';
 import { type HiveTask, type HumanQA, openQuestion, waitsOnHuman } from './TasksKanban';
 import { compareByNewestAsk } from './askMeOrder';
+import { isComposingKey } from '@shared/imeGuard';
 
 /**
  * ASK ME — first-class human feedback through the task system.
@@ -230,7 +231,7 @@ export function AskMeTab() {
               <textarea
                 value={drafts[t.id] ?? ''}
                 onChange={(e) => setAnswerDraft(t.id, e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void sendAnswer(t); }}
+                onKeyDown={(e) => { if (isComposingKey(e)) return; if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void sendAnswer(t); }}
                 rows={3}
                 placeholder="Your answer — or 'done', with the result… (markdown ok · Ctrl+Enter to send)"
                 style={{

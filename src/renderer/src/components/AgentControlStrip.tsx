@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PixelButton } from './PixelButton';
 import { AgentHoldButton } from './AgentHoldButton';
+import { isComposingKey } from '@shared/imeGuard';
 
 /**
  * Operator control for one agent (#7C.1-7C.3) — pause (deny tools at the next
@@ -116,7 +117,7 @@ export function AgentControlStrip({ agentId }: { agentId: string }) {
           className="cth-input"
           value={steer}
           onChange={(e) => setSteer(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') sendSteer(); }}
+          onKeyDown={(e) => { if (isComposingKey(e)) return; if (e.key === 'Enter') sendSteer(); }}
           placeholder="send this agent a note… (arrives as context on its next turn, nothing is typed into its terminal)"
           style={{
             flex: 1, padding: '4px 6px', background: 'var(--cth-paper-100)', border: 'none',

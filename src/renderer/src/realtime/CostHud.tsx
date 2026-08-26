@@ -20,6 +20,7 @@
 import { useEffect, useState } from 'react';
 import { formatUsd } from '@shared/realtimePricing';
 import { useRealtimeCost } from './costStore';
+import { isComposingKey } from '@shared/imeGuard';
 
 const WARN_RATIO = 0.8;
 
@@ -115,6 +116,7 @@ export function CostHud({ compact = false }: CostHudProps): React.ReactElement |
           onChange={(e) => setCapText(e.target.value)}
           onBlur={(e) => commitCap(e.target.value)}
           onKeyDown={(e) => {
+            if (isComposingKey(e)) return;
             if (e.key === 'Enter') commitCap((e.target as HTMLInputElement).value);
           }}
           style={capInputStyle}

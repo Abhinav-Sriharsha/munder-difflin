@@ -23,6 +23,7 @@ import { AiEnginesSettings } from './AiEnginesSettings';
 import { REALTIME_MODEL } from '@shared/realtimePricing';
 import { RealtimeDevicePicker } from '@/realtime/DevicePicker';
 import { CostHud } from '@/realtime/CostHud';
+import { isComposingKey } from '@shared/imeGuard';
 
 export interface SettingsModalProps {
   config: HarnessConfig;
@@ -1935,7 +1936,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               type="password"
                               value={openAiVoiceKey}
                               onChange={(e) => setOpenAiVoiceKey(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === 'Enter') void saveOpenAiVoiceKey(); }}
+                              onKeyDown={(e) => { if (isComposingKey(e)) return; if (e.key === 'Enter') void saveOpenAiVoiceKey(); }}
                               placeholder={hasOpenAiKey ? 'key saved — paste a new one to replace it' : 'sk-…'}
                               style={{ ...slackInputStyle, flex: 1, fontFamily: 'var(--cth-font-mono)' }}
                             />

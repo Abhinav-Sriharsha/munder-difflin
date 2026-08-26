@@ -3,6 +3,7 @@ import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
 import { Icon } from './Icon';
 import { AccentColorName } from '@/design/tokens';
+import { isComposingKey } from '@shared/imeGuard';
 
 type Mode = 'free' | 'slash' | 'quick';
 
@@ -24,6 +25,7 @@ export function CommandBar({ accent, busy, blocked, onSend }: CommandBarProps) {
   };
 
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (isComposingKey(e)) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send();

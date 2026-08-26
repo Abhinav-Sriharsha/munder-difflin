@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
+import { isComposingKey } from '@shared/imeGuard';
 
 interface MemoryStatus {
   available: boolean;
@@ -198,7 +199,7 @@ export function MemoryPanel() {
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') run(); }}
+                    onKeyDown={(e) => { if (isComposingKey(e)) return; if (e.key === 'Enter') run(); }}
                     placeholder="Search by meaning…"
                     style={{
                       flex: 1, padding: '6px 8px 4px',
