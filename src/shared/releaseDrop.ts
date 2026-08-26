@@ -111,8 +111,8 @@ const FRAME_BASE_CSS = `
     --shadow-chip: 3px 3px 0 var(--ink);
     --radius: 0px;
     --pad: clamp(24px, 4.5vw, 48px);
-    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, "PingFang SC", "Microsoft YaHei", "Noto Sans Mono CJK SC", "Geeza Pro", "Noto Naskh Arabic", monospace;
+    --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Geeza Pro", "Noto Naskh Arabic", sans-serif;
     --font-ui: var(--font-sans);
   }
   * { box-sizing: border-box; }
