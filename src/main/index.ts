@@ -55,7 +55,7 @@ import { initCompletionWatcher } from './realtimeCompletionWatcher';
 import type { TaskCard, InboxMessage } from './realtimeCompletionWatcher';
 import { TelemetryCollector } from './telemetry';
 import { CostLedgerTotals } from './costLifetime';
-import { analytics } from './analytics';
+import { analytics, isRendererMessageSurface } from './analytics';
 import type { SpawnFailReason } from './analytics';
 import { IntegrationBroker } from './integrationBroker';
 import * as integrations from './integrations';
@@ -2963,6 +2963,25 @@ ipcMain.handle('pty:kill', (_evt, id: string) => {
 });
 ipcMain.handle('pty:list', () => ptyManager.list());
 
+// ─── IPC: analytics (the ONE renderer-facing seam) ──────────────────────────
+/** Count one human-sent message (TELEMETRY.md → `message_sent`). A COUNT, and
+ *  nothing else: this channel takes no text, no length and no id, so there is
+ *  no shape in which message content could cross it.
+ *
+ *  This is the only analytics event the renderer can cause. It exists because
+ *  two of the four send surfaces — a line typed into the agent's terminal, and
+ *  the queue composer — are submits main cannot observe: the `pty:write` handler
+ *  above fires on EVERY KEYSTROKE, so counting there would produce a keystroke
+ *  meter, not a message count. `steer` and `hive` are counted at their own IPC
+ *  handlers in this file and are rejected here (isRendererMessageSurface) so
+ *  they can never be counted twice. The event name is fixed here, not passed
+ *  in: the renderer chooses a surface, never an event. */
+ipcMain.handle('analytics:messageSent', (_evt, surface: unknown) => {
+  if (!isRendererMessageSurface(surface)) return { ok: false };
+  analytics.trackMessageSent(surface);
+  return { ok: true };
+});
+
 // Resolve a pasted Claude session id to the cwd it originally ran in, so the Add
 // Agent dialog can auto-fill the folder for a resume (#2 zero-step resume). Reads
 // the cwd from a transcript record; null when the id is invalid/unknown.
@@ -3391,7 +3410,13 @@ ipcMain.handle('hive:messages', (_evt, opts: unknown) =>
 );
 ipcMain.handle('hive:send', (_evt, partial: Partial<HiveMessage>, from: unknown) => {
   if (!hive.enabled()) return { ok: false, error: 'hive disabled (no harnessHome)' };
-  const msg = hive.send(partial ?? {}, typeof from === 'string' ? from : 'system');
+  const sender = typeof from === 'string' ? from : 'system';
+  const msg = hive.send(partial ?? {}, sender);
+  // Count only what a PERSON sent. Every renderer surface that dispatches on a
+  // human's behalf passes 'human' (Command Center dispatch, thread replies, ASK
+  // ME answers); agent-to-agent traffic passes the agent id and would swamp the
+  // number. Counted AFTER the send so a rejected message is never counted.
+  if (sender === 'human') analytics.trackMessageSent('hive');
   return { ok: true, message: msg };
 });
 ipcMain.handle('hive:addTask', (_evt, task: unknown) => {
@@ -3861,6 +3886,10 @@ ipcMain.handle('control:gateTool', (_evt, agentId: unknown, tool: unknown, on: u
 ipcMain.handle('control:steer', (_evt, agentId: unknown, text: unknown) => {
   if (typeof agentId !== 'string' || typeof text !== 'string') return null;
   control.steer(agentId, text);
+  // A steer typed into the control strip is a human message. Counted HERE, at
+  // the IPC seam, and deliberately not inside control.steer(): closingTime and
+  // the voice action layer call that directly, and neither is a person typing.
+  analytics.trackMessageSent('steer');
   return control.snapshot(agentId);
 });
 ipcMain.handle('control:halt', (_evt, agentId: unknown) => {
