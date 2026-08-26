@@ -7,6 +7,7 @@ import { MarkdownPreview } from '@/markdown/MarkdownPreview';
 import { type HiveTask, type HumanQA, openQuestion, waitsOnHuman } from './TasksKanban';
 import { compareByNewestAsk } from './askMeOrder';
 import { isComposingKey } from '@shared/imeGuard';
+import { useRtl } from '@/i18n/useDirection';
 
 /**
  * ASK ME — first-class human feedback through the task system.
@@ -45,6 +46,7 @@ function dependentsTree(id: string, all: HiveTask[], seen = new Set<string>()): 
 
 export function AskMeTab() {
   const { t: translate } = useTranslation();
+  const rtl = useRtl();
   const agents = useStore((s) => s.agents);
   const restorable = useStore((s) => s.restorableAgents);
   const [tasks, setTasks] = useState<HiveTask[]>([]);
@@ -224,12 +226,13 @@ export function AskMeTab() {
                   and backticks were on screen literally. The card variant keeps
                   this card's mono face and turns a single newline into a break, so
                   a question with no markdown in it looks exactly as it did. */}
-              <div style={{ fontSize: 15, lineHeight: '19px', color: 'var(--cth-ink-900)' }}>
+              <div dir={rtl ? 'auto' : undefined} style={{ fontSize: 15, lineHeight: '19px', color: 'var(--cth-ink-900)' }}>
                 <MarkdownPreview source={open.q} variant="card" />
               </div>
 
               {/* answer box */}
               <textarea
+                dir={rtl ? 'auto' : undefined}
                 value={drafts[t.id] ?? ''}
                 onChange={(e) => setAnswerDraft(t.id, e.target.value)}
                 onKeyDown={(e) => { if (isComposingKey(e)) return; if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void sendAnswer(t); }}

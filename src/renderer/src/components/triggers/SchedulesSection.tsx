@@ -9,6 +9,7 @@ import {
   type WeeklyDraft
 } from './ui';
 import { formatWeekly, nextWeeklyFireMs } from '@shared/weeklySchedule';
+import { useRtl } from '@/i18n/useDirection';
 
 /**
  * SCHEDULES — recurring auto-dispatched missions. The oldest trigger type, and
@@ -52,6 +53,7 @@ function relTime(ms: number, t: TFunction): string {
 
 export function SchedulesSection({ onSummary }: { onSummary?: (s: string) => void }) {
   const { t } = useTranslation();
+  const rtl = useRtl();
   const agents = useStore((s) => s.agents);
   const [missions, setMissions] = useState<ScheduledMission[]>([]);
   const [adding, setAdding] = useState(false);
@@ -156,6 +158,7 @@ export function SchedulesSection({ onSummary }: { onSummary?: (s: string) => voi
           </Field>
           <Field label={t('schedulesSection.prompt')}>
             <textarea
+              dir={rtl ? 'auto' : undefined}
               value={mBody}
               onChange={(e) => setMBody(e.target.value)}
               rows={3}
@@ -189,6 +192,7 @@ function MissionRow({ mission, targetName, agents, onPatch, onDelete }: {
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
+  const rtl = useRtl();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState(mission.label);
   const [to, setTo] = useState(mission.to);
@@ -299,6 +303,7 @@ function MissionRow({ mission, targetName, agents, onPatch, onDelete }: {
           </Field>
           <Field label={t('schedulesSection.prompt')}>
             <textarea
+              dir={rtl ? 'auto' : undefined}
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={4}

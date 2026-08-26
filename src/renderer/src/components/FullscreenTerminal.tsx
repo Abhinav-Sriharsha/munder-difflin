@@ -21,6 +21,7 @@ import { useTerminalFontSize } from './terminalFontSize';
 import { useHasTerminalDraft, disposeTerminal, reflowTerminal, notifyThemeChangeAll } from './terminalPool';
 import { useAppTheme, toggleAppTheme } from '@/design/theme';
 import type { HarnessConfig } from '@/store/config';
+import { useRtl } from '@/i18n/useDirection';
 
 /** Roster rail width. A fixed 232px is right on a 14" laptop but reads as a
  *  sliver on a 27" display, where names truncate for no reason — so it tracks
@@ -665,6 +666,7 @@ function SidebarRow({
   scale: ReturnType<typeof rosterScale>;
 }) {
   const { t } = useTranslation();
+  const rtl = useRtl();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const noteRef = useRef<HTMLDivElement>(null);
   const [notePosition, setNotePosition] = useState<{ left: number; top: number } | null>(null);
@@ -876,6 +878,7 @@ function SidebarRow({
               to make a new line rather than doing nothing. autoFocus is safe
               now that opening is an explicit click, not a pointer fly-by. */}
           <textarea
+            dir={rtl ? 'auto' : undefined}
             autoFocus
             value={agent.note ?? ''}
             onChange={(e) => onNoteChange(e.target.value)}

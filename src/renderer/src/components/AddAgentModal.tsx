@@ -29,6 +29,7 @@ import {
   providerPreset,
   isClaudeProvider
 } from '@/store/config';
+import { useRtl } from '@/i18n/useDirection';
 
 const ACCENTS: AccentColorName[] = ['coral', 'mint', 'sky', 'lemon', 'lilac', 'peach'];
 
@@ -143,6 +144,7 @@ export interface AddAgentModalProps {
 
 export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModalProps) {
   const { t: tr } = useTranslation();
+  const rtl = useRtl();
   const addAgent = useStore(s => s.addAgent);
   // Deep links and file batches share one FIFO. The head alone seeds the form;
   // every item still requires an explicit spawn or skip.
@@ -1062,6 +1064,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
 
                     <Row label={tr('addAgent.goal')}>
                       <textarea
+                        dir={rtl ? 'auto' : undefined}
                         value={goal}
                         onChange={(e) => setGoal(e.target.value)}
                         placeholder={tr('addAgent.goalPlaceholder')}

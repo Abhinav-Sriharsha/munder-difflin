@@ -7,6 +7,8 @@ import { OfficeFloor } from '@/scene/office/OfficeFloor';
 import { useHive } from '@/hooks/useHive';
 import { useResolvedGodName } from '@/hooks/useResolvedGodName';
 import { useGodNameSync } from '@/i18n/useGodNameSync';
+import { useDirectionSync } from '@/i18n/useDirection';
+import { useArabicTerminalSync } from '@/terminal/useArabicTerminalSync';
 import { MemoryPanel } from '@/components/MemoryPanel';
 import { AgentDetailPanel } from '@/components/AgentDetailPanel';
 import { AgentStrip } from '@/components/AgentStrip';
@@ -37,6 +39,10 @@ declare const __APP_VERSION__: string;
 export function App() {
   // Point every {{godName}} string at the orchestrator's real, renameable name.
   useGodNameSync();
+  // Mirror the document only for a user who has picked an RTL app language.
+  useDirectionSync();
+  // Let terminals that are ALREADY open follow a language switch too.
+  useArabicTerminalSync();
   const agent = useStore(selectedAgent);
   const agents = useStore(s => s.agents);
   const agentCount = agents.length;

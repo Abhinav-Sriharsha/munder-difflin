@@ -246,7 +246,8 @@
       "dangerDesc": "重置会抹掉 {{godName}} 的记忆、整个 hive（每个智能体、消息、任务和看板）、语义记忆宫殿以及所有设置——然后带你回到新手引导。",
       "resetStartOver": "重置并重新开始",
       "arabicTerminal": "终端中的阿拉伯语 / RTL 文本",
-      "arabicTerminalDesc": "使用浏览器的文本引擎渲染终端，让阿拉伯语正确连写并从右向左显示（xterm 自身不支持 bidi）。关闭时使用 GPU 渲染器：更快，但无法处理 RTL。默认对所有人关闭；仅对新打开的终端生效。"
+      "arabicTerminalDesc": "用浏览器的文本引擎渲染终端，让阿拉伯语正确连写并从右向左阅读（xterm 自身没有双向文本支持）。关闭则使用 GPU 渲染器：更快，但无法处理从右向左的文本。对已打开和新开的终端同时生效。",
+      "arabicTerminalFollowsLanguage": "当前跟随应用语言。在此切换即可覆盖，两个方向都可以——你的选择会保留，即使之后再更改语言。"
     },
     "agentsModels": {
       "defaultModel": "默认智能体模型",

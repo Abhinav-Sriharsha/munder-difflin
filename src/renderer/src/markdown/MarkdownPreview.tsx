@@ -19,6 +19,8 @@ import remarkGfm from 'remark-gfm';
 import { useWorkspaceImage } from '@/hooks/useWorkspaceImage';
 import { isExternal, isRelativeMd, resolveLocalImageRel, resolveRel } from './mdLinks';
 import { remarkSoftBreaks } from './remarkSoftBreaks';
+import { rehypeAutoDir } from './rehypeAutoDir';
+import { useRtl } from '@/i18n/useDirection';
 
 /** How the rendered markdown sits in its host.
  *  - `document` (default): a page — its own type scale, 72ch measure, page padding.
@@ -31,6 +33,12 @@ export type MarkdownVariant = 'document' | 'card';
 // whole pipeline even when nothing about the source changed.
 const DOC_PLUGINS = [remarkGfm];
 const CARD_PLUGINS = [remarkGfm, remarkSoftBreaks];
+
+/** Per-block `dir="auto"`, for an RTL app language only — see the note at the
+ *  `useRtl()` call site below. Frozen module constants so the prop identity is
+ *  stable and react-markdown does not re-run the pipeline on every render. */
+const AUTO_DIR_PLUGINS = [rehypeAutoDir];
+const NO_PLUGINS: never[] = [];
 
 export interface MarkdownPreviewProps {
   source: string;
@@ -50,10 +58,20 @@ export const MarkdownPreview = memo(function MarkdownPreview({
   source, baseRel, root, onOpenMarkdownLink, variant = 'document'
 }: MarkdownPreviewProps) {
   const card = variant === 'card';
+  // Per-block direction, gated on the APP LANGUAGE rather than on the text.
+  //
+  // The plugin stamps `dir="auto"`, which resolves from each block's first
+  // strong character — so ungated it fires for an English user the moment an
+  // agent quotes a line of Arabic, and mirrors a block of their UI over
+  // something they never turned on. Keying it to the chosen language instead
+  // means an English user's markdown renders through exactly the pipeline it
+  // rendered through before this existed, whatever the agent writes into it.
+  const rtl = useRtl();
   return (
     <div className={card ? 'cth-md-preview cth-md-card' : 'cth-md-preview'}>
       <ReactMarkdown
         remarkPlugins={card ? CARD_PLUGINS : DOC_PLUGINS}
+        rehypePlugins={rtl ? AUTO_DIR_PLUGINS : NO_PLUGINS}
         components={{
           a: ({ href, children }) => {
             const h = href ?? '';
