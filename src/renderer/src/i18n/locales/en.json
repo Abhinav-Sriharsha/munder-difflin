@@ -244,7 +244,9 @@
       "languageDesc": "Choose the language for the app interface. English is the default.",
       "dangerZone": "DANGER ZONE",
       "dangerDesc": "Reset wipes {{godName}}'s memories, the entire hive (every agent, message, task, and the board), the semantic-memory palace, and all settings - then takes you back to onboarding.",
-      "resetStartOver": "reset & start over"
+      "resetStartOver": "reset & start over",
+      "arabicTerminal": "Arabic / RTL text in terminals",
+      "arabicTerminalDesc": "Renders terminals with the browser's text engine so Arabic joins and reads right-to-left (xterm has no bidi of its own). Off is the GPU renderer: faster, but RTL-blind. Off by default for everyone; applies to newly opened terminals."
     },
     "agentsModels": {
       "defaultModel": "Default agent model",

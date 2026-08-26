@@ -244,7 +244,9 @@
       "languageDesc": "选择应用界面的语言。默认英文。",
       "dangerZone": "危险区",
       "dangerDesc": "重置会抹掉 {{godName}} 的记忆、整个 hive（每个智能体、消息、任务和看板）、语义记忆宫殿以及所有设置——然后带你回到新手引导。",
-      "resetStartOver": "重置并重新开始"
+      "resetStartOver": "重置并重新开始",
+      "arabicTerminal": "终端中的阿拉伯语 / RTL 文本",
+      "arabicTerminalDesc": "使用浏览器的文本引擎渲染终端，让阿拉伯语正确连写并从右向左显示（xterm 自身不支持 bidi）。关闭时使用 GPU 渲染器：更快，但无法处理 RTL。默认对所有人关闭；仅对新打开的终端生效。"
     },
     "agentsModels": {
       "defaultModel": "默认智能体模型",
