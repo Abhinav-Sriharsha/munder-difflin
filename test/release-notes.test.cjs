@@ -238,3 +238,35 @@ test('options are honoured so a roomier surface can ask for more', () => {
   assert.equal(summarizeReleaseNotes(body, { maxBullets: 2 }).length, 2);
   assert.ok(total(summarizeReleaseNotes(body, { maxChars: 60 })) <= 60);
 });
+
+test('the notes file we actually ship fits the toast', () => {
+  // Guards the FILE, not the parser: build/release-notes.md is what
+  // releaseInfo.releaseNotesFile bakes into latest*.yml, and it is the thing a
+  // release runner edits by hand. A bullet that silently falls off the budget
+  // is invisible until someone reads a shipped toast.
+  const notes = fs.readFileSync(
+    path.join(__dirname, '..', 'build', 'release-notes.md'),
+    'utf8'
+  );
+  const digest = summarizeReleaseNotes(notes);
+  const bullets = notes.split('\n').filter((l) => /^\s*-\s+/.test(l)).length;
+
+  assert.ok(bullets >= 3 && bullets <= RELEASE_NOTES_MAX_BULLETS, `${bullets} bullets in the file`);
+  assert.equal(digest.length, bullets, 'a bullet was dropped by the budget');
+  assert.ok(total(digest) <= RELEASE_NOTES_MAX_CHARS, `${total(digest)} chars over budget`);
+  assert.ok(!digest.some((l) => l.includes('…')), 'a shipped bullet is clipped mid-sentence');
+  assert.doesNotMatch(notes, /<[a-z]/i, 'the notes file must stay free of HTML');
+});
+
+test('electron-builder points the release notes at a file that exists', () => {
+  // Without this field electron-updater silently falls back to the atom feed,
+  // which is the whole bug. A typo here fails open and looks like nothing.
+  const cfg = fs.readFileSync(path.join(__dirname, '..', 'electron-builder.yml'), 'utf8');
+  const match = cfg.match(/^releaseInfo:\n\s+releaseNotesFile:\s*(\S+)\s*$/m);
+
+  assert.ok(match, 'releaseInfo.releaseNotesFile is missing from electron-builder.yml');
+  assert.ok(
+    fs.existsSync(path.join(__dirname, '..', match[1])),
+    `releaseNotesFile points at a missing file: ${match[1]}`
+  );
+});

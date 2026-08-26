@@ -1,0 +1,4 @@
+- **The interface speaks Chinese.** Pick zh-CN in Settings.
+- **IME typing no longer sends early.** Enter picks your candidate.
+- **Fonts ship inside the app.** No Google Fonts fetch on launch.
+- **Settings has one Save button.** Connections get their own tab.
