@@ -1,4 +1,5 @@
 import { useState, useEffect, type CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AGENT_MODELS, type HarnessConfig } from '@/store/config';
 import { useStore } from '@/store/store';
 import {
@@ -24,6 +25,7 @@ import { REALTIME_MODEL } from '@shared/realtimePricing';
 import { RealtimeDevicePicker } from '@/realtime/DevicePicker';
 import { CostHud } from '@/realtime/CostHud';
 import { isComposingKey } from '@shared/imeGuard';
+import { LANGUAGES, setLanguage } from '@/i18n';
 
 export interface SettingsModalProps {
   config: HarnessConfig;
@@ -159,8 +161,20 @@ function clearLocalState(): void {
 // voice gets its own tab; Danger Zone became a red row at the bottom of General.
 export type Section = 'General' | 'Prerequisites' | 'Agents & Models' | 'Autonomy & Budgets' | 'Connections' | 'Voice' | 'Memory & Knowledge';
 const NAV_SECTIONS: Section[] = ['General', 'Prerequisites', 'Agents & Models', 'Autonomy & Budgets', 'Connections', 'Voice', 'Memory & Knowledge'];
+/** i18n key for each nav section's label — the Section values themselves stay
+ *  as stable identifiers (tab state, deep links). */
+const NAV_SECTION_KEYS: Record<Section, string> = {
+  'General': 'settings.nav.general',
+  'Prerequisites': 'settings.nav.prerequisites',
+  'Agents & Models': 'settings.nav.agentsModels',
+  'Autonomy & Budgets': 'settings.nav.autonomyBudgets',
+  'Connections': 'settings.nav.connections',
+  'Voice': 'settings.nav.voice',
+  'Memory & Knowledge': 'settings.nav.memoryKnowledge'
+};
 
 export function SettingsModal({ config, onClose, initialSection }: SettingsModalProps) {
+  const { t, i18n } = useTranslation();
   const godName = useStore((s) => s.agents.find((a) => a.isGod)?.name) ?? 'the orchestrator';
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -228,9 +242,9 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
     setDefaultModelSel(id);
     try {
       await window.cth.updateConfig({ defaultModel: id } as Partial<HarnessConfig>);
-      setDefaultModelNote('saved — applies to newly spawned agents');
+      setDefaultModelNote(t('settings.agentsModels.savedNote'));
       setTimeout(() => setDefaultModelNote(''), 2200);
-    } catch { setDefaultModelNote('save failed'); }
+    } catch { setDefaultModelNote(t('settings.agentsModels.saveFailed')); }
   };
   const [maxTurnsVal, setMaxTurnsVal] = useState<string>(cfgX.maxTurns != null ? String(cfgX.maxTurns) : '');
   const saveMaxTurns = async () => {
@@ -278,7 +292,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
         errorStormLimit: Number.isFinite(storm as number) ? Math.round(storm as number) : undefined
       }
     } as Partial<HarnessConfig>);
-    setBudgetNote('saved');
+    setBudgetNote(t('settings.autonomy.saved'));
     setTimeout(() => setBudgetNote(''), 1500);
   };
   const fmtBudgetTokens = (raw: string): string => {
@@ -423,8 +437,8 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
       if (r.ok) {
         setOpenAiVoiceKey('');
         setHasOpenAiKey(true);
-        setOpenAiVoiceNote('Key saved — Talk is ready.');
-      } else setOpenAiVoiceNote(r.error ?? 'Could not save the key.');
+        setOpenAiVoiceNote(t('settings.voice.keySavedNote'));
+      } else setOpenAiVoiceNote(r.error ?? t('settings.voice.couldNotSave'));
     } catch (e) {
       setOpenAiVoiceNote(e instanceof Error ? e.message : String(e));
     }
@@ -713,10 +727,10 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
   };
 
   const modalTitle = changeHome
-    ? 'CHANGE HOME FOLDER'
+    ? t('settings.changeHomeTitle')
     : confirming
-      ? 'RESET EVERYTHING?'
-      : 'SETTINGS';
+      ? t('settings.resetTitle')
+      : t('settings.title');
 
   return (
     <div
@@ -746,7 +760,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
           {changeHome ? (
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>New home folder</span>
+                <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{t('settings.changeHome.newHome')}</span>
                 <code style={{
                   fontFamily: 'var(--cth-font-mono, monospace)', fontSize: 12,
                   color: 'var(--cth-ink-900)', wordBreak: 'break-all'
@@ -756,8 +770,8 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
               {/* Move vs. fresh - two selectable option rows; move is preselected. */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {([
-                  ['move', 'Move existing data (recommended)', "Copy this harness's hive (every agent, memory, task) and the semantic-memory palace into the new folder. The old folder is left untouched as a backup you can delete later."],
-                  ['fresh', 'Start fresh', 'Point the harness at the new (empty) folder. Your existing data stays in the old folder, simply unused.']
+                  ['move', t('settings.changeHome.moveTitle'), t('settings.changeHome.moveDesc')],
+                  ['fresh', t('settings.changeHome.freshTitle'), t('settings.changeHome.freshDesc')]
                 ] as const).map(([value, title, desc]) => {
                   const selected = changeMode === value;
                   return (
@@ -791,10 +805,10 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <PixelButton variant="secondary" size="md" onClick={() => { setChangeHome(null); setChangeErr(''); }} disabled={changeBusy}>
-                  cancel
+                  {t('common.cancel')}
                 </PixelButton>
                 <PixelButton variant="primary" size="md" onClick={applyChangeHome} disabled={changeBusy}>
-                  {changeBusy ? 'applying...' : (changeMode === 'move' ? 'move & restart' : 'switch & restart')}
+                  {changeBusy ? t('settings.apply') : (changeMode === 'move' ? t('settings.moveAndRestart') : t('settings.switchAndRestart'))}
                 </PixelButton>
               </div>
             </div>
@@ -813,18 +827,16 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                   <Icon name="bell" />
                 </div>
                 <div style={{ flex: 1, fontSize: 15, lineHeight: '22px', color: 'var(--cth-ink-700)' }}>
-                  This permanently erases all of {godName}'s memories and the entire hive,
-                  and cannot be undone. Any running sessions will be terminated and the app
-                  will relaunch into onboarding. Are you sure?
+                  {t('settings.resetConfirm.body', { godName })}
                 </div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <PixelButton variant="secondary" size="md" onClick={() => setConfirming(false)} disabled={busy}>
-                  cancel
+                  {t('common.cancel')}
                 </PixelButton>
                 <PixelButton variant="destructive" size="md" onClick={reset} disabled={busy}>
-                  {busy ? 'resetting...' : 'erase everything & restart'}
+                  {busy ? t('settings.resetting') : t('settings.eraseEverything')}
                 </PixelButton>
               </div>
             </div>
@@ -863,7 +875,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           letterSpacing: 0
                         }}
                       >
-                        {section}
+                        {t(NAV_SECTION_KEYS[section])}
                       </button>
                     );
                   })}
@@ -903,14 +915,14 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
                         }}>
-                          Home folder
+                          {t('settings.general.homeFolder')}
                         </div>
                         <div style={{ display: 'flex', gap: 12, fontSize: 13, lineHeight: '20px', alignItems: 'center' }}>
                           <span style={{
                             flex: 1, color: 'var(--cth-ink-900)', wordBreak: 'break-all',
                             fontFamily: 'var(--cth-font-mono, monospace)'
                           }}>{config.harnessHome ?? '—'}</span>
-                          <PixelButton variant="secondary" size="sm" onClick={pickNewHome}>change...</PixelButton>
+                          <PixelButton variant="secondary" size="sm" onClick={pickNewHome}>{t('settings.change')}</PixelButton>
                         </div>
                       </div>
 
@@ -922,31 +934,61 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
                         }}>
-                          Environment
+                          {t('settings.general.environment')}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                              <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>Keep Mac awake while agents run</span>
+                              <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>{t('settings.general.keepAwake')}</span>
                               <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                                Blocks display sleep so schedules and terminals keep firing on time. Costs battery — best on AC.
+                                {t('settings.general.keepAwakeDesc')}
                               </span>
                             </div>
                             <PixelButton variant={keepAwake ? 'primary' : 'secondary'} size="sm" onClick={toggleKeepAwake}>
-                              {keepAwake ? 'on' : 'off'}
+                              {keepAwake ? t('common.on') : t('common.off')}
                             </PixelButton>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                              <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>Explain things simply</span>
+                              <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>{t('settings.general.simpleMode')}</span>
                               <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                                Agents brief you in plain language instead of engineering shorthand.
+                                {t('settings.general.simpleModeDesc')}
                               </span>
                             </div>
                             <PixelButton variant={simpleMode ? 'primary' : 'secondary'} size="sm" onClick={toggleSimpleMode}>
-                              {simpleMode ? 'on' : 'off'}
+                              {simpleMode ? t('common.on') : t('common.off')}
                             </PixelButton>
                           </div>
+                        </div>
+                      </div>
+
+                      <div style={{ height: 1, background: 'var(--cth-ink-300)' }} />
+
+                      {/* Language — app UI language (i18n) */}
+                      <div>
+                        <div style={{
+                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
+                        }}>
+                          {t('settings.general.language')}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>{t('settings.general.language')}</span>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              {t('settings.general.languageDesc')}
+                            </span>
+                          </div>
+                          <select
+                            value={i18n.language}
+                            onChange={(e) => setLanguage(e.target.value)}
+                            style={slackInputStyle}
+                            aria-label={t('settings.general.language')}
+                          >
+                            {LANGUAGES.map((l) => (
+                              <option key={l.code} value={l.code}>{l.label}</option>
+                            ))}
+                          </select>
                         </div>
                       </div>
 
@@ -958,15 +1000,15 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
                         }}>
-                          Notifications
+                          {t('settings.general.notifications')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              Desktop notifications
+                              {t('settings.general.desktopNotifications')}
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Native toasts when an agent finishes or needs your input.
+                              {t('settings.general.desktopNotificationsDesc')}
                             </span>
                           </div>
                           <PixelButton
@@ -974,7 +1016,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             size="sm"
                             onClick={toggleNotifications}
                           >
-                            {notifications ? 'on' : 'off'}
+                            {notifications ? t('common.on') : t('common.off')}
                           </PixelButton>
                         </div>
                       </div>
@@ -987,17 +1029,15 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
                         }}>
-                          Maintenance
+                          {t('settings.general.maintenance')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              Scheduled auto-compact
+                              {t('settings.general.autoCompact')}
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Queue /compact for every agent on a schedule (hourly by default; interval
-                              in the Triggers tab). Off by default — long-running agents may overflow
-                              their context without it.
+                              {t('settings.general.autoCompactDesc')}
                             </span>
                           </div>
                           <PixelButton
@@ -1005,18 +1045,17 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             size="sm"
                             onClick={toggleAutoCompact}
                           >
-                            {autoCompactOn ? 'on' : 'off'}
+                            {autoCompactOn ? t('common.on') : t('common.off')}
                           </PixelButton>
                         </div>
                         <div style={{ height: 10 }} />
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              Auto-update
+                              {t('settings.general.autoUpdate')}
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Check GitHub releases and download updates in the background;
-                              you choose when to restart. Never restarts on its own.
+                              {t('settings.general.autoUpdateDesc')}
                             </span>
                           </div>
                           <PixelButton
@@ -1024,18 +1063,17 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             size="sm"
                             onClick={toggleAutoUpdate}
                           >
-                            {autoUpdateOn ? 'on' : 'off'}
+                            {autoUpdateOn ? t('common.on') : t('common.off')}
                           </PixelButton>
                         </div>
                         <div style={{ height: 10 }} />
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              Anonymous usage stats
+                              {t('settings.general.telemetry')}
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              A handful of anonymous events (app opened, agent spawned, feature used) —
-                              never prompts, code, paths, or agent output. Full list in TELEMETRY.md.
+                              {t('settings.general.telemetryDesc')}
                             </span>
                           </div>
                           <PixelButton
@@ -1043,7 +1081,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             size="sm"
                             onClick={toggleTelemetry}
                           >
-                            {telemetryOn ? 'on' : 'off'}
+                            {telemetryOn ? t('common.on') : t('common.off')}
                           </PixelButton>
                         </div>
                       </div>
@@ -1067,12 +1105,11 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
                         }}>
-                          Default agent model
+                          {t('settings.agentsModels.defaultModel')}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                            Every newly spawned Claude agent ({godName} included) starts on this model unless picked per-agent.
-                            Marked “· default” in the model pickers.
+                            {t('settings.agentsModels.defaultModelDesc', { godName })}
                           </span>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                             {AGENT_MODELS.map((m) => (
@@ -1104,18 +1141,18 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
                         }}>
-                          Advanced
+                          {t('settings.agentsModels.advanced')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontSize: 13, color: 'var(--cth-ink-900)' }}>Max turns per run</span>
+                          <span style={{ fontSize: 13, color: 'var(--cth-ink-900)' }}>{t('settings.agentsModels.maxTurns')}</span>
                           <input
                             type="number" min="1" step="10" value={maxTurnsVal}
                             onChange={(e) => setMaxTurnsVal(e.target.value)}
                             onBlur={() => void saveMaxTurns()}
-                            placeholder="unlimited"
+                            placeholder={t('settings.agentsModels.unlimited')}
                             style={{ ...slackInputStyle, width: 120 }}
                           />
-                          <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>blank = unlimited</span>
+                          <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{t('settings.agentsModels.blankUnlimited')}</span>
                         </div>
                       </div>
                     </>
@@ -1129,19 +1166,19 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
                         }}>
-                          Autonomy
+                          {t('settings.autonomy.autonomy')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              {autoModeOn ? 'Autonomous — agents act without asking' : 'Ask-first — agents pause for tool approval'}
+                              {autoModeOn ? t('settings.autonomy.autoOn') : t('settings.autonomy.autoOff')}
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Applies to newly spawned agents (each agent's command can still override).
+                              {t('settings.autonomy.autoDesc')}
                             </span>
                           </div>
                           <PixelButton variant={autoModeOn ? 'primary' : 'secondary'} size="sm" onClick={toggleAutoMode}>
-                            {autoModeOn ? 'autonomous' : 'ask-first'}
+                            {autoModeOn ? t('settings.autonomy.autonomous') : t('settings.autonomy.askFirst')}
                           </PixelButton>
                         </div>
                       </div>
@@ -1174,70 +1211,74 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
                         }}>
-                          Circuit breaker
+                          {t('settings.autonomy.breaker')}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Guard against runaway agents and spend. The breaker steers, then constrains, then stops an agent that crosses these.
+                              {t('settings.autonomy.breakerDesc')}
                             </span>
                             <PixelButton variant={brkEnabled ? 'primary' : 'secondary'} size="sm"
                               onClick={() => { setBrkEnabled(!brkEnabled); }}>
-                              {brkEnabled ? 'on' : 'off'}
+                              {brkEnabled ? t('common.on') : t('common.off')}
                             </PixelButton>
                           </div>
                           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...slackLabelStyle }}>
-                              floor token budget
+                              {t('settings.autonomy.floorBudget')}
                               <input
                                 type="number" min="0" step="100000" value={agentBudget}
                                 onChange={(e) => setAgentBudget(e.target.value)}
-                                placeholder="e.g. 1000000"
+                                placeholder={t('settings.autonomy.budgetPlaceholder')}
                                 style={{ ...slackInputStyle, width: 180 }}
                               />
                               <span style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>
-                                {fmtBudgetTokens(agentBudget) ? `= ${fmtBudgetTokens(agentBudget)} tokens` : 'total tokens across the floor'}
+                                {fmtBudgetTokens(agentBudget) ? t('settings.autonomy.budgetEquals', { value: fmtBudgetTokens(agentBudget) }) : t('settings.autonomy.budgetTotal')}
                               </span>
                             </label>
                             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...slackLabelStyle }}>
-                              token velocity (tok/min)
+                              {t('settings.autonomy.velocity')}
                               <input
                                 type="number" min="0" step="1000" value={velocityCeiling}
                                 onChange={(e) => setVelocityCeiling(e.target.value)}
-                                placeholder="e.g. 200000"
+                                placeholder={t('settings.autonomy.velocityPlaceholder')}
                                 style={{ ...slackInputStyle, width: 180 }}
                               />
                             </label>
                             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...slackLabelStyle }}>
-                              repeated-tool limit
+                              {t('settings.autonomy.repeatedLimit')}
                               <input
                                 type="number" min="0" step="5" value={brkRepeated}
                                 onChange={(e) => setBrkRepeated(e.target.value)}
-                                placeholder="default"
+                                placeholder={t('settings.autonomy.defaultPlaceholder')}
                                 style={{ ...slackInputStyle, width: 140 }}
                               />
                             </label>
                             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...slackLabelStyle }}>
-                              error-storm limit
+                              {t('settings.autonomy.errorStormLimit')}
                               <input
                                 type="number" min="0" step="5" value={brkErrStorm}
                                 onChange={(e) => setBrkErrStorm(e.target.value)}
-                                placeholder="default"
+                                placeholder={t('settings.autonomy.defaultPlaceholder')}
                                 style={{ ...slackInputStyle, width: 140 }}
                               />
                             </label>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                              <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>Hard stop</span>
+                              <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>{t('settings.autonomy.hardStop')}</span>
                               <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                                When tripped, KILL the agent instead of just constraining it. Off = steer-first (recommended).
+                                {t('settings.autonomy.hardStopDesc')}
                               </span>
                             </div>
                             <PixelButton variant={brkHardStop ? 'destructive' : 'secondary'} size="sm"
                               onClick={() => { setBrkHardStop(!brkHardStop); }}>
-                              {brkHardStop ? 'kill on trip' : 'steer first'}
+                              {brkHardStop ? t('settings.autonomy.killOnTrip') : t('settings.autonomy.steerFirst')}
                             </PixelButton>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <PixelButton variant="secondary" size="sm" onClick={saveBudget}>{t('common.save')}</PixelButton>
+                            {budgetNote && <span style={{ fontSize: 12, color: 'var(--cth-mint)' }}>{budgetNote}</span>}
                           </div>
                         </div>
                       </div>
@@ -1252,17 +1293,17 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
                         }}>
-                          Semantic memory
+                          {t('settings.memory.semanticMemory')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>Cross-session recall</span>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>{t('settings.memory.crossSession')}</span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Agents' markdown memory is indexed for instant search. The embedding model lives in the Memory panel.
+                              {t('settings.memory.crossSessionDesc')}
                             </span>
                           </div>
                           <PixelButton variant={semMemOn ? 'primary' : 'secondary'} size="sm" onClick={toggleSemMem}>
-                            {semMemOn ? 'on' : 'off'}
+                            {semMemOn ? t('common.on') : t('common.off')}
                           </PixelButton>
                         </div>
                       </div>
@@ -1275,15 +1316,15 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
                         }}>
-                          Knowledge Graph
+                          {t('settings.memory.kg')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              Enterprise knowledge base
+                              {t('settings.memory.kgTitle')}
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Add your docs, images &amp; PDFs; agents query them on demand via the <code>kg</code> tool.
+                              {t('settings.memory.kgDesc')}
                             </span>
                           </div>
                           <PixelButton
@@ -1291,16 +1332,18 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             size="sm"
                             onClick={toggleKg}
                           >
-                            {kgEnabled ? 'on' : 'off'}
+                            {kgEnabled ? t('common.on') : t('common.off')}
                           </PixelButton>
                         </div>
                         {kgEnabled && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
                             <PixelButton variant="secondary" size="sm" onClick={addKgFiles} disabled={kgBusy}>
-                              {kgBusy ? 'adding…' : 'add files…'}
+                              {kgBusy ? t('settings.memory.adding') : t('settings.memory.addFiles')}
                             </PixelButton>
                             <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>
-                              {kgDocCount} document{kgDocCount === 1 ? '' : 's'} indexed
+                              {kgDocCount === 1
+                                ? t('settings.memory.docCount', { count: kgDocCount })
+                                : t('settings.memory.docCountPlural', { count: kgDocCount })}
                             </span>
                             {kgNote && <span style={{ fontSize: 12, color: 'var(--cth-mint)' }}>{kgNote}</span>}
                           </div>
@@ -1332,16 +1375,16 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
                         }}>
-                          Slack
+                          {t('settings.connections.slack')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              Slack integration
+                              {t('settings.connections.slackIntegration')}
                               {/* i - toggles the step-by-step connect guide. */}
                               <button
                                 type="button"
-                                aria-label="Show Slack connect steps"
+                                aria-label={t('settings.connections.showSlackHelp')}
                                 aria-expanded={showSlackHelp}
                                 onClick={() => setShowSlackHelp((v) => !v)}
                                 style={{
@@ -1355,7 +1398,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               >i</button>
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Pipe a Slack channel's messages straight into {godName}'s queue.
+                              {t('settings.connections.slackDesc', { godName })}
                             </span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1364,14 +1407,14 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               fontSize: 12, lineHeight: '16px',
                               color: running ? 'var(--cth-mint-700, #1f7a4d)' : 'var(--cth-ink-500)'
                             }}>
-                              {running ? '● Connected' : '○ Not connected'}
+                              {running ? t('settings.connections.connected') : t('settings.connections.notConnected')}
                             </span>
                             <PixelButton
                               variant={slackEnabled ? 'primary' : 'secondary'}
                               size="sm"
                               onClick={() => setSlackEnabled((v) => !v)}
                             >
-                              {slackEnabled ? 'on' : 'off'}
+                              {slackEnabled ? t('common.on') : t('common.off')}
                             </PixelButton>
                           </div>
                         </div>
@@ -1393,18 +1436,18 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             {/* Signing secret + bot token side-by-side in the wider layout */}
                             <div style={{ display: 'flex', gap: 16 }}>
                               <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                                <span style={slackLabelStyle}>Signing secret</span>
+                                <span style={slackLabelStyle}>{t('settings.connections.signingSecret')}</span>
                                 <input
                                   type="password"
                                   value={slackSecret}
                                   onChange={(e) => setSlackSecret(e.target.value)}
-                                  placeholder="Slack app -> Basic Information -> Signing Secret"
+                                  placeholder={t('settings.connections.signingSecretPlaceholder')}
                                   style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
                                 />
                               </label>
                               {/* Bot token: stays in main; never leaves the main process. */}
                               <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                                <span style={slackLabelStyle}>Bot token</span>
+                                <span style={slackLabelStyle}>{t('settings.connections.botToken')}</span>
                                 <input
                                   type="password"
                                   value={slackBotToken}
@@ -1417,16 +1460,16 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                             <div style={{ display: 'flex', gap: 16 }}>
                               <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                                <span style={slackLabelStyle}>Channel id (optional)</span>
+                                <span style={slackLabelStyle}>{t('settings.connections.channelId')}</span>
                                 <input
                                   value={slackChannel}
                                   onChange={(e) => setSlackChannel(e.target.value)}
-                                  placeholder="C0123... or blank for any"
+                                  placeholder={t('settings.connections.channelPlaceholder')}
                                   style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
                                 />
                               </label>
                               <label style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 100 }}>
-                                <span style={slackLabelStyle}>Port</span>
+                                <span style={slackLabelStyle}>{t('settings.connections.port')}</span>
                                 <input
                                   type="number"
                                   value={slackPort}
@@ -1443,27 +1486,27 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                                 Slack-ORIGIN done-reply round-trip is never gated. */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
                               <span style={slackLabelStyle}>
-                                Proactive posting (app-initiated) — off by default
+                                {t('settings.connections.proactivePosting')}
                               </span>
                               <PixelButton
                                 variant={slackProactivePosting ? 'primary' : 'secondary'}
                                 size="sm"
                                 onClick={() => setSlackProactivePosting((v) => !v)}
                               >
-                                {slackProactivePosting ? 'on' : 'off'}
+                                {slackProactivePosting ? t('common.on') : t('common.off')}
                               </PixelButton>
                             </div>
 
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                               {/* Start disabled once connected; Stop only when running. */}
                               <PixelButton variant="primary" size="sm" onClick={startSlack} disabled={slackBusy || !slackSecret.trim() || running}>
-                                {slackBusy ? '...' : running ? 'connected' : 'start'}
+                                {slackBusy ? '...' : running ? t('settings.connections.connectedBtn') : t('settings.connections.start')}
                               </PixelButton>
                               <PixelButton variant="secondary" size="sm" onClick={stopSlack} disabled={slackBusy || !running}>
-                                stop
+                                {t('settings.connections.stop')}
                               </PixelButton>
                               <PixelButton variant="ghost" size="sm" onClick={saveSlack} disabled={slackBusy}>
-                                save
+                                {t('common.save')}
                               </PixelButton>
                               {slackNote && (
                                 <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{slackNote}</span>
@@ -1477,8 +1520,8 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, opacity: running ? 1 : 0.55 }}>
                                 <span style={slackLabelStyle}>
                                   {running
-                                    ? 'Request URL - paste into Slack Event Subscriptions'
-                                    : 'last Request URL - Slack reuses it until you Stop'}
+                                    ? t('settings.connections.requestUrl')
+                                    : t('settings.connections.lastRequestUrl')}
                                 </span>
                                 <div style={{ display: 'flex', gap: 6 }}>
                                   <input
@@ -1487,16 +1530,13 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                                     onFocus={(e) => e.currentTarget.select()}
                                     style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)', fontSize: 12 }}
                                   />
-                                  <PixelButton variant="secondary" size="sm" onClick={copyTunnel} disabled={!tunnelUrl}>copy</PixelButton>
+                                  <PixelButton variant="secondary" size="sm" onClick={copyTunnel} disabled={!tunnelUrl}>{t('common.copy')}</PixelButton>
                                 </div>
                               </div>
                             )}
 
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              In your Slack app: enable Event Subscriptions, add the{' '}
-                              <code>message.channels</code> / <code>message.groups</code> bot event, set the
-                              Request URL above, and reinstall to your workspace. The tunnel URL changes on every
-                              restart, so re-paste it after pressing Start again.
+                              {t('settings.connections.slackHint')}
                             </span>
                           </div>
                         )}
@@ -1513,15 +1553,15 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
                         }}>
-                          Webhook triggers
+                          {t('settings.connections.webhooks')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              Webhook triggers
+                              {t('settings.connections.webhooks')}
                               <button
                                 type="button"
-                                aria-label="Show webhook API format"
+                                aria-label={t('settings.connections.showWebhookHelp')}
                                 aria-expanded={showWebhookHelp}
                                 onClick={() => setShowWebhookHelp((v) => !v)}
                                 style={{
@@ -1535,8 +1575,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               >i</button>
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              One endpoint per caller, each with its own secret and mode. They all share
-                              one server, so another webhook costs nothing.
+                              {t('settings.connections.webhooksDesc')}
                             </span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1544,10 +1583,10 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               fontSize: 12, lineHeight: '16px',
                               color: webhookRunning ? 'var(--cth-mint-700, #1f7a4d)' : 'var(--cth-ink-500)'
                             }}>
-                              {webhookRunning ? '● Listening' : '○ Not listening'}
+                              {webhookRunning ? t('settings.connections.listeningOn') : t('settings.connections.notListening')}
                             </span>
                             <PixelButton variant="primary" size="sm" onClick={addWebhook} disabled={webhookBusy}>
-                              add webhook
+                              {t('settings.connections.addWebhook')}
                             </PixelButton>
                           </div>
                         </div>
@@ -1564,13 +1603,12 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                         {/* Public surface warning. Loud, not buried. */}
                         <span style={{ fontSize: 12, lineHeight: '16px', color: '#6E1423' }}>
-                          Every webhook you switch on is a PUBLIC endpoint anyone holding its secret can post to.
-                          New ones arrive off.
+                          {t('settings.connections.webhookWarning')}
                         </span>
 
                         {webhookTriggers.length === 0 ? (
                           <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                            No webhooks yet. Add one to give a tool a URL it can hand work to.
+                            {t('settings.connections.noWebhooks')}
                           </span>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1595,7 +1633,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                                       value={w.name}
                                       onChange={(e) => { void patchWebhook(w.id, { name: e.target.value }, false); }}
                                       onBlur={() => { void applyWebhooks(webhookTriggers); }}
-                                      placeholder="what calls this?"
+                                      placeholder={t('settings.connections.namePlaceholder')}
                                       style={{ ...slackInputStyle, flex: 1 }}
                                     />
                                     <PixelButton
@@ -1604,7 +1642,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                                       onClick={() => { void patchWebhook(w.id, { enabled: !w.enabled }); }}
                                       disabled={webhookBusy}
                                     >
-                                      {w.enabled ? 'on' : 'off'}
+                                      {w.enabled ? t('common.on') : t('common.off')}
                                     </PixelButton>
                                     {/* Two clicks: deleting revokes a caller's access for good. */}
                                     <PixelButton
@@ -1616,15 +1654,15 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                                       }}
                                       disabled={webhookBusy}
                                     >
-                                      {pendingDelete === w.id ? 'sure?' : 'delete'}
+                                      {pendingDelete === w.id ? t('settings.connections.sure') : t('common.delete')}
                                     </PixelButton>
                                   </div>
 
                                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                    <span style={{ ...slackLabelStyle, width: 56, flexShrink: 0 }}>URL</span>
+                                    <span style={{ ...slackLabelStyle, width: 56, flexShrink: 0 }}>{t('settings.connections.url')}</span>
                                     <input
                                       readOnly
-                                      value={endpoint || 'starts once the webhook server is listening'}
+                                      value={endpoint || t('settings.connections.endpointPlaceholder')}
                                       onFocus={(e) => e.currentTarget.select()}
                                       style={{
                                         ...slackInputStyle, fontFamily: 'var(--cth-font-mono)', fontSize: 12,
@@ -1637,13 +1675,13 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                                       onClick={() => { void window.cth.copyToClipboard(endpoint); }}
                                       disabled={!endpoint}
                                     >
-                                      copy
+                                      {t('common.copy')}
                                     </PixelButton>
                                   </div>
 
                                   {/* Masked by default; never in a title attribute. */}
                                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                    <span style={{ ...slackLabelStyle, width: 56, flexShrink: 0 }}>Secret</span>
+                                    <span style={{ ...slackLabelStyle, width: 56, flexShrink: 0 }}>{t('settings.connections.secret')}</span>
                                     <input
                                       type={shown ? 'text' : 'password'}
                                       readOnly
@@ -1656,14 +1694,14 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                                       size="sm"
                                       onClick={() => setShownSecrets((s) => ({ ...s, [w.id]: !shown }))}
                                     >
-                                      {shown ? 'hide' : 'show'}
+                                      {shown ? t('common.hide') : t('common.show')}
                                     </PixelButton>
                                     <PixelButton
                                       variant="secondary"
                                       size="sm"
                                       onClick={() => { void window.cth.copyToClipboard(w.secret); }}
                                     >
-                                      copy
+                                      {t('common.copy')}
                                     </PixelButton>
                                     <PixelButton
                                       variant="ghost"
@@ -1671,12 +1709,12 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                                       onClick={() => { void rotateWebhookSecret(w.id); }}
                                       disabled={webhookBusy}
                                     >
-                                      rotate
+                                      {t('settings.connections.rotate')}
                                     </PixelButton>
                                   </div>
 
                                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                    <span style={{ ...slackLabelStyle, width: 56, flexShrink: 0 }}>Mode</span>
+                                    <span style={{ ...slackLabelStyle, width: 56, flexShrink: 0 }}>{t('settings.connections.mode')}</span>
                                     <select
                                       value={w.mode}
                                       onChange={(e) => { void patchWebhook(w.id, { mode: e.target.value as TriggerMode }); }}
@@ -1697,10 +1735,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         )}
 
                         <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                          Callers POST to a webhook's URL with its secret in the{' '}
-                          <code>x-md-webhook-secret</code> header. Each one checks bodies against its own JSON
-                          schema — edit that in the Triggers tab of {godName}'s Command Center, where the history
-                          of everything that arrived lives too.
+                          {t('settings.connections.webhooksHint', { godName })}
                         </span>
 
                         {webhookNote && (
@@ -1717,15 +1752,15 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
                         }}>
-                          Organisation
+                          {t('settings.connections.organisation')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              Organisation key
+                              {t('settings.connections.orgKey')}
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              How a teammate's install addresses yours.
+                              {t('settings.connections.orgKeyDesc')}
                             </span>
                           </div>
                           <PixelButton
@@ -1734,19 +1769,19 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             onClick={() => { void applyOrg({ ...orgTrigger, enabled: !orgTrigger.enabled }); }}
                             disabled={orgBusy}
                           >
-                            {orgTrigger.enabled ? 'on' : 'off'}
+                            {orgTrigger.enabled ? t('common.on') : t('common.off')}
                           </PixelButton>
                         </div>
 
                         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <span style={slackLabelStyle}>API key</span>
+                          <span style={slackLabelStyle}>{t('settings.connections.apiKey')}</span>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <input
                               type={showOrgKey ? 'text' : 'password'}
                               value={orgTrigger.apiKey}
                               onChange={(e) => { void applyOrg({ ...orgTrigger, apiKey: e.target.value }, false); }}
                               onBlur={() => { void applyOrg(orgTrigger); }}
-                              placeholder="paste your organisation key"
+                              placeholder={t('settings.connections.orgKeyPlaceholder')}
                               style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
                             />
                             <PixelButton
@@ -1755,7 +1790,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               onClick={() => setShowOrgKey((v) => !v)}
                               disabled={!orgTrigger.apiKey}
                             >
-                              {showOrgKey ? 'hide' : 'show'}
+                              {showOrgKey ? t('common.hide') : t('common.show')}
                             </PixelButton>
                           </div>
                         </label>
@@ -1765,7 +1800,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         </span>
 
                         <label style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 200 }}>
-                          <span style={slackLabelStyle}>Mode</span>
+                          <span style={slackLabelStyle}>{t('settings.connections.mode')}</span>
                           <select
                             value={orgTrigger.mode}
                             onChange={(e) => { void applyOrg({ ...orgTrigger, mode: e.target.value as TriggerMode }); }}
@@ -1782,7 +1817,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <PixelButton variant="ghost" size="sm" onClick={() => { void applyOrg(orgTrigger); }} disabled={orgBusy}>
-                            save
+                            {t('common.save')}
                           </PixelButton>
                           {orgNote && (
                             <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{orgNote}</span>
@@ -1790,8 +1825,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         </div>
 
                         <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                          Configuration only for now. The organisation messaging service does not exist yet, so a
-                          key here starts no transport — it is saved, shown in the Triggers tab, and waits.
+                          {t('settings.connections.orgConfigOnly')}
                         </span>
                       </div>
 
@@ -1807,15 +1841,15 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
                         }}>
-                          Free Flow
+                          {t('settings.voice.freeFlow')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                              Free Flow (voice dictation)
+                              {t('settings.voice.freeFlowTitle')}
                             </span>
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Push-to-talk dictation: speak, and Groq Whisper drops the text into the queue composer.
+                              {t('settings.voice.freeFlowDesc')}
                             </span>
                           </div>
                           <PixelButton
@@ -1824,7 +1858,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             onClick={toggleFreeflow}
                             disabled={freeflowBusy}
                           >
-                            {freeflowEnabled ? 'on' : 'off'}
+                            {freeflowEnabled ? t('common.on') : t('common.off')}
                           </PixelButton>
                         </div>
 
@@ -1832,37 +1866,37 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             {/* Groq API key — stored in main config, used only there. */}
                             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              <span style={slackLabelStyle}>Groq API key</span>
+                              <span style={slackLabelStyle}>{t('settings.voice.groqKey')}</span>
                               <div style={{ display: 'flex', gap: 6 }}>
                                 <input
                                   type={showGroqKey ? 'text' : 'password'}
                                   value={groqKey}
                                   onChange={(e) => setGroqKey(e.target.value)}
-                                  placeholder="gsk_... (get a free key at console.groq.com)"
+                                  placeholder={t('settings.voice.groqPlaceholder')}
                                   style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
                                 />
                                 <PixelButton variant="secondary" size="sm" onClick={() => setShowGroqKey((v) => !v)} disabled={!groqKey}>
-                                  {showGroqKey ? 'hide' : 'show'}
+                                  {showGroqKey ? t('common.hide') : t('common.show')}
                                 </PixelButton>
                               </div>
                             </label>
 
                             {/* Model picker */}
                             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 280 }}>
-                              <span style={slackLabelStyle}>Model</span>
+                              <span style={slackLabelStyle}>{t('settings.voice.model')}</span>
                               <select
                                 value={freeflowModel}
                                 onChange={(e) => setFreeflowModel(e.target.value)}
                                 style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
                               >
-                                <option value="whisper-large-v3-turbo">whisper-large-v3-turbo (fast)</option>
-                                <option value="whisper-large-v3">whisper-large-v3 (accurate)</option>
+                                <option value="whisper-large-v3-turbo">{t('settings.voice.fast')}</option>
+                                <option value="whisper-large-v3">{t('settings.voice.accurate')}</option>
                               </select>
                             </label>
 
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                               <PixelButton variant="ghost" size="sm" onClick={() => saveFreeflow()} disabled={freeflowBusy}>
-                                save
+                                {t('common.save')}
                               </PixelButton>
                               {freeflowNote && (
                                 <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{freeflowNote}</span>
@@ -1870,11 +1904,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             </div>
 
                             <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                              Two ways to dictate: click the mic button above Send in the queue composer (click to record,
-                              click again to transcribe), or — while viewing any agent's terminal — <strong>hold Option
-                              (⌥)</strong> to talk and release to transcribe. Either way the text lands in the composer
-                              draft for you to review before sending. macOS will ask for microphone permission the first
-                              time you record.
+                              {t('settings.voice.freeFlowHint')}
                             </span>
                           </div>
                         )}
@@ -1888,15 +1918,14 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                           color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
                         }}>
-                          Realtime Michael
+                          {t('settings.voice.realtime')}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
-                            Voice chat with {godName}
+                            {t('settings.voice.voiceChat', { godName })}
                           </span>
                           <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                            Talk to the orchestrator in real time. Toggle it on from {godName}'s tab; choose which
-                            microphone and speaker the voice loop uses here.
+                            {t('settings.voice.voiceChatDesc', { godName })}
                           </span>
                         </div>
 
@@ -1917,19 +1946,13 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
                             color: 'var(--cth-ink-500)', textTransform: 'uppercase'
                           }}>
-                            OpenAI API key · voice
+                            {t('settings.voice.openaiKey')}
                           </span>
                           <span style={{ fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
-                            Talking to {godName} runs on OpenAI&rsquo;s Realtime API — speech in, speech out, over a
-                            live connection to <strong style={{ fontFamily: 'var(--cth-font-mono)' }}>{REALTIME_MODEL}</strong>.
-                            That is a different service from the Claude subscription your agents run on, so it needs
-                            its own <strong>OpenAI API key</strong>.
+                            {t('settings.voice.openaiKeyDesc1', { godName, model: REALTIME_MODEL })}
                           </span>
                           <span style={{ fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
-                            Paste it once below. It is encrypted on this machine and never shown again — each voice
-                            session mints its own short-lived token from it, and the key itself never leaves your
-                            computer. It is the same OpenAI key listed under <strong>Agents &amp; Models</strong>;
-                            setting it in either place is enough.
+                            {t('settings.voice.openaiKeyDesc2')}
                           </span>
                           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                             <input
@@ -1937,7 +1960,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               value={openAiVoiceKey}
                               onChange={(e) => setOpenAiVoiceKey(e.target.value)}
                               onKeyDown={(e) => { if (isComposingKey(e)) return; if (e.key === 'Enter') void saveOpenAiVoiceKey(); }}
-                              placeholder={hasOpenAiKey ? 'key saved — paste a new one to replace it' : 'sk-…'}
+                              placeholder={hasOpenAiKey ? t('settings.voice.keyPlaceholderSaved') : 'sk-…'}
                               style={{ ...slackInputStyle, flex: 1, fontFamily: 'var(--cth-font-mono)' }}
                             />
                             <PixelButton
@@ -1946,7 +1969,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               onClick={() => void saveOpenAiVoiceKey()}
                               disabled={!openAiVoiceKey.trim()}
                             >
-                              Save
+                              {t('settings.voice.save')}
                             </PixelButton>
                           </div>
                           <span style={{
@@ -1960,8 +1983,8 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
                             }} />
                             {openAiVoiceNote || (hasOpenAiKey
-                              ? `Key saved — Talk is ready. Start it from ${godName}’s card.`
-                              : 'No key yet — Talk stays disabled until one is saved.')}
+                              ? t('settings.voice.keySaved', { godName })
+                              : t('settings.voice.noKey', { godName }))}
                           </span>
                         </div>
 
@@ -1970,7 +1993,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         {/* rt-9 idle-tunable: how long an idle voice session stays open before
                             it auto-closes. The spend cap remains the real runaway guard. */}
                         <label style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 280 }}>
-                          <span style={slackLabelStyle}>Idle auto-disconnect</span>
+                          <span style={slackLabelStyle}>{t('settings.voice.idleDisconnect')}</span>
                           <select
                             value={String(idleDisconnectMs)}
                             onChange={(e) => {
@@ -1980,17 +2003,16 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             }}
                             style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
                           >
-                            <option value="30000">30 seconds</option>
-                            <option value="60000">1 minute</option>
-                            <option value="120000">2 minutes</option>
-                            <option value="180000">3 minutes</option>
-                            <option value="300000">5 minutes</option>
-                            <option value="600000">10 minutes</option>
-                            <option value="0">Off (never)</option>
+                            <option value="30000">{t('settings.voice.30s')}</option>
+                            <option value="60000">{t('settings.voice.1m')}</option>
+                            <option value="120000">{t('settings.voice.2m')}</option>
+                            <option value="180000">{t('settings.voice.3m')}</option>
+                            <option value="300000">{t('settings.voice.5m')}</option>
+                            <option value="600000">{t('settings.voice.10m')}</option>
+                            <option value="0">{t('settings.voice.never')}</option>
                           </select>
                           <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
-                            How long the voice session stays open with no talking before it auto-closes.
-                            The spend cap still stops a runaway session even when this is off.
+                            {t('settings.voice.idleDisconnectDesc')}
                           </span>
                         </label>
                       </div>
@@ -2003,15 +2025,13 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                       <div style={{
                         fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
                         color: '#6E1423'
-                      }}>DANGER ZONE</div>
+                      }}>{t('settings.general.dangerZone')}</div>
                       <p style={{ margin: 0, fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-700)' }}>
-                        Reset wipes {godName}'s memories, the entire hive (every agent, message,
-                        task, and the board), the semantic-memory palace, and all settings -
-                        then takes you back to onboarding.
+                        {t('settings.general.dangerDesc', { godName })}
                       </p>
                       <div>
                         <PixelButton variant="destructive" size="md" onClick={() => setConfirming(true)}>
-                          reset &amp; start over
+                          {t('settings.general.resetStartOver')}
                         </PixelButton>
                       </div>
                     </div>
@@ -2027,13 +2047,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                 display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8,
                 background: 'var(--cth-cream-50)'
               }}>
-                {activeSection === 'Autonomy & Budgets' && budgetNote && (
-                  <span style={{ fontSize: 12, color: 'var(--cth-mint)' }}>{budgetNote}</span>
-                )}
-                <PixelButton variant="secondary" size="md" onClick={onClose}>close</PixelButton>
-                {activeSection === 'Autonomy & Budgets' && (
-                  <PixelButton variant="primary" size="md" onClick={saveBudget}>save</PixelButton>
-                )}
+                <PixelButton variant="secondary" size="md" onClick={onClose}>{t('settings.close')}</PixelButton>
               </div>
             </>
           )}
