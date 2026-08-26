@@ -6,6 +6,7 @@ import {
   Callout, Field, Hint, IntervalPicker, Muted, PctField, SubCard, SubHeader, Toggle,
   fmtInterval, textareaStyle
 } from './ui';
+import { useRtl } from '@/i18n/useDirection';
 
 /**
  * CONTEXT — the trigger that fires on an agent's own terminal filling up rather
@@ -94,6 +95,7 @@ function RuleCard({ title, blurb, rule, messageLabel, messageHint, messagePlaceh
   onPatch: (fields: Partial<ContextRule>) => void;
 }) {
   const { t } = useTranslation();
+  const rtl = useRtl();
   const [open, setOpen] = useState(false);
   return (
     <SubCard>
@@ -141,6 +143,7 @@ function RuleCard({ title, blurb, rule, messageLabel, messageHint, messagePlaceh
           </Field>
           <Field label={messageLabel}>
             <textarea
+              dir={rtl ? 'auto' : undefined}
               value={rule.message}
               onChange={(e) => onPatch({ message: e.target.value })}
               rows={3}

@@ -36,6 +36,7 @@ import {
 } from '@/store/config';
 import { canReceiveInbox } from '@shared/agentProvider';
 import { isComposingKey } from '@shared/imeGuard';
+import { useRtl } from '@/i18n/useDirection';
 
 /** Michael's control surface. Shown instead of the plain terminal/files panel
  *  when the god agent is selected: terminal + queue, the floor roster (with
@@ -344,6 +345,7 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
 
 function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
   const { t } = useTranslation();
+  const rtl = useRtl();
   const agents = useStore((s) => s.agents);
   const godName = agents.find((a) => a.isGod)?.name ?? 'the orchestrator';
   const select = useStore((s) => s.select);
@@ -649,6 +651,7 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
           </Select>
         </div>
         <textarea
+          dir={rtl ? 'auto' : undefined}
           value={dispatchText}
           onChange={(e) => setDispatchText(e.target.value)}
           rows={2}
@@ -1312,13 +1315,14 @@ function Muted({ children }: { children: React.ReactNode }) {
 }
 
 function Pre({ children }: { children: React.ReactNode }) {
+  const rtl = useRtl();
   return (
     <pre style={{
       margin: '6px 0 0', padding: 8, maxHeight: 200, overflow: 'auto',
       background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
       fontFamily: 'var(--cth-font-mono)', fontSize: 12, lineHeight: '16px',
       color: 'var(--cth-ink-900)', whiteSpace: 'pre-wrap', wordBreak: 'break-word'
-    }}>{children}</pre>
+    }} dir={rtl ? 'auto' : undefined}>{children}</pre>
   );
 }
 

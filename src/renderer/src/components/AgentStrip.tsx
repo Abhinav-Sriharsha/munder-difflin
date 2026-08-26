@@ -6,6 +6,7 @@ import { Icon } from './Icon';
 import { useStore, type Agent } from '@/store/store';
 import { type HarnessConfig } from '@/store/config';
 import { useRestoreTeam } from '@/hooks/useRestoreTeam';
+import { useRtl } from '@/i18n/useDirection';
 
 export interface AgentStripProps {
   /** Needed to rebuild a spawn command when a restorable agent predates the
@@ -15,6 +16,7 @@ export interface AgentStripProps {
 
 export function AgentStrip({ config }: AgentStripProps) {
   const { t } = useTranslation();
+  const rtl = useRtl();
   const agents = useStore(s => s.agents);
   const restorableAgents = useStore(s => s.restorableAgents);
   const selectedId = useStore(s => s.selectedId);
@@ -203,6 +205,7 @@ export function AgentStrip({ config }: AgentStripProps) {
                       line per bullet) and the fullscreen roster renders every
                       line — an <input> would silently eat the newlines. */}
                   <textarea
+                    dir={rtl ? 'auto' : undefined}
                     autoFocus
                     rows={3}
                     value={a.note ?? ''}

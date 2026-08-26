@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
+import { useRtl } from '@/i18n/useDirection';
 
 // Derive the message shape from the preload-exposed API so the renderer never
 // reaches across project boundaries for a type (window.cth is globally typed).
@@ -48,6 +49,7 @@ function groupThreads(msgs: HiveMessage[], noSubject: string): Thread[] {
 
 export function ThreadsPanel({ agentId }: ThreadsPanelProps) {
   const { t } = useTranslation();
+  const rtl = useRtl();
   const [messages, setMessages] = useState<HiveMessage[]>([]);
   const [openThreads, setOpenThreads] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -130,7 +132,7 @@ export function ThreadsPanel({ agentId }: ThreadsPanelProps) {
                           {new Date(m.created_at).toLocaleString()}
                         </span>
                       </div>
-                      <div style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 13, lineHeight: '18px', color: 'var(--cth-ink-700)', marginTop: 2, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      <div dir={rtl ? 'auto' : undefined} style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 13, lineHeight: '18px', color: 'var(--cth-ink-700)', marginTop: 2, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                         {shown}
                         {long && (
                           <button
@@ -145,6 +147,7 @@ export function ThreadsPanel({ agentId }: ThreadsPanelProps) {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
                   <textarea
+                    dir={rtl ? 'auto' : undefined}
                     value={drafts[thread.conversation] ?? ''}
                     onChange={e => setDrafts(d => ({ ...d, [thread.conversation]: e.target.value }))}
                     placeholder={t('threads.replyPlaceholder', { name: last.from })}

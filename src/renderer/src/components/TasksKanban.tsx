@@ -6,6 +6,7 @@ import { PixelBadge } from './PixelBadge';
 import { Icon } from './Icon';
 import { useStore } from '@/store/store';
 import { MarkdownPreview } from '@/markdown/MarkdownPreview';
+import { useRtl } from '@/i18n/useDirection';
 
 /** A card on the task kanban. Mirrors HiveTask in the main/preload process —
  *  re-declared locally so the renderer doesn't reach into the preload package
@@ -303,6 +304,7 @@ export function TaskDetail({ task, all, assigneeName, onMove, onAssign, onClose 
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const rtl = useRtl();
   const col = COLUMNS.find((c) => c.key === task.status) ?? COLUMNS[0];
   // Belt + suspenders: parseTasks normalizes these, but the ledger is a
   // hand-written file — never trust a card's shape at the point of use.
@@ -350,7 +352,7 @@ export function TaskDetail({ task, all, assigneeName, onMove, onAssign, onClose 
               boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
               fontFamily: 'var(--cth-font-mono)', fontSize: 12, lineHeight: '18px',
               color: 'var(--cth-ink-900)', whiteSpace: 'pre-wrap', wordBreak: 'break-word'
-            }}>
+            }} dir={rtl ? 'auto' : undefined}>
               {task.description?.trim() || <span style={{ color: 'var(--cth-ink-300)' }}>{t('kanban.noDescription')}</span>}
             </div>
 
