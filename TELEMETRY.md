@@ -32,8 +32,33 @@ The events:
 | `agent_spawn_failed` | `provider`; `reason` is one of `cli_missing`, `cwd_missing`, `already_running`, `spawn_error` | A requested spawn did not start an agent |
 | `agent_install_started` | `provider`; `rung` is one of `npm`, `node-then-npm`, `native` | The engine CLI was missing, so the bundled auto-installer began |
 | `agent_install_finished` | `provider`; `rung` as above; `outcome` is one of `agent_launched`, `install_failed` | The auto-installer exited |
+| `message_sent` | `surface` — one of `terminal`, `composer`, `steer`, `hive` | Each time **you** send a message to an agent. A count of messages and nothing else: the message itself is never read, measured, or hashed |
 | `feature_used` | `feature` — one of `slack_trigger`, `webhook_trigger`, `hire_install`, `voice_dictation` | At most once per feature per app session |
 | `session_ended` | `duration_bucket` — one of `<5m`, `5-30m`, `30m-2h`, `2-8h`, `8h+` | On quit (coarse bucket, never raw duration) |
+
+### About `message_sent`
+
+This is the one event that fires while you work, so it is worth being precise
+about what it does and does not do.
+
+- It counts **one event per message you send**, at the moment you send it. It is
+  counted at the *submit* — the Enter or the Send button — never per keystroke.
+  The app does not report what you type as you type it.
+- `surface` says only *where* you sent it from: `terminal` (typed into an
+  agent's terminal), `composer` (the agent's message queue box), `steer` (the
+  steer field on the agent control strip), or `hive` (a dispatch, thread reply,
+  or ASK ME answer).
+- Messages **agents send each other** are not counted. Only messages that came
+  from a person are.
+- No property carries the message. There is no text, no length, no character
+  count, no first-N-characters, and no hash of the body — the event has exactly
+  one property and it is the surface name above. The channel the app uses to
+  report it does not accept a message argument at all, so there is no shape in
+  which the content could be sent by mistake.
+
+It exists to answer one question: after someone gets an agent running, do they
+ever actually talk to it? Without it, an agent that was started and then ignored
+is indistinguishable from one being used every day.
 
 ## What is never sent
 
