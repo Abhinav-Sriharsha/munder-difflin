@@ -160,6 +160,20 @@ function clearLocalState(): void {
 // v0.3.4 redesign: six tabs, one topic each. 'AI Engines' folded into
 // Agents & Models; MCP + Slack + webhook + REST live together in Connections;
 // voice gets its own tab; Danger Zone became a red row at the bottom of General.
+/* The small-caps section heading, defined once. It was written out inline
+   seventeen times, in three slightly different forms, which is how a tab ends
+   up looking subtly unlike its neighbours. */
+const sectionHead = {
+  fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
+  color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
+} as const;
+/** Same heading, tight under a section that supplies its own spacing. */
+const sectionHeadTight = { ...sectionHead, marginBottom: 2 } as const;
+/** Same heading with no bottom margin at all. */
+const sectionHeadFlush = { ...sectionHead, marginBottom: 0 } as const;
+/** The 2px rule between Settings sections. */
+const sectionRule = { height: 2, background: 'var(--cth-ink-300)' } as const;
+
 export type Section = 'General' | 'Prerequisites' | 'Agents & Models' | 'Autonomy & Budgets' | 'Connections' | 'Voice' | 'Memory & Knowledge';
 const NAV_SECTIONS: Section[] = ['General', 'Prerequisites', 'Agents & Models', 'Autonomy & Budgets', 'Connections', 'Voice', 'Memory & Knowledge'];
 /** i18n key for each nav section's label — the Section values themselves stay
@@ -206,12 +220,42 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
     strongKeepalive?: boolean; audience?: string; autoMode?: boolean;
     defaultModel?: string; maxTurns?: number; semanticMemory?: boolean;
   };
+  /**
+   * ONE SAVE BUTTON.
+   *
+   * Settings used to persist three different ways: toggles wrote to disk the
+   * instant you clicked them, some sections had their own Save, and a couple of
+   * fields saved on blur. Nothing told you which kind you were looking at, so
+   * "did that stick?" had no answer you could learn once and reuse.
+   *
+   * Now every setting that goes through `updateConfig` is STAGED here and
+   * written by the footer Save, in a single call.
+   *
+   * Two things stay immediate, on purpose, and they are not settings:
+   *   - API keys, which go to the write-only secret broker. Nothing can read
+   *     one back to diff it, so there is no staged value to hold.
+   *   - Free Flow, which arms a global hotkey in main. Staging that would leave
+   *     the hotkey and the checkbox disagreeing until you pressed Save.
+   * Slack and webhooks keep their own controls too: those connect and
+   * disconnect live rather than storing a preference.
+   */
+  const [pending, setPending] = useState<Partial<HarnessConfig>>({});
+  /** Auto-compact lives inside the missions array, so it is resolved at save
+   *  time against the config on disk rather than staged as a whole array. */
+  const [autoCompactPending, setAutoCompactPending] = useState<boolean | null>(null);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveNote, setSaveNote] = useState('');
+  /** True once a control that USED to persist on click has been changed. Only
+   *  those need the close guard: the text fields always needed a Save. */
+  const dirty = Object.keys(pending).length > 0 || autoCompactPending !== null;
+  const stage = (patch: Partial<HarnessConfig>): void =>
+    setPending((prev) => ({ ...prev, ...patch }));
+
   const [keepAwake, setKeepAwake] = useState<boolean>(cfgX.strongKeepalive === true);
   const toggleKeepAwake = async () => {
     const next = !keepAwake;
     setKeepAwake(next);
-    try { await window.cth.updateConfig({ strongKeepalive: next } as Partial<HarnessConfig>); }
-    catch { setKeepAwake(!next); }
+    stage({ strongKeepalive: next } as Partial<HarnessConfig>);
   };
   const [simpleMode, setSimpleMode] = useState<boolean>(cfgX.audience === 'non-technical');
   // Renderer-local, not part of HarnessConfig — it only changes how this window
@@ -220,15 +264,13 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
   const toggleSimpleMode = async () => {
     const next = !simpleMode;
     setSimpleMode(next);
-    try { await window.cth.updateConfig({ audience: next ? 'non-technical' : 'technical' } as Partial<HarnessConfig>); }
-    catch { setSimpleMode(!next); }
+    stage({ audience: next ? 'non-technical' : 'technical' } as Partial<HarnessConfig>);
   };
   const [autoModeOn, setAutoModeOn] = useState<boolean>(cfgX.autoMode !== false);
   const toggleAutoMode = async () => {
     const next = !autoModeOn;
     setAutoModeOn(next);
-    try { await window.cth.updateConfig({ autoMode: next } as Partial<HarnessConfig>); }
-    catch { setAutoModeOn(!next); }
+    stage({ autoMode: next } as Partial<HarnessConfig>);
   };
   // Default OFF, so an absent value must read as off. Note this is `=== true`,
   // the mirror image of autoMode's `!== false` above, because the two defaults
@@ -237,30 +279,23 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
   const toggleOrchSpawn = async () => {
     const next = !orchSpawnOn;
     setOrchSpawnOn(next);
-    try { await window.cth.updateConfig({ orchestratorMaySpawn: next } as Partial<HarnessConfig>); }
-    catch { setOrchSpawnOn(!next); }
+    stage({ orchestratorMaySpawn: next } as Partial<HarnessConfig>);
   };
   const [defaultModelSel, setDefaultModelSel] = useState<string>(cfgX.defaultModel ?? 'claude-fable-5');
-  const [defaultModelNote, setDefaultModelNote] = useState('');
-  const saveDefaultModel = async (id: string) => {
+  const saveDefaultModel = (id: string): void => {
     setDefaultModelSel(id);
-    try {
-      await window.cth.updateConfig({ defaultModel: id } as Partial<HarnessConfig>);
-      setDefaultModelNote(t('settings.agentsModels.savedNote'));
-      setTimeout(() => setDefaultModelNote(''), 2200);
-    } catch { setDefaultModelNote(t('settings.agentsModels.saveFailed')); }
+    stage({ defaultModel: id } as Partial<HarnessConfig>);
   };
   const [maxTurnsVal, setMaxTurnsVal] = useState<string>(cfgX.maxTurns != null ? String(cfgX.maxTurns) : '');
-  const saveMaxTurns = async () => {
+  const maxTurnsPatch = (): Partial<HarnessConfig> => {
     const n = maxTurnsVal.trim() === '' ? undefined : Number(maxTurnsVal);
-    await window.cth.updateConfig({ maxTurns: Number.isFinite(n as number) && (n as number) > 0 ? Math.round(n as number) : undefined } as Partial<HarnessConfig>);
+    return { maxTurns: Number.isFinite(n as number) && (n as number) > 0 ? Math.round(n as number) : undefined } as Partial<HarnessConfig>;
   };
   const [semMemOn, setSemMemOn] = useState<boolean>(cfgX.semanticMemory !== false);
   const toggleSemMem = async () => {
     const next = !semMemOn;
     setSemMemOn(next);
-    try { await window.cth.updateConfig({ semanticMemory: next } as Partial<HarnessConfig>); }
-    catch { setSemMemOn(!next); }
+    stage({ semanticMemory: next } as Partial<HarnessConfig>);
   };
 
   // --- circuit-breaker config (Lane A #6 canonical fields, widened view) ---
@@ -274,18 +309,17 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
   const breakerCfg = config as BreakerCfgView;
   const [agentBudget, setAgentBudget] = useState(breakerCfg.costCapTokens != null ? String(breakerCfg.costCapTokens) : '');
   const [velocityCeiling, setVelocityCeiling] = useState(breakerCfg.circuitBreaker?.tokenVelocityPerMin != null ? String(breakerCfg.circuitBreaker.tokenVelocityPerMin) : '');
-  const [budgetNote, setBudgetNote] = useState('');
   // v0.3.4: the four previously UI-less breaker fields get controls.
   const [brkEnabled, setBrkEnabled] = useState<boolean>(breakerCfg.circuitBreaker?.enabled !== false);
   const [brkHardStop, setBrkHardStop] = useState<boolean>(breakerCfg.circuitBreaker?.hardStop === true);
   const [brkRepeated, setBrkRepeated] = useState(breakerCfg.circuitBreaker?.repeatedToolLimit != null ? String(breakerCfg.circuitBreaker.repeatedToolLimit) : '');
   const [brkErrStorm, setBrkErrStorm] = useState(breakerCfg.circuitBreaker?.errorStormLimit != null ? String(breakerCfg.circuitBreaker.errorStormLimit) : '');
-  const saveBudget = async () => {
+  const budgetPatch = (): Partial<HarnessConfig> => {
     const tokens = agentBudget.trim() === '' ? undefined : Number(agentBudget);
     const vel = velocityCeiling.trim() === '' ? undefined : Number(velocityCeiling);
     const rep = brkRepeated.trim() === '' ? undefined : Number(brkRepeated);
     const storm = brkErrStorm.trim() === '' ? undefined : Number(brkErrStorm);
-    await window.cth.updateConfig({
+    return {
       costCapTokens: Number.isFinite(tokens as number) ? (tokens as number) : undefined,
       circuitBreaker: {
         ...(breakerCfg.circuitBreaker ?? {}),
@@ -295,10 +329,43 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
         repeatedToolLimit: Number.isFinite(rep as number) ? Math.round(rep as number) : undefined,
         errorStormLimit: Number.isFinite(storm as number) ? Math.round(storm as number) : undefined
       }
-    } as Partial<HarnessConfig>);
-    setBudgetNote(t('settings.autonomy.saved'));
-    setTimeout(() => setBudgetNote(''), 1500);
+    } as Partial<HarnessConfig>;
   };
+  /** The one writer. Commits what the form currently shows, in a single
+   *  updateConfig, so a half-applied save is not a state the app can reach. */
+  const saveAll = async (): Promise<void> => {
+    setSaveBusy(true); setSaveNote('');
+    try {
+      const patch: Partial<HarnessConfig> = {
+        ...maxTurnsPatch(),
+        ...budgetPatch(),
+        ...pending
+      };
+      if (autoCompactPending !== null) {
+        // Read-modify-write against disk, not against a stale copy: another
+        // window (or main) may have edited a different mission meanwhile.
+        const cfg = await window.cth.getConfig();
+        patch.missions = (cfg.missions ?? []).map((m) =>
+          m.id === 'compact-maintenance' ? { ...m, enabled: autoCompactPending } : m
+        );
+      }
+      await window.cth.updateConfig(patch);
+      setPending({});
+      setAutoCompactPending(null);
+      setSaveNote(t('settings.saved'));
+      setTimeout(() => setSaveNote(''), 1800);
+    } catch (e) {
+      setSaveNote(e instanceof Error ? e.message : String(e));
+    } finally { setSaveBusy(false); }
+  };
+
+  /** Closing with staged changes used to be impossible, because everything wrote
+   *  on click. Now it is, so say so rather than dropping the edit silently. */
+  const requestClose = (): void => {
+    if (dirty && !window.confirm(t('settings.unsavedWarning'))) return;
+    onClose();
+  };
+
   const fmtBudgetTokens = (raw: string): string => {
     const n = Number(raw);
     if (!raw.trim() || !Number.isFinite(n) || n <= 0) return '';
@@ -367,7 +434,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
     const next = !kgEnabled;
     setKgEnabled(next);
     try {
-      await window.cth.updateConfig({ knowledgeGraph: { enabled: next } });
+      stage({ knowledgeGraph: { enabled: next } });
       if (next) await refreshKgStatus();
     } catch { setKgEnabled(!next); }
   };
@@ -394,13 +461,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
   const toggleAutoCompact = async () => {
     const next = !autoCompactOn;
     setAutoCompactOn(next);
-    try {
-      const cfg = await window.cth.getConfig();
-      const missions = (cfg.missions ?? []).map((m) =>
-        m.id === 'compact-maintenance' ? { ...m, enabled: next } : m
-      );
-      await window.cth.updateConfig({ missions });
-    } catch { setAutoCompactOn(!next); }
+    setAutoCompactPending(next);
   };
 
   // ─── Auto-update (default ON; gates main's updater checks entirely) ────────
@@ -408,7 +469,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
   const toggleAutoUpdate = async () => {
     const next = !autoUpdateOn;
     setAutoUpdateOn(next);
-    try { await window.cth.updateConfig({ autoUpdate: next }); }
+    try { stage({ autoUpdate: next }); }
     catch { setAutoUpdateOn(!next); }
   };
 
@@ -417,7 +478,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
   const toggleTelemetry = async () => {
     const next = !telemetryOn;
     setTelemetryOn(next);
-    try { await window.cth.updateConfig({ telemetryEnabled: next }); }
+    try { stage({ telemetryEnabled: next }); }
     catch { setTelemetryOn(!next); }
   };
 
@@ -915,10 +976,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                       {/* Home folder */}
                       <div>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
-                        }}>
+                        <div style={sectionHead}>
                           {t('settings.general.homeFolder')}
                         </div>
                         <div style={{ display: 'flex', gap: 12, fontSize: 13, lineHeight: '20px', alignItems: 'center' }}>
@@ -934,10 +992,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                       {/* Environment — settings that used to be trapped in onboarding */}
                       <div>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
-                        }}>
+                        <div style={sectionHead}>
                           {t('settings.general.environment')}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -987,10 +1042,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                       {/* Language — app UI language (i18n) */}
                       <div>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
-                        }}>
+                        <div style={sectionHead}>
                           {t('settings.general.language')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -1017,10 +1069,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                       {/* Desktop notifications toggle */}
                       <div>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
-                        }}>
+                        <div style={sectionHead}>
                           {t('settings.general.notifications')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -1046,10 +1095,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                       {/* Scheduled auto-compact (compact-maintenance mission) */}
                       <div>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
-                        }}>
+                        <div style={sectionHead}>
                           {t('settings.general.maintenance')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -1122,10 +1168,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                   {activeSection === 'Agents & Models' && (
                     <>
                       <div>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
-                        }}>
+                        <div style={sectionHead}>
                           {t('settings.agentsModels.defaultModel')}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1146,7 +1189,6 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               >{m.label}</button>
                             ))}
                           </div>
-                          {defaultModelNote && <span style={{ fontSize: 12, color: 'var(--cth-mint)' }}>{defaultModelNote}</span>}
                         </div>
                       </div>
 
@@ -1158,10 +1200,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                       {/* Advanced */}
                       <div>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
-                        }}>
+                        <div style={sectionHead}>
                           {t('settings.agentsModels.advanced')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1169,7 +1208,6 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           <input
                             type="number" min="1" step="10" value={maxTurnsVal}
                             onChange={(e) => setMaxTurnsVal(e.target.value)}
-                            onBlur={() => void saveMaxTurns()}
                             placeholder={t('settings.agentsModels.unlimited')}
                             style={{ ...slackInputStyle, width: 120 }}
                           />
@@ -1183,10 +1221,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                   {activeSection === 'Autonomy & Budgets' && (
                     <>
                       <div>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
-                        }}>
+                        <div style={sectionHead}>
                           {t('settings.autonomy.autonomy')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -1228,10 +1263,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                       {/* Circuit breaker — the FULL unit (v0.3.4: all fields have UI) */}
                       <div>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
-                        }}>
+                        <div style={sectionHead}>
                           {t('settings.autonomy.breaker')}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1297,10 +1329,6 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                               {brkHardStop ? t('settings.autonomy.killOnTrip') : t('settings.autonomy.steerFirst')}
                             </PixelButton>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <PixelButton variant="secondary" size="sm" onClick={saveBudget}>{t('common.save')}</PixelButton>
-                            {budgetNote && <span style={{ fontSize: 12, color: 'var(--cth-mint)' }}>{budgetNote}</span>}
-                          </div>
                         </div>
                       </div>
                     </>
@@ -1310,10 +1338,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                   {activeSection === 'Memory & Knowledge' && (
                     <>
                       <div>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
-                        }}>
+                        <div style={sectionHead}>
                           {t('settings.memory.semanticMemory')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -1333,10 +1358,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                       {/* Knowledge Graph — enterprise multimodal context for agents */}
                       <div>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 10
-                        }}>
+                        <div style={sectionHead}>
                           {t('settings.memory.kg')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -1388,14 +1410,11 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           blocks below stay as-is. */}
                       <IntegrationsRegistry />
 
-                      <div style={{ height: 2, background: 'var(--cth-ink-300)' }} />
+                      <div style={sectionRule} />
 
                       {/* Slack integration */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
-                        }}>
+                        <div style={sectionHeadTight}>
                           {t('settings.connections.slack')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -1563,17 +1582,14 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         )}
                       </div>
 
-                      <div style={{ height: 2, background: 'var(--cth-ink-300)' }} />
+                      <div style={sectionRule} />
 
                       {/* Webhook triggers — a LIST of endpoints, one per caller.
                           Everything renders off the store mirror, so a change made
                           in the Triggers tab lands here without a refetch (and the
                           other way round). */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
-                        }}>
+                        <div style={sectionHeadTight}>
                           {t('settings.connections.webhooks')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -1764,15 +1780,12 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         )}
                       </div>
 
-                      <div style={{ height: 2, background: 'var(--cth-ink-300)' }} />
+                      <div style={sectionRule} />
 
                       {/* Organisation trigger — teammates messaging this clone node.
                           Persisted + mirrored; no transport reads the key yet. */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
-                        }}>
+                        <div style={sectionHeadTight}>
                           {t('settings.connections.organisation')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -1858,10 +1871,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                     <>
                       {/* Free Flow (voice dictation) */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
-                        }}>
+                        <div style={sectionHeadTight}>
                           {t('settings.voice.freeFlow')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -1931,14 +1941,11 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                         )}
                       </div>
 
-                      <div style={{ height: 2, background: 'var(--cth-ink-300)' }} />
+                      <div style={sectionRule} />
 
                       {/* Realtime Michael — voice device selection (rt-8) */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{
-                          fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                          color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: 2
-                        }}>
+                        <div style={sectionHeadTight}>
                           {t('settings.voice.realtime')}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -1963,10 +1970,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           background: 'var(--cth-paper-100)',
                           boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
                         }}>
-                          <span style={{
-                            fontFamily: 'var(--cth-font-display)', fontSize: 8, lineHeight: '12px',
-                            color: 'var(--cth-ink-500)', textTransform: 'uppercase'
-                          }}>
+                          <span style={sectionHeadFlush}>
                             {t('settings.voice.openaiKey')}
                           </span>
                           <span style={{ fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
@@ -2020,7 +2024,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                             onChange={(e) => {
                               const v = Number(e.target.value);
                               setIdleDisconnectMs(v);
-                              void window.cth.updateConfig({ realtimeIdleDisconnectMs: v });
+                              stage({ realtimeIdleDisconnectMs: v } as Partial<HarnessConfig>);
                             }}
                             style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
                           >
@@ -2068,7 +2072,16 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                 display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8,
                 background: 'var(--cth-cream-50)'
               }}>
-                <PixelButton variant="secondary" size="md" onClick={onClose}>{t('settings.close')}</PixelButton>
+                {saveNote && (
+                  <span style={{ fontSize: 12, color: 'var(--cth-mint)' }}>{saveNote}</span>
+                )}
+                {dirty && !saveNote && (
+                  <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{t('settings.unsavedChanges')}</span>
+                )}
+                <PixelButton variant="secondary" size="md" onClick={requestClose}>{t('settings.close')}</PixelButton>
+                <PixelButton variant="primary" size="md" onClick={() => void saveAll()} disabled={saveBusy}>
+                  {saveBusy ? t('settings.saving') : t('common.save')}
+                </PixelButton>
               </div>
             </>
           )}

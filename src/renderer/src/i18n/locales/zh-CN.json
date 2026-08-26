@@ -370,7 +370,11 @@
       "10m": "10 分钟",
       "never": "关闭（永不）",
       "idleDisconnectDesc": "语音会话在无人说话时保持多久后自动关闭。即使此项关闭，支出上限仍能阻止失控的会话。"
-    }
+    },
+    "saved": "已保存",
+    "saving": "保存中…",
+    "unsavedChanges": "有未保存的更改",
+    "unsavedWarning": "你有未保存的设置。仍要关闭并放弃这些更改吗？"
   },
   "commandCenter": {
     "title": "命令中心",

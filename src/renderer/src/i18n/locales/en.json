@@ -370,7 +370,11 @@
       "10m": "10 minutes",
       "never": "Off (never)",
       "idleDisconnectDesc": "How long the voice session stays open with no talking before it auto-closes. The spend cap still stops a runaway session even when this is off."
-    }
+    },
+    "saved": "Saved",
+    "saving": "Saving…",
+    "unsavedChanges": "unsaved changes",
+    "unsavedWarning": "You have unsaved settings. Close anyway and lose them?"
   },
   "commandCenter": {
     "title": "COMMAND CENTER",
