@@ -4,6 +4,7 @@ import { PixelBadge } from './PixelBadge';
 import { useStore } from '@/store/store';
 import { MarkdownPreview } from '@/markdown/MarkdownPreview';
 import { type HiveTask, type HumanQA, openQuestion, waitsOnHuman } from './TasksKanban';
+import { compareByNewestAsk } from './askMeOrder';
 
 /**
  * ASK ME — first-class human feedback through the task system.
@@ -65,7 +66,16 @@ export function AskMeTab() {
   const nameFor = (id?: string): string | undefined =>
     id ? (agents.find((a) => a.id === id)?.name ?? restorable.find((a) => a.id === id)?.name ?? id) : undefined;
 
-  const waiting = tasks.filter(waitsOnHuman);
+  // Newest ask at the top, oldest at the bottom. Before this the board had no
+  // comparator at all, so a question's position was an accident of where its
+  // card sat in tasks.json. `filter` already returns a fresh array, so sorting
+  // in place never touches the store's own ordering. The ask each card is
+  // ranked by comes from openQuestion() — the same predicate waitsOnHuman uses
+  // — and only this OUTER list is sorted; a card's humanQA history stays
+  // chronological (see askMeOrder.ts).
+  const waiting = tasks
+    .filter(waitsOnHuman)
+    .sort((a, b) => compareByNewestAsk(openQuestion(a), openQuestion(b)));
 
   /**
    * Apply `patch` to the OPEN humanQA entry of one card, on the RAW ledger.

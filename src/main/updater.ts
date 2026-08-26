@@ -5,7 +5,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { readConfig } from './config';
 import { DEFAULT_DROP_HTML } from '../shared/releaseDrop';
-import { reduceStatus, clampPercent, isNewer, installerUrl, type UpdateStatus } from '../shared/updateState';
+import { reduceStatus, clampPercent, isNewer, installerUrl, shouldShowReleaseDrop, type UpdateStatus } from '../shared/updateState';
 
 /**
  * Auto-update from GitHub releases.
@@ -459,12 +459,26 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
       let previous: string | null = null;
       try { previous = readFileSync(stampFile, 'utf8').trim() || null; } catch { /* first run */ }
       const current = app.getVersion();
+      // The stamp write stays UNCONDITIONAL on a version change (it already ran
+      // even when `previous` was null), which is what arms every install that
+      // boots this version even once. Its own try/catch so an unwritable
+      // userData cannot skip the decision below by throwing to the outer catch.
+      let stamped = false;
       if (previous !== current) {
-        mkdirSync(app.getPath('userData'), { recursive: true });
-        writeFileSync(stampFile, current + '\n', 'utf8');
+        try {
+          mkdirSync(app.getPath('userData'), { recursive: true });
+          writeFileSync(stampFile, current + '\n', 'utf8');
+          stamped = true;
+        } catch (e) {
+          logLine(`last-run-version stamp failed: ${errText(e)}`);
+        }
       }
-      if (previous && previous !== current && isNewer(current, previous)) {
-        logLine(`first run after update ${previous} -> ${current}; fetching its release page`);
+      // Gated on the stamp having LANDED, not merely been attempted: if the
+      // stamp cannot be written, `previous` stays null on every future launch,
+      // so firing here would reopen the drop on every single boot forever.
+      // Showing it zero times on an unwritable userData is the lesser failure.
+      if (stamped && shouldShowReleaseDrop(previous, current)) {
+        logLine(`first run of ${current} (previous ${previous ?? 'none'}); fetching its release page`);
         fetchReleaseBody(current, (notes) => {
           emit({ state: 'just-updated', version: current, notes });
           logLine(`just-updated ${current} ${notes ? 'with' : 'without'} release notes`);
