@@ -200,3 +200,30 @@ test('a data: @import and a plain https url() are left alone (only remote @impor
   assert.match(doc, /url\("https:\/\/cdn\.example\/hero\.png"\)/, 'a remote image url is not an @import');
 });
 
+// ─── The loader reveal (fix b), source-level on ReleaseDrop.tsx ───────────────
+// The reveal logic decides whether the user sees the drop or a stuck spinner, and
+// its failure modes (permanently hidden frame / permanently visible spinner) both
+// stay green in CI. So the wiring is pinned as text — the loader is a .tsx the
+// shared loader cannot import.
+
+test('the loader reveals on onLoad OR a timeout cap — never on onLoad alone', () => {
+  const src = readDrop();
+  // onLoad wires the reveal…
+  assert.match(src, /onLoad=\{reveal\}/, 'the iframe onLoad must reveal');
+  // …and a timeout races it, so a delayed/never-firing onLoad cannot hang the loader.
+  assert.match(src, /setTimeout\(reveal, REVEAL_TIMEOUT_MS\)/, 'a timeout cap must also reveal');
+  assert.match(src, /clearTimeout\(t\)/, 'the timer is cleared on unmount');
+  // The cap is a real, stated number, not left implicit.
+  assert.match(src, /REVEAL_TIMEOUT_MS = \d{3,5}/, 'the timeout is a named constant');
+});
+
+test('the frame is always mounted; only the loader is conditionally rendered', () => {
+  const src = readDrop();
+  // The iframe must not be behind a `revealed &&` — a broken reveal must never
+  // unmount the frame. It is the LOADER that is conditional and removed on reveal.
+  assert.doesNotMatch(src, /revealed\s*&&\s*<iframe/, 'the iframe must not be gated on reveal');
+  assert.doesNotMatch(src, /revealed\s*\?\s*<iframe/, 'the iframe must not be gated on reveal');
+  assert.match(src, /\{!revealed && <DropLoader \/>\}/, 'the loader is shown only until revealed');
+  // Reveal is monotonic: latched true, never set back to false.
+  assert.doesNotMatch(src, /setReveal\(false\)/, 'reveal must never flip back');
+});
