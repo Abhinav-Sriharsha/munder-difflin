@@ -15,9 +15,9 @@ Arabic, the auto-updater downloads and installs a new build end to end, fonts sh
 a blocked network never leaves you on a blank window, and the way agent engines are launched is
 hardened. Plus the Settings rework, an IME fix for CJK typing, and four merged pull requests.
 
-- **The interface speaks Chinese and Arabic.** Pick zh-CN or Arabic in Settings. Arabic mirrors the
-  whole layout right-to-left, terminals included, and anything not yet translated falls back to
-  English rather than showing a blank.
+- **The interface speaks Chinese and Arabic.** Pick zh-CN or Arabic in Settings — every string is
+  translated, with nothing falling back to English, and the terminals read right to left. Some
+  screens still need their padding and icons mirrored, and that is the next piece of work.
 - **Updates install themselves.** The badge advances check to available to downloading to downloaded
   on its own, and the button at the end restarts into the new version. This is the release that
   proves that path end to end.
@@ -59,8 +59,9 @@ reviewed one, or filed the bug that led to one. The full list is in CHANGELOG.md
   <ul class="features">
     <li>
       <h2>Chinese and Arabic</h2>
-      <p>Pick a language in Settings. Arabic mirrors the whole layout right to left, terminals
-      included, and anything not yet translated falls back to English rather than showing a blank.</p>
+      <p>Pick a language in Settings. Every string is translated and the terminals read right to
+      left. Some screens still need their padding and icons mirrored, and that is the next piece of
+      work.</p>
     </li>
     <li>
       <h2>Updates install themselves</h2>
