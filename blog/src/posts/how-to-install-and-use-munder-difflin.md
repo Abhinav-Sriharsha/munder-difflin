@@ -243,14 +243,14 @@ Same idea: install, then run the command once on its own to sign in.
 
 | Engine | Install it with | Then run | Official docs |
 |---|---|---|---|
-| Gemini CLI | `npm install -g @google/gemini-cli` | `gemini` | [github.com/google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli) |
-| Grok | `npm install -g @xai-official/grok` | `grok` | [docs.x.ai/build/overview](https://docs.x.ai/build/overview) |
-| Kimi Code | `npm install -g @moonshot-ai/kimi-code` | `kimi` | [kimi.com/code/docs](https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html) |
-| Qwen | `npm install -g @qwen-code/qwen-code@latest` | `qwen` | [github.com/QwenLM/qwen-code](https://github.com/QwenLM/qwen-code) |
-| Crush | `npm install -g @charmland/crush` | `crush` | [github.com/charmbracelet/crush](https://github.com/charmbracelet/crush) |
+| Gemini CLI | `npm install -g @google/gemini-cli` | `gemini` | [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli) |
+| Grok | `npm install -g @xai-official/grok` | `grok` | [docs.x.ai](https://docs.x.ai/build/overview) |
+| Kimi Code | `npm install -g @moonshot-ai/kimi-code` | `kimi` | [kimi.com/code](https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html) |
+| Qwen | `npm install -g @qwen-code/qwen-code@latest` | `qwen` | [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code) |
+| Crush | `npm install -g @charmland/crush` | `crush` | [charmbracelet/crush](https://github.com/charmbracelet/crush) |
 | Copilot | `npm install -g @github/copilot` | `copilot` | [docs.github.com](https://docs.github.com/copilot/concepts/agents/about-copilot-cli) |
-| Cursor | `curl https://cursor.com/install -fsS \| bash` | `cursor-agent` | [cursor.com/docs/cli](https://cursor.com/docs/cli/overview) |
-| pi | `npm install -g --ignore-scripts @earendil-works/pi-coding-agent` | `pi` | [pi.dev/docs/latest](https://pi.dev/docs/latest) |
+| Cursor | `curl https://cursor.com/install -fsS \| bash` | `cursor-agent` | [cursor.com/docs](https://cursor.com/docs/cli/overview) |
+| pi | `npm install -g --ignore-scripts @earendil-works/pi-coding-agent` | `pi` | [pi.dev/docs](https://pi.dev/docs/latest) |
 
 On Windows, the Cursor line is `irm 'https://cursor.com/install?win32=true' | iex` in PowerShell.
 
