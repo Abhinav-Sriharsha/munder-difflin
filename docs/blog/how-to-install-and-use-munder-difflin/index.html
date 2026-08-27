@@ -160,7 +160,7 @@
       <span class="dot" aria-hidden="true">·</span>
       <time datetime="2026-06-05">Jun 5, 2026</time>
       <span class="dot" aria-hidden="true">·</span>
-      <span>13 min read</span>
+      <span>14 min read</span>
       <span class="tag kind">Guides</span>
     </div>
   </header>
@@ -214,7 +214,7 @@ happens off-screen.</li>
 new empty folder and use that. Watch what the agents do for an hour before you point one at
 anything you care about.</p></div>
 <h2 id="step-1-which-ai-engine-will-you-use" tabindex="-1">Step 1: Which AI engine will you use? <a class="anchor" href="#step-1-which-ai-engine-will-you-use" aria-hidden="true">#</a></h2>
-<p>Munder Difflin does not include an AI. It drives one you install. Eleven engines are supported, but
+<p>Munder Difflin does not include an AI. It drives one you install. Twelve engines are supported, but
 you only need one, and the right one is usually decided by what you already pay for.</p>
 <p>Find yourself below.</p>
 <h3 id="you-do-not-want-to-pay-anything" tabindex="-1">You do not want to pay anything <a class="anchor" href="#you-do-not-want-to-pay-anything" aria-hidden="true">#</a></h3>
@@ -236,7 +236,7 @@ everyone anyway. Check Jio's page for current terms, offers change.</p></div>
 <p><strong>Use Codex.</strong> Your ChatGPT Plus or Pro subscription covers it. Nothing more to buy.</p>
 <h3 id="you-already-pay-for-claude" tabindex="-1">You already pay for Claude <a class="anchor" href="#you-already-pay-for-claude" aria-hidden="true">#</a></h3>
 <p><strong>Use Claude Code.</strong> Your Claude Pro or Max subscription covers it. This is the engine the app was
-built against first, and it is the most thoroughly tested of the eleven.</p>
+built against first, and it is the most thoroughly tested of the twelve.</p>
 <h3 id="the-other-engines" tabindex="-1">The other engines <a class="anchor" href="#the-other-engines" aria-hidden="true">#</a></h3>
 <p>Any of these work. Pick one only if you already use it.</p>
 <table>
@@ -296,34 +296,122 @@ built against first, and it is the most thoroughly tested of the eleven.</p>
 <p>The terminal is a plain text window for typing commands. On macOS press <code>Cmd+Space</code>, type
 <code>Terminal</code>, press Enter. On Windows press the Start button, type <code>PowerShell</code>, press Enter. On Linux
 you already know.</p>
-<p>Copy the block for the engine you chose, paste it, press Enter.</p>
+<p>Find your engine below, copy the block, paste it, press Enter. Wait for it to finish before typing
+the next line.</p>
 <figure class="fig fig-inline"><img src="/blog/assets/media/how-to-install-and-use-munder-difflin/shot-terminal.png" alt="A macOS Terminal window showing claude --version and codex --version both returning version numbers" loading="lazy" decoding="async" /><figcaption>Checking that the engines installed. This is the only time you need this window.</figcaption></figure>
-<h3 id="antigravity-free" tabindex="-1">Antigravity (free) <a class="anchor" href="#antigravity-free" aria-hidden="true">#</a></h3>
-<p>Download it from <a href="https://antigravity.google/">antigravity.google</a> and install it like any normal
-app. It includes the <code>agy</code> command line tool. Then sign in:</p>
+<h3 id="first-do-you-have-nodejs" tabindex="-1">First: do you have Node.js? <a class="anchor" href="#first-do-you-have-nodejs" aria-hidden="true">#</a></h3>
+<p>Most of these engines install through <code>npm</code>, which comes with Node.js. Check with:</p>
+<pre class="language-bash"><code class="language-bash"><span class="token function">node</span> <span class="token parameter variable">--version</span></code></pre>
+<p>If that prints a version number, you are ready. If it says “command not found”, get the <strong>LTS</strong>
+build from <a href="https://nodejs.org/en/download">nodejs.org/en/download</a>, install it, then close the
+terminal window and open a fresh one.</p>
+<p>Antigravity, Claude Code and Cursor can be installed without Node.js. Everything else needs it.</p>
+<h3 id="antigravity-free-no-subscription" tabindex="-1">Antigravity (free, no subscription) <a class="anchor" href="#antigravity-free-no-subscription" aria-hidden="true">#</a></h3>
+<p>Google’s coding agent. The command is <code>agy</code>. Homepage:
+<a href="https://antigravity.google/">antigravity.google</a> · Install docs:
+<a href="https://antigravity.google/docs/cli/install/">antigravity.google/docs/cli/install</a></p>
+<p>macOS and Linux:</p>
+<pre class="language-bash"><code class="language-bash"><span class="token function">curl</span> <span class="token parameter variable">-fsSL</span> https://antigravity.google/cli/install.sh <span class="token operator">|</span> <span class="token function">bash</span></code></pre>
+<p>Windows PowerShell:</p>
+<pre class="language-powershell"><code class="language-powershell"><span class="token function">irm</span> https:<span class="token operator">/</span><span class="token operator">/</span>antigravity<span class="token punctuation">.</span>google/<span class="token function">cli</span><span class="token operator">/</span>install<span class="token punctuation">.</span>ps1 <span class="token punctuation">|</span> <span class="token function">iex</span></code></pre>
+<p>Then sign in:</p>
 <pre class="language-bash"><code class="language-bash">agy</code></pre>
-<p>Follow the prompt to sign in with your Google account.</p>
-<h3 id="opencode-free" tabindex="-1">OpenCode (free) <a class="anchor" href="#opencode-free" aria-hidden="true">#</a></h3>
+<p>Your browser opens. Sign in with a Google account.</p>
+<h3 id="opencode-free-bring-your-own-model" tabindex="-1">OpenCode (free, bring your own model) <a class="anchor" href="#opencode-free-bring-your-own-model" aria-hidden="true">#</a></h3>
+<p>Open source, works with free and local models. Docs:
+<a href="https://opencode.ai/docs">opencode.ai/docs</a></p>
 <pre class="language-bash"><code class="language-bash"><span class="token function">npm</span> <span class="token function">install</span> <span class="token parameter variable">-g</span> opencode-ai@latest
 opencode auth login</code></pre>
 <h3 id="codex-with-a-chatgpt-subscription" tabindex="-1">Codex (with a ChatGPT subscription) <a class="anchor" href="#codex-with-a-chatgpt-subscription" aria-hidden="true">#</a></h3>
+<p>Covered by ChatGPT Plus or Pro. Docs:
+<a href="https://github.com/openai/codex">github.com/openai/codex</a></p>
 <pre class="language-bash"><code class="language-bash"><span class="token function">npm</span> <span class="token function">install</span> <span class="token parameter variable">-g</span> @openai/codex
 codex</code></pre>
-<p>On first run it will open a browser to sign you into your ChatGPT account.</p>
+<p>On first run it opens a browser to sign you into your ChatGPT account.</p>
 <h3 id="claude-code-with-a-claude-subscription" tabindex="-1">Claude Code (with a Claude subscription) <a class="anchor" href="#claude-code-with-a-claude-subscription" aria-hidden="true">#</a></h3>
+<p>Covered by Claude Pro or Max. Docs:
+<a href="https://docs.claude.com/en/docs/claude-code">docs.claude.com/en/docs/claude-code</a></p>
 <pre class="language-bash"><code class="language-bash"><span class="token function">npm</span> <span class="token function">install</span> <span class="token parameter variable">-g</span> @anthropic-ai/claude-code
 claude</code></pre>
-<p>Or, if you would rather not install Node:</p>
+<p>If you would rather not install Node.js, use the standalone installer instead.</p>
+<p>macOS and Linux:</p>
 <pre class="language-bash"><code class="language-bash"><span class="token function">curl</span> <span class="token parameter variable">-fsSL</span> https://claude.ai/install.sh <span class="token operator">|</span> <span class="token function">bash</span></code></pre>
-<p>On Windows, that second option is:</p>
+<p>Windows PowerShell:</p>
 <pre class="language-powershell"><code class="language-powershell"><span class="token function">irm</span> https:<span class="token operator">/</span><span class="token operator">/</span>claude<span class="token punctuation">.</span>ai/install<span class="token punctuation">.</span>ps1 <span class="token punctuation">|</span> <span class="token function">iex</span></code></pre>
 <p>Then run <code>claude</code> and sign in when the browser opens.</p>
-<div class="callout warn"><span class="ic">Two things that trip people up</span><p><strong>"npm:
-command not found"</strong> means you do not have Node.js. Install it from
-<a href="https://nodejs.org">nodejs.org</a>, take the LTS version, then try again. <strong>You must
+<h3 id="the-other-engines-1" tabindex="-1">The other engines <a class="anchor" href="#the-other-engines-1" aria-hidden="true">#</a></h3>
+<p>Same idea: install, then run the command once on its own to sign in.</p>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>Install it with</th>
+<th>Then run</th>
+<th>Official docs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gemini CLI</td>
+<td><code>npm install -g @google/gemini-cli</code></td>
+<td><code>gemini</code></td>
+<td><a href="https://github.com/google-gemini/gemini-cli">github.com/google-gemini/gemini-cli</a></td>
+</tr>
+<tr>
+<td>Grok</td>
+<td><code>npm install -g @xai-official/grok</code></td>
+<td><code>grok</code></td>
+<td><a href="https://docs.x.ai/build/overview">docs.x.ai/build/overview</a></td>
+</tr>
+<tr>
+<td>Kimi Code</td>
+<td><code>npm install -g @moonshot-ai/kimi-code</code></td>
+<td><code>kimi</code></td>
+<td><a href="https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html">kimi.com/code/docs</a></td>
+</tr>
+<tr>
+<td>Qwen</td>
+<td><code>npm install -g @qwen-code/qwen-code@latest</code></td>
+<td><code>qwen</code></td>
+<td><a href="https://github.com/QwenLM/qwen-code">github.com/QwenLM/qwen-code</a></td>
+</tr>
+<tr>
+<td>Crush</td>
+<td><code>npm install -g @charmland/crush</code></td>
+<td><code>crush</code></td>
+<td><a href="https://github.com/charmbracelet/crush">github.com/charmbracelet/crush</a></td>
+</tr>
+<tr>
+<td>Copilot</td>
+<td><code>npm install -g @github/copilot</code></td>
+<td><code>copilot</code></td>
+<td><a href="https://docs.github.com/copilot/concepts/agents/about-copilot-cli">docs.github.com</a></td>
+</tr>
+<tr>
+<td>Cursor</td>
+<td><code>curl https://cursor.com/install -fsS | bash</code></td>
+<td><code>cursor-agent</code></td>
+<td><a href="https://cursor.com/docs/cli/overview">cursor.com/docs/cli</a></td>
+</tr>
+<tr>
+<td>pi</td>
+<td><code>npm install -g --ignore-scripts @earendil-works/pi-coding-agent</code></td>
+<td><code>pi</code></td>
+<td><a href="https://pi.dev/docs/latest">pi.dev/docs/latest</a></td>
+</tr>
+</tbody>
+</table>
+<p>On Windows, the Cursor line is <code>irm 'https://cursor.com/install?win32=true' | iex</code> in PowerShell.</p>
+<h3 id="check-it-actually-installed" tabindex="-1">Check it actually installed <a class="anchor" href="#check-it-actually-installed" aria-hidden="true">#</a></h3>
+<p>Run this, swapping <code>claude</code> for whichever command you installed:</p>
+<pre class="language-bash"><code class="language-bash">claude <span class="token parameter variable">--version</span></code></pre>
+<p>A version number means you are done with the terminal. “Command not found” means the install did
+not finish, or the terminal is still running from before the install: close the window, open a new
+one, and try again.</p>
+<div class="callout warn"><span class="ic">The one thing people skip</span><p><strong>You must
 actually sign in.</strong> Installing the tool is not the same as logging into it. Run the command
 once on its own and complete the sign-in before moving on, or Munder Difflin will find the engine
-but every agent will fail the moment it starts.</p></div>
+and every agent will still fail the moment it starts.</p></div>
 <h2 id="step-3-install-munder-difflin" tabindex="-1">Step 3: Install Munder Difflin <a class="anchor" href="#step-3-install-munder-difflin" aria-hidden="true">#</a></h2>
 <p>Go to <a href="https://munderdiffl.in">munderdiffl.in</a> and download the build for your system, or take it
 straight from the
@@ -513,7 +601,7 @@ stuck, the <a href="https://munderdiffl.in">Discord</a> is the fastest place to 
     <aside class="toc-rail" aria-label="Table of contents">
       <div class="tt">On this page</div>
       <ol>
-        <li class="lvl-2"><a href="#first-what-is-munder-difflin">First, what is Munder Difflin?</a></li><li class="lvl-2"><a href="#what-is-a-coding-agent-and-how-can-it-touch-my-computer">What is a coding agent, and how can it touch my computer?</a></li><li class="lvl-2"><a href="#step-1-which-ai-engine-will-you-use">Step 1: Which AI engine will you use?</a></li><li class="lvl-3"><a href="#you-do-not-want-to-pay-anything">You do not want to pay anything</a></li><li class="lvl-3"><a href="#you-already-pay-for-chatgpt">You already pay for ChatGPT</a></li><li class="lvl-3"><a href="#you-already-pay-for-claude">You already pay for Claude</a></li><li class="lvl-3"><a href="#the-other-engines">The other engines</a></li><li class="lvl-2"><a href="#step-2-install-your-engine-and-log-in">Step 2: Install your engine, and log in</a></li><li class="lvl-3"><a href="#antigravity-free">Antigravity (free)</a></li><li class="lvl-3"><a href="#opencode-free">OpenCode (free)</a></li><li class="lvl-3"><a href="#codex-with-a-chatgpt-subscription">Codex (with a ChatGPT subscription)</a></li><li class="lvl-3"><a href="#claude-code-with-a-claude-subscription">Claude Code (with a Claude subscription)</a></li><li class="lvl-2"><a href="#step-3-install-munder-difflin">Step 3: Install Munder Difflin</a></li><li class="lvl-2"><a href="#step-4-onboarding-six-screens">Step 4: Onboarding, six screens</a></li><li class="lvl-3"><a href="#screen-1-who-are-you">Screen 1: Who are you?</a></li><li class="lvl-3"><a href="#screen-2-meet-your-office">Screen 2: Meet your office</a></li><li class="lvl-3"><a href="#step-1-of-4-a-home-for-the-app">Step 1 of 4: A home for the app</a></li><li class="lvl-3"><a href="#step-2-of-4-your-clone">Step 2 of 4: Your clone</a></li><li class="lvl-3"><a href="#step-3-of-4-your-projects">Step 3 of 4: Your projects</a></li><li class="lvl-3"><a href="#step-4-of-4-permissions">Step 4 of 4: Permissions</a></li><li class="lvl-2"><a href="#step-5-your-first-job">Step 5: Your first job</a></li><li class="lvl-3"><a href="#things-people-actually-use-this-for">Things people actually use this for</a></li><li class="lvl-2"><a href="#step-6-add-agents-yourself">Step 6: Add agents yourself</a></li><li class="lvl-2"><a href="#step-7-work-that-starts-without-you">Step 7: Work that starts without you</a></li><li class="lvl-2"><a href="#step-8-context-and-auto-compaction-briefly">Step 8: Context and auto-compaction, briefly</a></li><li class="lvl-2"><a href="#step-9-settings-worth-knowing">Step 9: Settings worth knowing</a></li><li class="lvl-2"><a href="#step-10-focus-mode">Step 10: Focus mode</a></li><li class="lvl-2"><a href="#when-something-goes-wrong">When something goes wrong</a></li><li class="lvl-2"><a href="#the-short-version">The short version</a></li>
+        <li class="lvl-2"><a href="#first-what-is-munder-difflin">First, what is Munder Difflin?</a></li><li class="lvl-2"><a href="#what-is-a-coding-agent-and-how-can-it-touch-my-computer">What is a coding agent, and how can it touch my computer?</a></li><li class="lvl-2"><a href="#step-1-which-ai-engine-will-you-use">Step 1: Which AI engine will you use?</a></li><li class="lvl-3"><a href="#you-do-not-want-to-pay-anything">You do not want to pay anything</a></li><li class="lvl-3"><a href="#you-already-pay-for-chatgpt">You already pay for ChatGPT</a></li><li class="lvl-3"><a href="#you-already-pay-for-claude">You already pay for Claude</a></li><li class="lvl-3"><a href="#the-other-engines">The other engines</a></li><li class="lvl-2"><a href="#step-2-install-your-engine-and-log-in">Step 2: Install your engine, and log in</a></li><li class="lvl-3"><a href="#first-do-you-have-nodejs">First: do you have Node.js?</a></li><li class="lvl-3"><a href="#antigravity-free-no-subscription">Antigravity (free, no subscription)</a></li><li class="lvl-3"><a href="#opencode-free-bring-your-own-model">OpenCode (free, bring your own model)</a></li><li class="lvl-3"><a href="#codex-with-a-chatgpt-subscription">Codex (with a ChatGPT subscription)</a></li><li class="lvl-3"><a href="#claude-code-with-a-claude-subscription">Claude Code (with a Claude subscription)</a></li><li class="lvl-3"><a href="#the-other-engines-1">The other engines</a></li><li class="lvl-3"><a href="#check-it-actually-installed">Check it actually installed</a></li><li class="lvl-2"><a href="#step-3-install-munder-difflin">Step 3: Install Munder Difflin</a></li><li class="lvl-2"><a href="#step-4-onboarding-six-screens">Step 4: Onboarding, six screens</a></li><li class="lvl-3"><a href="#screen-1-who-are-you">Screen 1: Who are you?</a></li><li class="lvl-3"><a href="#screen-2-meet-your-office">Screen 2: Meet your office</a></li><li class="lvl-3"><a href="#step-1-of-4-a-home-for-the-app">Step 1 of 4: A home for the app</a></li><li class="lvl-3"><a href="#step-2-of-4-your-clone">Step 2 of 4: Your clone</a></li><li class="lvl-3"><a href="#step-3-of-4-your-projects">Step 3 of 4: Your projects</a></li><li class="lvl-3"><a href="#step-4-of-4-permissions">Step 4 of 4: Permissions</a></li><li class="lvl-2"><a href="#step-5-your-first-job">Step 5: Your first job</a></li><li class="lvl-3"><a href="#things-people-actually-use-this-for">Things people actually use this for</a></li><li class="lvl-2"><a href="#step-6-add-agents-yourself">Step 6: Add agents yourself</a></li><li class="lvl-2"><a href="#step-7-work-that-starts-without-you">Step 7: Work that starts without you</a></li><li class="lvl-2"><a href="#step-8-context-and-auto-compaction-briefly">Step 8: Context and auto-compaction, briefly</a></li><li class="lvl-2"><a href="#step-9-settings-worth-knowing">Step 9: Settings worth knowing</a></li><li class="lvl-2"><a href="#step-10-focus-mode">Step 10: Focus mode</a></li><li class="lvl-2"><a href="#when-something-goes-wrong">When something goes wrong</a></li><li class="lvl-2"><a href="#the-short-version">The short version</a></li>
       </ol>
     </aside>
     

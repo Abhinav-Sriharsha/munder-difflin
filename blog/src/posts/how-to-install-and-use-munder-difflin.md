@@ -86,7 +86,7 @@ anything you care about.</p></div>
 
 ## Step 1: Which AI engine will you use?
 
-Munder Difflin does not include an AI. It drives one you install. Eleven engines are supported, but
+Munder Difflin does not include an AI. It drives one you install. Twelve engines are supported, but
 you only need one, and the right one is usually decided by what you already pay for.
 
 Find yourself below.
@@ -117,7 +117,7 @@ everyone anyway. Check Jio's page for current terms, offers change.</p></div>
 ### You already pay for Claude
 
 **Use Claude Code.** Your Claude Pro or Max subscription covers it. This is the engine the app was
-built against first, and it is the most thoroughly tested of the eleven.
+built against first, and it is the most thoroughly tested of the twelve.
 
 ### The other engines
 
@@ -144,22 +144,55 @@ The terminal is a plain text window for typing commands. On macOS press `Cmd+Spa
 `Terminal`, press Enter. On Windows press the Start button, type `PowerShell`, press Enter. On Linux
 you already know.
 
-Copy the block for the engine you chose, paste it, press Enter.
+Find your engine below, copy the block, paste it, press Enter. Wait for it to finish before typing
+the next line.
 
 {% img "shot-terminal", "Checking that the engines installed. This is the only time you need this window." %}
 
-### Antigravity (free)
+### First: do you have Node.js?
 
-Download it from [antigravity.google](https://antigravity.google/) and install it like any normal
-app. It includes the `agy` command line tool. Then sign in:
+Most of these engines install through `npm`, which comes with Node.js. Check with:
+
+```bash
+node --version
+```
+
+If that prints a version number, you are ready. If it says "command not found", get the **LTS**
+build from [nodejs.org/en/download](https://nodejs.org/en/download), install it, then close the
+terminal window and open a fresh one.
+
+Antigravity, Claude Code and Cursor can be installed without Node.js. Everything else needs it.
+
+### Antigravity (free, no subscription)
+
+Google's coding agent. The command is `agy`. Homepage:
+[antigravity.google](https://antigravity.google/) · Install docs:
+[antigravity.google/docs/cli/install](https://antigravity.google/docs/cli/install/)
+
+macOS and Linux:
+
+```bash
+curl -fsSL https://antigravity.google/cli/install.sh | bash
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://antigravity.google/cli/install.ps1 | iex
+```
+
+Then sign in:
 
 ```bash
 agy
 ```
 
-Follow the prompt to sign in with your Google account.
+Your browser opens. Sign in with a Google account.
 
-### OpenCode (free)
+### OpenCode (free, bring your own model)
+
+Open source, works with free and local models. Docs:
+[opencode.ai/docs](https://opencode.ai/docs)
 
 ```bash
 npm install -g opencode-ai@latest
@@ -168,27 +201,35 @@ opencode auth login
 
 ### Codex (with a ChatGPT subscription)
 
+Covered by ChatGPT Plus or Pro. Docs:
+[github.com/openai/codex](https://github.com/openai/codex)
+
 ```bash
 npm install -g @openai/codex
 codex
 ```
 
-On first run it will open a browser to sign you into your ChatGPT account.
+On first run it opens a browser to sign you into your ChatGPT account.
 
 ### Claude Code (with a Claude subscription)
+
+Covered by Claude Pro or Max. Docs:
+[docs.claude.com/en/docs/claude-code](https://docs.claude.com/en/docs/claude-code)
 
 ```bash
 npm install -g @anthropic-ai/claude-code
 claude
 ```
 
-Or, if you would rather not install Node:
+If you would rather not install Node.js, use the standalone installer instead.
+
+macOS and Linux:
 
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
 ```
 
-On Windows, that second option is:
+Windows PowerShell:
 
 ```powershell
 irm https://claude.ai/install.ps1 | iex
@@ -196,12 +237,39 @@ irm https://claude.ai/install.ps1 | iex
 
 Then run `claude` and sign in when the browser opens.
 
-<div class="callout warn"><span class="ic">Two things that trip people up</span><p><strong>"npm:
-command not found"</strong> means you do not have Node.js. Install it from
-<a href="https://nodejs.org">nodejs.org</a>, take the LTS version, then try again. <strong>You must
+### The other engines
+
+Same idea: install, then run the command once on its own to sign in.
+
+| Engine | Install it with | Then run | Official docs |
+|---|---|---|---|
+| Gemini CLI | `npm install -g @google/gemini-cli` | `gemini` | [github.com/google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli) |
+| Grok | `npm install -g @xai-official/grok` | `grok` | [docs.x.ai/build/overview](https://docs.x.ai/build/overview) |
+| Kimi Code | `npm install -g @moonshot-ai/kimi-code` | `kimi` | [kimi.com/code/docs](https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html) |
+| Qwen | `npm install -g @qwen-code/qwen-code@latest` | `qwen` | [github.com/QwenLM/qwen-code](https://github.com/QwenLM/qwen-code) |
+| Crush | `npm install -g @charmland/crush` | `crush` | [github.com/charmbracelet/crush](https://github.com/charmbracelet/crush) |
+| Copilot | `npm install -g @github/copilot` | `copilot` | [docs.github.com](https://docs.github.com/copilot/concepts/agents/about-copilot-cli) |
+| Cursor | `curl https://cursor.com/install -fsS \| bash` | `cursor-agent` | [cursor.com/docs/cli](https://cursor.com/docs/cli/overview) |
+| pi | `npm install -g --ignore-scripts @earendil-works/pi-coding-agent` | `pi` | [pi.dev/docs/latest](https://pi.dev/docs/latest) |
+
+On Windows, the Cursor line is `irm 'https://cursor.com/install?win32=true' | iex` in PowerShell.
+
+### Check it actually installed
+
+Run this, swapping `claude` for whichever command you installed:
+
+```bash
+claude --version
+```
+
+A version number means you are done with the terminal. "Command not found" means the install did
+not finish, or the terminal is still running from before the install: close the window, open a new
+one, and try again.
+
+<div class="callout warn"><span class="ic">The one thing people skip</span><p><strong>You must
 actually sign in.</strong> Installing the tool is not the same as logging into it. Run the command
 once on its own and complete the sign-in before moving on, or Munder Difflin will find the engine
-but every agent will fail the moment it starts.</p></div>
+and every agent will still fail the moment it starts.</p></div>
 
 ## Step 3: Install Munder Difflin
 
