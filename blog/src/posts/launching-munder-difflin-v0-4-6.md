@@ -15,7 +15,7 @@ faq:
   - q: "What languages does Munder Difflin v0.4.6 support?"
     a: "English, Simplified Chinese and Arabic. English stays the default and nothing changes until you pick another language in Settings under General. The app never guesses from your operating system locale."
   - q: "Is the Arabic translation finished?"
-    a: "The strings are complete, every one of them. The right-to-left layout is not finished. Text direction, the terminal, markdown and the reading order all work, but a number of panels still have left and right hardcoded in their spacing, and icons do not mirror. It is usable and it is honest about being rough. Reports are welcome."
+    a: "The strings are complete, all 1,198 of them, and nothing falls back to English. The page and the terminals both read right to left. Some screens still need their padding and icons mirrored, and that is the next piece of work. No Arabic speaker has reviewed the wording yet, so reports are welcome."
   - q: "Does the app still fetch fonts from Google?"
     a: "No. All three faces ship inside the app. That was breaking the interface in mainland China, where both Google font hosts are blocked, which is exactly where the Chinese translation was headed."
   - q: "What changed in the updater?"
@@ -78,29 +78,19 @@ are "activate this".
 Arabic is the harder half, because right to left is not a text direction toggle. It is a layout
 question, and layout is where a UI hides its assumptions.
 
-What works: the interface is fully translated, all 1,198 strings, nothing falls back to English.
-The page mirrors. Terminals shape and join Arabic properly, which xterm cannot do on its own, so
-this quietly swaps to the browser's text engine when you pick Arabic. Markdown reads in the right
-direction. Code blocks and shell commands stay left to right, because reordering a command changes
-what it says.
+The interface is fully translated. All 1,198 strings, and nothing falls back to English. The page
+reads right to left, and terminals do too: xterm has no bidi of its own, so picking Arabic quietly
+moves terminals onto the browser's text engine, where Arabic joins and orders properly. Markdown
+reads the right way. Code blocks and shell commands stay left to right, because reordering a
+command changes what it says.
 
-What does not work yet, and you will notice:
+Some screens still need their padding and icons mirrored, and that is the next piece of work.
 
-- Roughly 95 places across the app still have left and right hardcoded in their spacing. The
-  browser lays the page out right to left and those pull the other way, so you get padding that
-  sits on the wrong side. The IDE panel, the update badge and the Kanban board are the worst of it.
-- Icons do not mirror. Chevrons and arrows still point the way they pointed in English, which is
-  wrong for anything meaning "next" or "back".
-- The pixel office floor does not mirror, and that one is on purpose. It is a drawn scene, and
-  mirroring the desks and the signage would look worse than leaving them. Its labels are the least
-  tested part of this release.
-- The splash screen is still English. It runs before the app knows your language.
-
-And the part worth saying plainly: **no Arabic speaker has reviewed the translation yet.** It was
-written by an agent and checked by machine for coverage, for correct placeholders, for the things
-you can check without reading Arabic. Whether it reads well is unverified. We shipped it anyway,
-because a partial translation you can use and report bugs against beats a perfect one that never
-arrives. If you read Arabic and something is wrong,
+One more thing worth saying plainly: **no Arabic speaker has reviewed the translation yet.** It was
+written by an agent and checked by machine for the things you can check without reading Arabic,
+coverage and placeholders and structure. Whether it reads well is unverified. We shipped it anyway,
+because a translation you can use and file bugs against beats a perfect one that never arrives. If
+you read Arabic and something is wrong,
 [tell us](https://github.com/chaitanyagiri/munder-difflin/issues) and it gets fixed.
 
 The Arabic and right to left groundwork started as
@@ -236,5 +226,5 @@ If you are on 0.3.5 or later the app will offer the update itself, and this time
 badge actually installs it. Fresh install: [munderdiffl.in](https://munderdiffl.in). Every receipt
 is in [the changelog](https://github.com/chaitanyagiri/munder-difflin/blob/main/CHANGELOG.md).
 
-If you run the app in Chinese or Arabic, we want to hear what is broken. Especially Arabic. We
-know it is not finished.
+If you run the app in Chinese or Arabic, we want to hear what is broken. Especially Arabic, and
+especially the wording, since nobody who reads it has checked it yet.

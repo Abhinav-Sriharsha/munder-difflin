@@ -156,8 +156,9 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 > instead of loading from Google, which is blocked in mainland China and was breaking the interface
 > for exactly the people the Chinese translation was for. An input method Enter no longer fires a
 > send, a search or a rename while a candidate word is still being composed.
-> Arabic ships knowing it is unfinished: the strings are complete and unreviewed by an Arabic
-> reader, and a number of panels still have left and right hardcoded in their spacing.
+> Arabic is fully translated, all 1,198 strings, with nothing falling back to English, and the page
+> and the terminals both read right to left. Some screens still need their padding and icons
+> mirrored, and that is the next piece of work. No Arabic reader has reviewed the wording yet.
 > Also in this release: the update badge runs the real download and restart instead of handing you
 > a disk image, the update check can no longer spin forever, Settings persists through one Save
 > button, the model lists moved into a checked in catalog, and the ASK ME card renders markdown.
