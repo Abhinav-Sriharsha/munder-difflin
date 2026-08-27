@@ -6,6 +6,17 @@ build after it lands, not by the build itself. This checklist is how a release
 runner confirms it, because the paths that matter most are the ones a clean,
 successful release never touches.
 
+## Before the tag: mechanical gates (run these first)
+
+- [ ] **`npm run check:links` passes.** Every download link in `RELEASE.md` and every advertised
+  version in `docs/index.html` / `docs/llms.txt` must match `package.json`. electron-builder bakes
+  the version into each artifact name, so a version left behind here turns the release page's
+  download buttons into 404s the moment the tag ships. This is also enforced in CI on `release/**`,
+  but run it locally before you tag. After publishing, `npm run check:links -- --live` HEADs every
+  URL and requires 200.
+- [ ] **`package.json` version is the real release version** (not an `-rc` string), and `RELEASE.md`,
+  `build/release-notes.md` and `CHANGELOG.md` all name that same version.
+
 ## The proving hop (rehearse on prereleases, before the real release)
 
 `0.4.6` is delivered by `0.4.5`'s updater, so `0.4.6` arriving proves the OLD
