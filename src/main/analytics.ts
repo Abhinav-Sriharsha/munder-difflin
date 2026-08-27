@@ -58,7 +58,7 @@ const EVENTS: Record<string, ReadonlySet<string>> = {
   update_applied: new Set<string>(['from_version', 'to_version', 'via']),
   /** An agent PTY spawned. `provider` is the CLI engine name only. */
   agent_spawned: new Set<string>(['provider']),
-  /** ── The activation funnel (v0.4.7): app_launched → onboarding_completed →
+  /** ── The activation funnel (v0.4.6): app_launched → onboarding_completed →
    *  agent_spawn_attempted → {agent_spawned | agent_spawn_failed |
    *  agent_install_started → agent_install_finished}. Every added property is a
    *  closed enum or a closed CLI name — nothing free-form, same allowlist rule. */
@@ -81,7 +81,7 @@ const EVENTS: Record<string, ReadonlySet<string>> = {
    *  `install_failed` (non-zero exit — e.g. an installer that cannot complete
    *  unattended). This is the signal that a first agent never actually started. */
   agent_install_finished: new Set<string>(['provider', 'rung', 'outcome']),
-  /** ── The end of the activation funnel (v0.4.7): a HUMAN sent a message to an
+  /** ── The end of the activation funnel (v0.4.6): a HUMAN sent a message to an
    *  agent. Counted at the SUBMIT boundary, never per keystroke — see
    *  MESSAGE_SURFACES for the four places a person can send one. Carries a COUNT
    *  and nothing else: no text, no length, no hash. `surface` is a closed enum. */

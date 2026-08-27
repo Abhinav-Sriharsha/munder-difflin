@@ -2553,7 +2553,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   const claudeProvider = isClaudeProvider(provider);
   opts.provider = provider;
   if (opts.hive) opts.hive = { ...opts.hive, provider };
-  // Activation-funnel entry (v0.4.7): every spawn REQUEST, so (attempted − spawned)
+  // Activation-funnel entry (v0.4.6): every spawn REQUEST, so (attempted − spawned)
   // measures the fallout the whole rebuild exists to see. Gated on !noAutoInstall so
   // the missing-CLI relaunch (the only re-entry, index.ts install-exit handler) does
   // NOT double-count a single user attempt — it is the SAME attempt continuing.
@@ -3128,7 +3128,7 @@ ipcMain.handle('config:update', (_evt, patch: Partial<HarnessConfig>) => {
   const next = writeConfig(patch);
   // Live opt-in/out from Settings → Privacy (TELEMETRY.md).
   if (typeof patch?.telemetryEnabled === 'boolean') analytics.setEnabled(patch.telemetryEnabled);
-  // Activation funnel (v0.4.7): onboarding just finished (false → true) — the top of
+  // Activation funnel (v0.4.6): onboarding just finished (false → true) — the top of
   // the launch → first-agent funnel. `provider` is the engine chosen in the wizard.
   // Fired here (main), not in the renderer, so it rides the same allowlist as the rest.
   if (!wasOnboarded && next.onboardingComplete) {
