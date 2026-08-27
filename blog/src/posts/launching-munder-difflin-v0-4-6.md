@@ -206,16 +206,29 @@ and it is short on purpose.
 - **An agent's usage counter resets when its terminal exits.**
   [@aaroncoville](https://github.com/aaroncoville), [PR #317](https://github.com/chaitanyagiri/munder-difflin/pull/317).
 
-{% img "note-3", "The Chinese interface came from a community pull request. So did a good part of the rest of this release." %}
+{% img "note-3", "Sixteen community pull requests from thirteen people. The Chinese interface is one of them." %}
 
 ## Credits
 
-A good share of this release came from the community.
+Sixteen of the pull requests in this release came from the community, from thirteen people.
+
 [@Schopenhauer-loves-Hegel](https://github.com/Schopenhauer-loves-Hegel) built the entire
-multilingual foundation. [@abo123v-glitch](https://github.com/abo123v-glitch) brought the Arabic
-and right to left work. [@aaroncoville](https://github.com/aaroncoville) landed three, including
-the WebGL fix that stops terminals going black.
+multilingual foundation, which is the biggest single piece of work in the release.
+[@abo123v-glitch](https://github.com/abo123v-glitch) brought the Arabic and right to left work,
+including the terminal shaping recipe. [@aaroncoville](https://github.com/aaroncoville) landed
+three, among them the WebGL fix that stops terminals going black.
 [@LavaDMan](https://github.com/LavaDMan) fixed a test that raced its own input.
+
+And the rest of the thirteen, whose fixes are in this build:
+[@BUGHUNTER-SACHIN](https://github.com/BUGHUNTER-SACHIN),
+[@djbiz](https://github.com/djbiz),
+[@gpechieu](https://github.com/gpechieu),
+[@HsienW](https://github.com/HsienW),
+[@HundredBillion](https://github.com/HundredBillion),
+[@jhinzzz](https://github.com/jhinzzz),
+[@L422Y](https://github.com/L422Y),
+[@raifemre](https://github.com/raifemre) and
+[@savvaskoualis](https://github.com/savvaskoualis).
 
 Merge a pull request and a workflow hands you the **employee of the month** role in
 [our Discord](/blog/we-opened-a-discord/). Still thematically required.

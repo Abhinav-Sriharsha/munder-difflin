@@ -166,7 +166,7 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 > against your PATH, the OS sandbox stays on in auto mode, and analytics stopped sending IP and
 > derived location. Telemetry now counts the messages you send to an agent, a count and nothing
 > else, with no text, length or hash of the body in any shape.
-> A good share of this release came from community pull requests.
+> 16 community pull requests landed, from 13 contributors.
 > **If you're on 0.3.8, update:** that build's usage-limit guard never released the agents it held,
 > and it has been removed entirely.
 > macOS (signed & notarized), Windows, and Linux builds are on the
