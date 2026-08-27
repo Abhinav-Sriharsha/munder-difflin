@@ -15,7 +15,7 @@ faq:
   - q: "What languages does Munder Difflin v0.4.6 support?"
     a: "English, Simplified Chinese and Arabic. English stays the default and nothing changes until you pick another language in Settings under General. The app never guesses from your operating system locale."
   - q: "Is the Arabic translation finished?"
-    a: "The strings are complete, all 1,198 of them, and nothing falls back to English. The page and the terminals both read right to left. Some screens still need their padding and icons mirrored, and that is the next piece of work. No Arabic speaker has reviewed the wording yet, so reports are welcome."
+    a: "Every string is translated, with nothing falling back to English, and the terminals read right to left. Some screens still need their padding and icons mirrored, and that is the next piece of work. No Arabic speaker has reviewed the wording yet, so reports are welcome."
   - q: "Does the app still fetch fonts from Google?"
     a: "No. All three faces ship inside the app. That was breaking the interface in mainland China, where both Google font hosts are blocked, which is exactly where the Chinese translation was headed."
   - q: "What changed in the updater?"
@@ -78,13 +78,13 @@ are "activate this".
 Arabic is the harder half, because right to left is not a text direction toggle. It is a layout
 question, and layout is where a UI hides its assumptions.
 
-The interface is fully translated. All 1,198 strings, and nothing falls back to English. The page
-reads right to left, and terminals do too: xterm has no bidi of its own, so picking Arabic quietly
-moves terminals onto the browser's text engine, where Arabic joins and orders properly. Markdown
-reads the right way. Code blocks and shell commands stay left to right, because reordering a
-command changes what it says.
+Every string is translated, with nothing falling back to English, and the terminals read right to
+left. Some screens still need their padding and icons mirrored, and that is the next piece of work.
 
-Some screens still need their padding and icons mirrored, and that is the next piece of work.
+The terminal part is worth one sentence of why. xterm has no bidi of its own, so picking Arabic
+quietly moves terminals onto the browser's text engine, which is where Arabic actually joins and
+orders properly. Markdown reads the right way too. Code blocks and shell commands stay left to
+right, because reordering a command changes what it says.
 
 One more thing worth saying plainly: **no Arabic speaker has reviewed the translation yet.** It was
 written by an agent and checked by machine for the things you can check without reading Arabic,
@@ -206,12 +206,12 @@ and it is short on purpose.
 - **An agent's usage counter resets when its terminal exits.**
   [@aaroncoville](https://github.com/aaroncoville), [PR #317](https://github.com/chaitanyagiri/munder-difflin/pull/317).
 
-{% img "note-3", "Fifteen community pull requests from twelve people. The Chinese interface is one of them." %}
+{% img "note-3", "The Chinese interface came from a community pull request. So did a good part of the rest of this release." %}
 
 ## Credits
 
-Fifteen of the pull requests in this release came from the community, from twelve different
-people. [@Schopenhauer-loves-Hegel](https://github.com/Schopenhauer-loves-Hegel) built the entire
+A good share of this release came from the community.
+[@Schopenhauer-loves-Hegel](https://github.com/Schopenhauer-loves-Hegel) built the entire
 multilingual foundation. [@abo123v-glitch](https://github.com/abo123v-glitch) brought the Arabic
 and right to left work. [@aaroncoville](https://github.com/aaroncoville) landed three, including
 the WebGL fix that stops terminals going black.
