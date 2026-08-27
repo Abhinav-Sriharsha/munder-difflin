@@ -206,12 +206,12 @@ and it is short on purpose.
 - **An agent's usage counter resets when its terminal exits.**
   [@aaroncoville](https://github.com/aaroncoville), [PR #317](https://github.com/chaitanyagiri/munder-difflin/pull/317).
 
-{% img "note-3", "Fifteen community pull requests merged, from twelve people, and a sixteenth whose work shipped another way." %}
+{% img "note-3", "Sixteen community pull requests from thirteen contributors, one of them re-implemented rather than merged." %}
 
 ## Credits
 
-Fifteen community pull requests merged into this release, from twelve people. Thirteen people are
-credited, and the extra one is worth explaining rather than rounding away.
+16 community pull requests from 13 contributors landed in this release, one of them (#213)
+re-implemented rather than merged.
 
 [@Schopenhauer-loves-Hegel](https://github.com/Schopenhauer-loves-Hegel) built the entire
 multilingual foundation, which is the biggest single piece of work in the release.
@@ -220,8 +220,8 @@ including the terminal shaping recipe. [@aaroncoville](https://github.com/aaronc
 three, among them the WebGL fix that stops terminals going black.
 [@LavaDMan](https://github.com/LavaDMan) fixed a test that raced its own input.
 
-**About that sixteenth.** [PR #213](https://github.com/chaitanyagiri/munder-difflin/pull/213) is
-not in the merged count because it was not merged. We split it, took the terminal half, then
+**About that re-implemented one.** [PR #213](https://github.com/chaitanyagiri/munder-difflin/pull/213)
+counts because the work shipped, not because it merged. We split it, took the terminal half, then
 re-implemented the UI half against the language picker that landed after it was written. The code
 ships and the design is theirs. On GitHub the pull request still reads as unmerged, which looks
 like a rejection and is not one, so this is the place to say so plainly.
