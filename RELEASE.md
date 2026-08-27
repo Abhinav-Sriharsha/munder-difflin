@@ -13,7 +13,7 @@ Messaging, routing, and remembering, coordinated by your clone, Michael, who you
 **The release that speaks your language and updates itself.** The interface now runs in Chinese and
 Arabic, the auto-updater downloads and installs a new build end to end, fonts ship inside the app so
 a blocked network never leaves you on a blank window, and the way agent engines are launched is
-hardened. Plus the Settings rework, an IME fix for CJK typing, and 15 community pull requests.
+hardened. Plus the Settings rework, an IME fix for CJK typing, and 16 community pull requests.
 
 - **The interface speaks Chinese and Arabic.** Pick zh-CN or Arabic in Settings — every string is
   translated, with nothing falling back to English, and the terminals read right to left. Some
@@ -47,8 +47,8 @@ Founders' Wall get a month of Pro free, then 50% off the annual plan.
 
 ### Thanks
 
-15 community pull requests landed in this release, and the Arabic UI was re-implemented from a 16th
-(#213). Thank you to [@aaroncoville](https://github.com/aaroncoville), [@abo123v-glitch](https://github.com/abo123v-glitch),
+16 community pull requests from 13 contributors landed in this release, one of them (#213)
+re-implemented rather than merged. Thank you to [@aaroncoville](https://github.com/aaroncoville), [@abo123v-glitch](https://github.com/abo123v-glitch),
 [@BUGHUNTER-SACHIN](https://github.com/BUGHUNTER-SACHIN), [@djbiz](https://github.com/djbiz),
 [@gpechieu](https://github.com/gpechieu), [@HsienW](https://github.com/HsienW),
 [@HundredBillion](https://github.com/HundredBillion), [@jhinzzz](https://github.com/jhinzzz),

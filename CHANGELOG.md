@@ -56,7 +56,8 @@ hardened.
 
 ### Thanks
 
-15 community pull requests landed in this release, and the Arabic UI was re-implemented from a 16th:
+16 community pull requests from 13 contributors landed in this release, one of them (#213)
+re-implemented rather than merged:
 
 - [#156](https://github.com/chaitanyagiri/munder-difflin/pull/156) [@gpechieu](https://github.com/gpechieu): the roster empty-write guard stays armed after a refused write
 - [#205](https://github.com/chaitanyagiri/munder-difflin/pull/205) [@Schopenhauer-loves-Hegel](https://github.com/Schopenhauer-loves-Hegel): the react-i18next multilingual UI foundation, shipping the Chinese translation
