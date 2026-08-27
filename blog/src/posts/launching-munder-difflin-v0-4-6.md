@@ -206,11 +206,12 @@ and it is short on purpose.
 - **An agent's usage counter resets when its terminal exits.**
   [@aaroncoville](https://github.com/aaroncoville), [PR #317](https://github.com/chaitanyagiri/munder-difflin/pull/317).
 
-{% img "note-3", "Sixteen community pull requests from thirteen people. The Chinese interface is one of them." %}
+{% img "note-3", "Fifteen community pull requests merged, from twelve people, and a sixteenth whose work shipped another way." %}
 
 ## Credits
 
-Sixteen of the pull requests in this release came from the community, from thirteen people.
+Fifteen community pull requests merged into this release, from twelve people. Thirteen people are
+credited, and the extra one is worth explaining rather than rounding away.
 
 [@Schopenhauer-loves-Hegel](https://github.com/Schopenhauer-loves-Hegel) built the entire
 multilingual foundation, which is the biggest single piece of work in the release.
@@ -218,6 +219,12 @@ multilingual foundation, which is the biggest single piece of work in the releas
 including the terminal shaping recipe. [@aaroncoville](https://github.com/aaroncoville) landed
 three, among them the WebGL fix that stops terminals going black.
 [@LavaDMan](https://github.com/LavaDMan) fixed a test that raced its own input.
+
+**About that sixteenth.** [PR #213](https://github.com/chaitanyagiri/munder-difflin/pull/213) is
+not in the merged count because it was not merged. We split it, took the terminal half, then
+re-implemented the UI half against the language picker that landed after it was written. The code
+ships and the design is theirs. On GitHub the pull request still reads as unmerged, which looks
+like a rejection and is not one, so this is the place to say so plainly.
 
 And the rest of the thirteen, whose fixes are in this build:
 [@BUGHUNTER-SACHIN](https://github.com/BUGHUNTER-SACHIN),
