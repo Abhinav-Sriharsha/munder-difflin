@@ -1,8 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="250" height="54" viewBox="0 0 250 54" role="img" aria-label="#1 on GitHub Trending">
-  <rect x="0.5" y="0.5" width="249" height="53" rx="10" fill="#FFFFFF" stroke="#D9D5CB"/>
-  <g transform="translate(15, 15) scale(1)" fill="#1A1320">
-    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="250" height="54" viewBox="0 0 250 54" role="img" aria-label="GitHub Trending: #1 Repository of the Day">
+  <rect x="0.5" y="0.5" width="249" height="53" rx="9" fill="#FFFFFF" stroke="#E0BC72"/>
+  <g transform="translate(15,16) scale(1.6)" fill="none" stroke="#E5A00D" stroke-width="1.7" stroke-linecap="square">
+    <path d="M1 10.6 4.9 6.7 7.3 9.1 12.6 3.4"/>
+    <path d="M9.2 3.4H12.9V7"/>
   </g>
-  <text x="50" y="23" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="9.5" font-weight="700" letter-spacing="0.9" fill="#8A8578">GITHUB TRENDING</text>
-  <text x="50" y="41.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#1A1320">#1 Repository</text>
+  <text x="49" y="24" font-family="Menlo, Consolas, monospace" font-size="9" font-weight="700" letter-spacing="1.5" fill="#7D8798">GITHUB TRENDING</text>
+  <rect x="49" y="30.5" width="27" height="17" rx="3.5" fill="#FFC94F"/>
+  <text x="62.5" y="43" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12.5" font-weight="800" fill="#17150E">#1</text>
+  <text x="82" y="43.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="-0.2" fill="#131722">Repository of the Day</text>
 </svg>
