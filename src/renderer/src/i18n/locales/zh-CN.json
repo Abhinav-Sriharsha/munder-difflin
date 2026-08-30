@@ -642,7 +642,8 @@
       "antigravity": "Antigravity — Google Gemini",
       "qwen": "Qwen — 在你的机器上运行本地 Qwen 模型",
       "gemini": "Gemini CLI —— Google Gemini",
-      "cursor": "Cursor Agent CLI —— 使用你的 Cursor 额度（Luna、Composer 等）"
+      "cursor": "Cursor Agent CLI —— 使用你的 Cursor 额度（Luna、Composer 等）",
+      "mcode": "MiniMax Code —— MiniMax M3，100 万上下文"
     },
     "home": {
       "descPlain": "为应用创建一个新的空文件夹作为家。应用记住的一切——它自己的设置和你智能体的记忆——都存放在这里。像 ~/HarnessAgents 这样的地方就很合适。如果它不存在，我们会为你创建。",

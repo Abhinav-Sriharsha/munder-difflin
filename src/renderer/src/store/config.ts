@@ -237,6 +237,13 @@ interface ModelCatalog {
  *  - cursor: ids match `cursor-agent models` / `--model` (Cursor account catalog).
  *    Luna is the cheap, high-context default for Michael; the rest are curated
  *    quick-picks and the command field stays editable for any live slug.
+ *  - mcode: bare MiniMax ids (`MiniMax-M3`), NOT `provider/model` slugs — the
+ *    prefixed form is only for third-party providers registered with
+ *    `mcode provider add`. Unlike every other engine this id never reaches argv:
+ *    mcode's TUI declares a closed flag set and rejects `--model` outright, so the
+ *    harness writes the selection into the per-agent config.yaml as `defaultModel`
+ *    instead. The command field therefore stays a bare `mcode` no matter what is
+ *    picked here. // TODO-verify exact live ids (read from the shipped bundle).
  *  - grok: the models reported by the installed Grok CLI (`grok models`).
  *  - kimi: managed Kimi Code aliases accepted by `kimi --model <alias>`.
  *  - custom: no presets at all; the command field is the whole interface.

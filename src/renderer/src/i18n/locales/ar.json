@@ -642,7 +642,8 @@
       "antigravity": "Antigravity — Google Gemini",
       "qwen": "Qwen — يشغّل نموذج Qwen محليًا على جهازك",
       "gemini": "Gemini CLI - Google Gemini",
-      "cursor": "Cursor Agent CLI — يستخدم أرصدة Cursor لديك (Luna، Composer، …)"
+      "cursor": "Cursor Agent CLI — يستخدم أرصدة Cursor لديك (Luna، Composer، …)",
+      "mcode": "MiniMax Code — نموذج MiniMax M3 بسياق مليون رمز"
     },
     "home": {
       "descPlain": "أنشئ مجلدًا جديدًا فارغًا ليتّخذه التطبيق منزلًا. كل ما يتذكّره التطبيق — إعداداته الخاصة وذاكرة وكلائك — يُخزَّن هنا. شيء مثل ~/HarnessAgents يفي بالغرض. وسننشئه لك إن لم يكن موجودًا.",

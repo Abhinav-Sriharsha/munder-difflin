@@ -45,6 +45,66 @@ test('cursor prefers its native curl installer (no npm package)', () => {
   assert.match(withoutNpm.command, /cursor\.com\/install/);
 });
 
+test('an engine with a higher Node floor than ours skips the doomed npm rung', () => {
+  // mcode's package declares `>=22.19 <23 || >=24 <27` and enforces it from its own
+  // postinstall, so on a Node 20 machine `npm install -g @minimax-ai/code` is
+  // exactly the doomed command this ladder exists to never print. npm being
+  // present is not enough for it.
+  const info = installInfoForProvider('mcode');
+  assert.equal(info.minNodeMajor, 22, 'fixture assumes mcode declares a floor');
+  const installer = { version: 'v24.19.0', file: 'node.pkg', url: 'https://x', sha256: 'a', kind: 'pkg' };
+
+  const onNode20 = chooseInstallRung(info, true, installer, 20);
+  assert.equal(onNode20.kind, 'node-then-npm', 'fix the machine, then install');
+  assert.equal(onNode20.nodeMissing, true);
+
+  const onNode24 = chooseInstallRung(info, true, installer, 24);
+  assert.equal(onNode24.kind, 'npm', 'a Node in range takes the plain npm rung');
+  assert.equal(onNode24.nodeMissing, false);
+});
+
+test('mcode falls back to MiniMax\'s own node-free installer when npm cannot work', () => {
+  // The npm rung needs a Node in mcode's engines range; its own installer needs no
+  // Node at all (it downloads a pinned one into ~/.minimax-code). So the machines
+  // where the npm rung is impossible are exactly the ones this rung rescues.
+  const info = installInfoForProvider('mcode', 'darwin');
+  assert.ok(info.nativeCommand, 'mcode must ship a node-free rung');
+  assert.doesNotMatch(info.nativeCommand, /\bnpm\b/, 'the whole point is that npm is absent');
+
+  // No npm and no resolvable Node installer (offline / unsupported platform) —
+  // previously the manual rung, i.e. install nothing.
+  const rung = chooseInstallRung(info, false, null, null);
+  assert.equal(rung.kind, 'native');
+  assert.match(rung.command, /filecdn\.minimax\.chat/);
+
+  // Windows gets the PowerShell form, not the curl one.
+  const win = installInfoForProvider('mcode', 'win32');
+  assert.match(win.nativeCommand, /powershell/);
+  assert.doesNotMatch(win.nativeCommand, /curl/);
+});
+
+test('the ladder still prefers fixing the machine over routing around it', () => {
+  // Founder decision (2026-08-07): node-then-npm outranks native, because a user
+  // who only ever gets node-free installers still has no runtime for MCP servers
+  // or hooks. Adding mcode's native rung must NOT quietly flip that ordering.
+  const installer = { version: 'v24.19.0', file: 'node.pkg', url: 'https://x', sha256: 'a', kind: 'pkg' };
+  const rung = chooseInstallRung(installInfoForProvider('mcode'), false, installer, null);
+  assert.equal(rung.kind, 'node-then-npm', 'a resolvable Node installer still wins');
+});
+
+test('the extra Node floor never blocks a provider that has none, or an unprobed Node', () => {
+  const installer = { version: 'v24.19.0', file: 'node.pkg', url: 'https://x', sha256: 'a', kind: 'pkg' };
+  // A provider with no declared floor is unaffected by an old Node major…
+  const codex = chooseInstallRung(installInfoForProvider('codex'), true, installer, 20);
+  assert.equal(codex.kind, 'npm', 'no minNodeMajor → the major is irrelevant');
+  // …and an UNPROBED Node fails open rather than routing a fine machine into an
+  // install it does not need.
+  const unprobed = chooseInstallRung(installInfoForProvider('mcode'), true, installer, null);
+  assert.equal(unprobed.kind, 'npm', 'unknown Node major must not block');
+  const omitted = chooseInstallRung(installInfoForProvider('mcode'), true, installer);
+  assert.equal(omitted.kind, 'npm', 'omitted Node major must not block');
+});
+
 test('with npm absent and no native installer, NOTHING is run', () => {
   const info = installInfoForProvider('codex');
   assert.equal(info.nativeCommand, undefined, 'fixture assumes codex has no native installer');
@@ -81,7 +141,7 @@ test('with npm present nothing mentions a missing Node', () => {
 test('the Windows script stays a single quote-free cmd.exe line', () => {
   // It is wrapped verbatim in `cmd /d /s /c "<script>"` — one embedded double
   // quote ends the command line early and the rest executes as garbage.
-  for (const provider of ['claude', 'codex']) {
+  for (const provider of ['claude', 'codex', 'mcode']) {
     for (const npm of [true, false]) {
       const out = buildMissingCliScript(provider, provider, npm, 'win32');
       assert.ok(!out.includes('"'), `${provider}/${npm}: embedded quote`);

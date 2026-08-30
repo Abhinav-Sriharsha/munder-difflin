@@ -79,7 +79,7 @@ import {
   type AgentProvider
 } from '../shared/agentProvider';
 import { buildMissingCliScript, chooseInstallRung } from './cliInstall';
-import { detectNodeVersion, nodeIsUsable, resolveNodeInstaller } from './nodeInstall';
+import { detectNodeVersion, nodeIsUsable, nodeMajor, resolveNodeInstaller } from './nodeInstall';
 import { toolCatalog, type ToolStatus } from '../shared/toolCatalog';
 import { listLocalSkills, loadCatalog, installSkill, uninstallSkill, type LocalSkill } from './skills';
 import { loadHero } from './hero';
@@ -2506,7 +2506,7 @@ function findCodexHomeForSession(sessionId: string, siblingsRoot: string): strin
 
 /** Spawn options shared by the `pty:spawn` IPC handler and the god-triggered
  *  ephemeral-worker watcher. */
-type AgentSpawnOptions = SpawnOptions & { hive?: AgentMeta; isolate?: boolean; resume?: boolean; requireResume?: boolean; resumeSessionId?: string; provider?: AgentProvider; noAutoInstall?: boolean };
+type AgentSpawnOptions = SpawnOptions & { hive?: AgentMeta; isolate?: boolean; resume?: boolean; requireResume?: boolean; resumeSessionId?: string; provider?: AgentProvider; noAutoInstall?: boolean; model?: string };
 
 /** Map a `ptyManager.spawn` failure string to the closed `agent_spawn_failed.reason`
  *  enum (analytics.ts). The two known strings come from PtyManager.spawn; anything
@@ -2582,14 +2582,23 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       // An npm whose Node is BELOW the floor counts as unavailable: founder rule
       // (2026-08-07) is "their Node newer than ours → leave it alone; absent or
       // older → install the latest stable for them".
+      const installedNodeVersion = detectNodeVersion(ptyManager.commandPath('node'));
       const npmAvailable =
-        ptyManager.isCommandAvailable('npm') &&
-        nodeIsUsable(detectNodeVersion(ptyManager.commandPath('node')));
-      // Only reach the network when we actually need to (npm missing/too old);
-      // resolveNodeInstaller is timeout-bounded and returns null offline, which
-      // simply drops the ladder to the native/manual rung.
-      const nodeInstaller = npmAvailable ? null : await resolveNodeInstaller();
-      const rung = chooseInstallRung(installInfoForProvider(provider), npmAvailable, nodeInstaller);
+        ptyManager.isCommandAvailable('npm') && nodeIsUsable(installedNodeVersion);
+      // An engine may declare a HIGHER Node floor than the app's own (mcode: 22).
+      // Hand the ladder the real major so it can route such a provider into the
+      // upgrade rung instead of an npm install its postinstall would refuse.
+      const installedNodeMajor = nodeMajor(installedNodeVersion);
+      const engineFloor = installInfoForProvider(provider).minNodeMajor;
+      const engineFloorMet =
+        engineFloor === undefined || installedNodeMajor === null || installedNodeMajor >= engineFloor;
+      // Only reach the network when we actually need to (npm missing/too old, or
+      // this engine's own floor unmet); resolveNodeInstaller is timeout-bounded and
+      // returns null offline, which simply drops the ladder to the native/manual rung.
+      const nodeInstaller = npmAvailable && engineFloorMet ? null : await resolveNodeInstaller();
+      const rung = chooseInstallRung(
+        installInfoForProvider(provider), npmAvailable, nodeInstaller, installedNodeMajor
+      );
       const res = ptyManager.spawn(
         {
           id: opts.id,
@@ -2597,7 +2606,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           command: bin,
           cols: opts.cols,
           rows: opts.rows,
-          shellScript: buildMissingCliScript(bin, provider, npmAvailable, process.platform, nodeInstaller)
+          shellScript: buildMissingCliScript(
+            bin, provider, npmAvailable, process.platform, nodeInstaller, installedNodeMajor
+          )
         },
         owner
       );
@@ -2701,7 +2712,12 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           skillsDir: skillsResourceDir(),
           // The shared palace is mutated by the agent's own `mempalace` calls, so
           // the OS sandbox must let it through (empty when memory is off).
-          extraWritableDirs: [memory.env().MEMPALACE_PALACE_PATH].filter((p): p is string => !!p)
+          extraWritableDirs: [memory.env().MEMPALACE_PALACE_PATH].filter((p): p is string => !!p),
+          // For a config-only engine (mcode) these are the ONLY route the model and
+          // the permission posture have to the CLI — its TUI rejects both as flags.
+          // Ignored by every provider that expresses them on the command line.
+          model: typeof opts.model === 'string' ? opts.model.trim() || undefined : undefined,
+          autoMode: !!readConfig().autoMode
         }
       );
       opts.args = [...(opts.args ?? []), ...inj.args];

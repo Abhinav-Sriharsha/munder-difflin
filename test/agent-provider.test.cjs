@@ -88,6 +88,66 @@ test('cursor preset is interactive (no -p), uses force+trust auto flags, types s
   assert.strictEqual(ap.bridgeOf('cursor'), undefined, 'no hook/proxy bridge yet');
 });
 
+test('mcode is a recognized, selectable, god-eligible provider', () => {
+  assert.ok(ap.isAgentProvider('mcode'), 'isAgentProvider("mcode")');
+  assert.ok(ap.AGENT_PROVIDER_PRESETS.some((p) => p.id === 'mcode'), 'preset registered');
+  assert.strictEqual(ap.canReceiveInbox('mcode'), true, 'hooks bridge drains on Stop');
+});
+
+test('inferAgentProvider maps the mcode binary, with or without a path', () => {
+  assert.strictEqual(ap.inferAgentProvider('mcode'), 'mcode');
+  assert.strictEqual(ap.inferAgentProvider('/opt/homebrew/bin/mcode'), 'mcode');
+  assert.strictEqual(ap.inferAgentProvider('C:\\Users\\me\\AppData\\npm\\mcode.cmd'), 'mcode');
+});
+
+test('mcode preset carries NO argv flags — its TUI rejects unknown ones', () => {
+  // mcode's interactive root command declares exactly [prompt] --session
+  // -c/--continue --tui-mode --resume and then calls allowExcessArguments(false),
+  // so a stray flag is a hard startup error rather than a warning. --model and
+  // --permission exist only on `mcode exec`. These four assertions are the guard:
+  // if someone "helpfully" fills them in, every mcode spawn dies at boot.
+  const p = ap.providerPreset('mcode');
+  assert.strictEqual(p.defaultCommand, 'mcode', 'default command binary');
+  assert.strictEqual(ap.autoModeFlagForProvider('mcode'), '', 'no auto flag on argv');
+  assert.strictEqual(p.autoFlag, '', 'autoFlag mirrors autoModeFlag');
+  assert.strictEqual(p.modelFlag, undefined, 'no --model on argv');
+  assert.strictEqual(p.initialPromptFlag, undefined, 'no prompt flag');
+  // …but the picker must stay visible, and the seed must ride as a positional.
+  assert.strictEqual(p.supportsModel, true, 'model picker stays on (config carries it)');
+  assert.strictEqual(p.positionalInitialPrompt, true, 'hive protocol rides positionally');
+  assert.strictEqual(p.resumeFlag, '--session', 'session resume flag');
+  assert.strictEqual(p.hiveAware, false, 'no Claude-only identity injection');
+  assert.strictEqual(p.recommendedOrchestratorModel, 'MiniMax-M3');
+  assert.strictEqual(p.minNodeMajor, 22, 'engines: >=22.19 <23 || >=24 <27');
+});
+
+test('mcode rides the hooks bridge with its own shim', () => {
+  assert.deepStrictEqual(ap.bridgeOf('mcode'), { kind: 'hooks', shim: 'mcode' });
+});
+
+test('argsWithAutoModeFlag never appends anything for mcode', () => {
+  // The generic auto-flag helper runs on every main-only spawn (ephemeral workers,
+  // voice hires). An empty preset flag must make it a no-op, not append ''.
+  assert.deepStrictEqual(ap.argsWithAutoModeFlag(['hello'], true, 'mcode'), ['hello']);
+  assert.deepStrictEqual(ap.argsWithAutoModeFlag(['hello'], false, 'mcode'), ['hello']);
+});
+
+test('installInfoForProvider surfaces mcode installer + its higher Node floor', () => {
+  const info = ap.installInfoForProvider('mcode', 'darwin');
+  assert.strictEqual(info.command, 'npm install -g @minimax-ai/code');
+  assert.strictEqual(info.minNodeMajor, 22);
+  assert.strictEqual(info.label, 'MiniMax Code');
+  // MiniMax's own installer is the node-free rung — the one that still works on a
+  // machine whose Node the npm package would refuse.
+  assert.ok(info.nativeCommand.includes('filecdn.minimax.chat'), 'node-free rung');
+  const win = ap.installInfoForProvider('mcode', 'win32');
+  assert.ok(win.nativeCommand.includes('install.ps1'), 'Windows takes the ps1 form');
+  // Wrapped verbatim in `cmd /d /s /c "…"`, so an embedded quote truncates it and
+  // a bare `|` would pipe in cmd.exe rather than PowerShell.
+  assert.ok(!win.nativeCommand.includes('"'), 'no double quotes in the win32 form');
+  assert.ok(win.nativeCommand.includes('^|'), 'pipe must be cmd-escaped');
+});
+
 test('codex preset still resolves (no regression)', () => {
   assert.strictEqual(ap.inferAgentProvider('codex'), 'codex');
   assert.strictEqual(ap.providerPreset('codex').defaultCommand, 'codex');

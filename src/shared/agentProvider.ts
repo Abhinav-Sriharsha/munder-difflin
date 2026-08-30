@@ -1,8 +1,8 @@
 /**
  * Agent providers — the CLI a worker runs on. The app is no longer Claude-only:
  * a worker can run Claude Code, the OpenAI Codex CLI (`codex`), Kimi Code
- * (`kimi`), xAI Grok (`grok`), the Antigravity CLI (`agy`, Gemini models), or
- * any custom command.
+ * (`kimi`), xAI Grok (`grok`), the Antigravity CLI (`agy`, Gemini models),
+ * MiniMax Code (`mcode`), or any custom command.
  * Each provider declares how to build its spawn command (model/auto-mode flags) and
  * whether it accepts the hive's Claude-specific identity injection
  * (`--append-system-prompt` + `--settings`).
@@ -34,6 +34,7 @@ export type AgentProvider =
   | 'pi'
   | 'copilot'
   | 'cursor'
+  | 'mcode'
   | 'custom';
 
 /** Structured descriptor for how a NON-hiveAware provider gets hive lifecycle
@@ -51,7 +52,7 @@ export type AgentProvider =
  *               and `inboxDelivery` is how mail reaches it ('terminal' work-order
  *               handoff today; 'serve' reserved for a future HTTP push path). */
 export type BridgeDescriptor =
-  | { kind: 'hooks'; shim: 'agy' | 'codex' | 'pi' | 'opencode' | 'grok' | 'gemini' }
+  | { kind: 'hooks'; shim: 'agy' | 'codex' | 'pi' | 'opencode' | 'grok' | 'gemini' | 'mcode' }
   | {
       kind: 'proxy';
       api: 'openai' | 'anthropic';
@@ -148,6 +149,15 @@ export interface AgentProviderPreset {
    *  when undefined, the user is shown a manual instruction only and nothing is
    *  auto-run. MUST be a trusted, hardcoded constant — never user/manifest input. */
   installCommand?: string;
+  /** Minimum Node MAJOR this engine's npm package will install under, when that
+   *  floor is HIGHER than the app's own (nodeInstall.NODE_FLOOR_MAJOR). Every other
+   *  provider is happy on any Node this app tolerates, so `npm present` is a good
+   *  enough test for them; mcode declares `>=22.19 <23 || >=24 <27` and enforces it
+   *  from its own postinstall, so on a Node 20/21 box the npm rung would print a
+   *  command that CANNOT succeed — the exact failure the install ladder exists to
+   *  prevent. `chooseInstallRung` consults this and falls through to the
+   *  node-then-npm upgrade rung instead. Undefined = no extra floor. */
+  minNodeMajor?: number;
   /** A SELF-CONTAINED installer that needs no Node/npm at all, per platform.
    *
    *  `installCommand` is `npm install -g …` for every provider, which silently
@@ -565,6 +575,69 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     docsUrl: 'https://cursor.com/docs/cli/install'
   },
   {
+    // MiniMax Code (`mcode`, npm @minimax-ai/code) — MiniMax's terminal coding agent.
+    // Run as its interactive TUI in a PTY and seeded by a POSITIONAL prompt, like
+    // codex. Non-hiveAware (no --append-system-prompt/--settings), but it ships a
+    // faithful re-implementation of Claude Code's hook engine — same event names,
+    // same stdout-JSON/exit-2 response contract, and Stop + {decision:'block',reason}
+    // resolves to a continue-with-prompt — so it gets FULL hive parity through the
+    // 'mcode' hooks shim (installMcodeConfig), no translator needed.
+    id: 'mcode',
+    label: 'MiniMax Code',
+    defaultCommand: 'mcode',
+    commandGroups: [],
+    // NO auto flag, and this is NOT an oversight to be "fixed" later. mcode's
+    // interactive root command declares exactly `[prompt] --session -c/--continue
+    // --tui-mode --resume` and then calls `.allowExcessArguments(false)`, so ANY
+    // other flag is a hard startup error, not a warning. `--permission` and
+    // `--model` are `mcode exec`-only (headless, exits per turn — the shape that
+    // costs copilot its inbox). So the permission posture rides in
+    // $MINIMAX_DATA_DIR/config.yaml as `permissionMode`, written per spawn by
+    // hive.installMcodeConfig and gated on the floor's config.autoMode exactly like
+    // every other engine (Pam guardrail #2). Same reasoning as opencode's empty flag.
+    autoModeFlag: '',
+    autoFlag: '',
+    // Picker ON, flag OFF. `supportsModel` is what keeps the model picker visible and
+    // makes mcode god-eligible; the deliberately-absent `modelFlag` makes
+    // buildSpawnCommand emit no `--model`, which the TUI would reject outright. The
+    // selected id reaches the CLI as config.yaml `defaultModel` instead.
+    supportsModel: true,
+    modelFlag: undefined,
+    hiveAware: false,
+    bridge: { kind: 'hooks', shim: 'mcode' },
+    // god-eligible via the hooks bridge's native Stop->drain. The renderer's idle
+    // inbox-wake nudge remains the fallback, as for every bridged provider.
+    canReceiveInbox: true,
+    // `mcode [prompt]` takes the hive protocol as a trailing positional (verified
+    // against the shipped argument parser), so no prompt FLAG exists to name.
+    initialPromptFlag: undefined,
+    positionalInitialPrompt: true,
+    // mcode's own default model; 1M-context tier, which is what the "give Michael a
+    // longer-context model" advisory wants. // TODO-verify against a live catalog.
+    recommendedOrchestratorModel: 'MiniMax-M3',
+    // `mcode --session <id>` reopens a session by id (`--continue` takes the latest
+    // instead, and the two cannot be combined).
+    resumeFlag: '--session',
+    installCommand: 'npm install -g @minimax-ai/code', // trusted, hardcoded
+    // MiniMax's own installers, and the ONLY route its docs actually document (the
+    // npm package above is public and works, but the quick-start lists only these).
+    // Genuinely node-free, which matters more here than for any other engine: the
+    // script downloads a pinned Node 24.19.0 into ~/.minimax-code and pins the
+    // mcode launcher to it, so it succeeds on a machine with no Node, an ancient
+    // Node, or a Node 23/27 that this package's own engines range rejects — every
+    // case where the npm rung cannot work. Trusted, hardcoded constants with no
+    // double-quotes; the win32 form is `powershell -c` + a `^|`-escaped pipe
+    // because it is wrapped verbatim in `cmd /d /s /c "…"` (see Claude's).
+    nativeInstallCommand: {
+      posix: 'curl -fsSL https://filecdn.minimax.chat/public/install.sh | bash',
+      win32: 'powershell -c irm https://filecdn.minimax.chat/public/install.ps1 ^| iex'
+    },
+    // engines: ">=22.19 <23 || >=24 <27" — higher than the app's own Node floor, and
+    // enforced by the package's own postinstall, so the ladder must know about it.
+    minNodeMajor: 22,
+    docsUrl: 'https://agent.minimax.io/docs/cli/quick-start'
+  },
+  {
     id: 'custom',
     label: 'Custom',
     defaultCommand: '',
@@ -591,6 +664,7 @@ export function isAgentProvider(value: unknown): value is AgentProvider {
     value === 'pi' ||
     value === 'copilot' ||
     value === 'cursor' ||
+    value === 'mcode' ||
     value === 'custom'
   );
 }
@@ -642,6 +716,8 @@ export function inferAgentProvider(command: string | undefined, explicit?: unkno
   if (bin === 'crush') return 'crush';
   if (bin === 'pi') return 'pi';
   if (bin === 'copilot') return 'copilot';
+  // MiniMax Code ships as `mcode` (npm @minimax-ai/code).
+  if (bin === 'mcode') return 'mcode';
   // Cursor ships as `cursor-agent`; `agent` is a shorter alias (generic name — check last).
   if (bin === 'cursor-agent') return 'cursor';
   if (bin === 'agent') return 'cursor';
@@ -717,6 +793,8 @@ export interface ProviderInstallInfo {
   command?: string;
   /** A node-free installer for this platform, when the vendor ships one. */
   nativeCommand?: string;
+  /** An engine-specific minimum Node major, when it exceeds the app's own floor. */
+  minNodeMajor?: number;
   label: string;
   docsUrl?: string;
 }
@@ -730,6 +808,7 @@ export function installInfoForProvider(
   return {
     command: p.installCommand,
     nativeCommand: native ? (platform === 'win32' ? native.win32 : native.posix) : undefined,
+    minNodeMajor: p.minNodeMajor,
     label: p.label,
     docsUrl: p.docsUrl
   };
