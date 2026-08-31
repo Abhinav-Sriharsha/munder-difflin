@@ -320,12 +320,25 @@ function getJson<T>(url: string): Promise<T> {
   return getText(url).then((t) => JSON.parse(t) as T);
 }
 
+/** A candidate path that 404s is a layout this repo simply does not use, so the
+ *  probe moves on. Every other rejection — a 403 from the unauthenticated rate
+ *  limit, a 5xx, a timeout — is the API declining to answer, and `getText`
+ *  spells all of them `HTTP <code>`. */
+function isMissingListing(e: unknown): boolean {
+  return e instanceof Error && e.message === 'HTTP 404';
+}
+
 /**
  * Resolve the directory inside a GitHub repo that actually contains the skill.
  *
  * For repo-root URLs we probe the common skill layouts so the installer does
  * not walk the whole repository and hit the global size/file limits. Tree URLs
  * are used as-is but still required to contain SKILL.md.
+ *
+ * Rejects rather than returning null when the API refuses a probe. Swallowing
+ * that told the user "that source does not contain a SKILL.md" every time the
+ * 60-requests-per-hour limit ran out — a permanent-sounding lie about a folder
+ * that was fine, and one that sends them looking in the wrong place.
  */
 export async function resolveSkillContentPath(
   gh: { owner: string; repo: string; ref: string; path: string },
@@ -341,8 +354,9 @@ export async function resolveSkillContentPath(
       if (entries.some((it) => it.type === 'file' && it.name === 'SKILL.md')) {
         return candidate;
       }
-    } catch {
-      // Directory missing or unreadable — try the next candidate.
+    } catch (e) {
+      if (!isMissingListing(e)) throw e;
+      // This layout is not the one this repo uses — try the next candidate.
     }
   }
   return null;
@@ -389,7 +403,15 @@ export async function installSkill(
     return Array.isArray(res) ? res : [res];
   };
 
-  const skillPath = await resolveSkillContentPath(gh, entryName, listContents);
+  // A refused probe is reported as itself ("HTTP 403"), the same shape `walk`
+  // below already returns for a refused listing — never as a verdict on the
+  // skill, which is a question this call did not get to ask.
+  let skillPath: string | null;
+  try {
+    skillPath = await resolveSkillContentPath(gh, entryName, listContents);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
   if (skillPath === null) {
     return { ok: false, error: 'That source does not contain a SKILL.md.' };
   }

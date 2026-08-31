@@ -112,7 +112,8 @@ test('resolveSkillContentPath probes common layouts for repo-root URLs', async (
     if (p === '.claude/skills/demo') {
       return [{ type: 'file', name: 'SKILL.md' }, { type: 'file', name: 'other.md' }];
     }
-    throw new Error('not found');
+    // What getText actually throws for a path the repo does not have.
+    throw new Error('HTTP 404');
   };
   const resolved = await resolveSkillContentPath(gh, 'demo', listContents);
   assert.equal(resolved, '.claude/skills/demo');
@@ -125,4 +126,13 @@ test('resolveSkillContentPath treats repo root as the skill when it has SKILL.md
     { type: 'file', name: 'SKILL.md' }
   ]);
   assert.equal(resolved, '');
+});
+test('resolveSkillContentPath surfaces an API refusal instead of blaming the skill', async () => {
+  // A rate-limited probe must not be read as "this folder has no SKILL.md" —
+  // that turns a transient 403 into a confident, wrong claim about the source.
+  const gh = { owner: 'o', repo: 'r', ref: '', path: '' };
+  await assert.rejects(
+    () => resolveSkillContentPath(gh, 'demo', async () => { throw new Error('HTTP 403'); }),
+    /HTTP 403/
+  );
 });
