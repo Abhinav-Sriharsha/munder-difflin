@@ -16,7 +16,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const loadTs = require('./load-ts.cjs');
 
-const { parseGitHubSourceUrl, safeSkillDirName, uninstallSkill } =
+const { parseGitHubSourceUrl, safeSkillDirName, uninstallSkill, resolveSkillContentPath } =
   loadTs('src/main/skills.ts');
 
 const tmpdir = (t) => {
@@ -84,4 +84,45 @@ test('uninstall will not delete the skills root itself', (t) => {
   fs.mkdirSync(root, { recursive: true });
   assert.equal(uninstallSkill(root, { cwds: [tmp] }).ok, false);
   assert.ok(fs.existsSync(root));
+});
+
+test('resolveSkillContentPath uses a tree URL path as-is', async () => {
+  const gh = { owner: 'o', repo: 'r', ref: 'main', path: 'skills/demo' };
+  const calls = [];
+  const listContents = async (p) => {
+    calls.push(p);
+    return p === 'skills/demo' ? [{ type: 'file', name: 'SKILL.md' }] : [];
+  };
+  const resolved = await resolveSkillContentPath(gh, 'demo', listContents);
+  assert.equal(resolved, 'skills/demo');
+  assert.deepEqual(calls, ['skills/demo']);
+});
+
+test('resolveSkillContentPath rejects a tree URL path with no SKILL.md', async () => {
+  const gh = { owner: 'o', repo: 'r', ref: 'main', path: 'skills/demo' };
+  const resolved = await resolveSkillContentPath(gh, 'demo', async () => []);
+  assert.equal(resolved, null);
+});
+
+test('resolveSkillContentPath probes common layouts for repo-root URLs', async () => {
+  const gh = { owner: 'o', repo: 'r', ref: '', path: '' };
+  const calls = [];
+  const listContents = async (p) => {
+    calls.push(p);
+    if (p === '.claude/skills/demo') {
+      return [{ type: 'file', name: 'SKILL.md' }, { type: 'file', name: 'other.md' }];
+    }
+    throw new Error('not found');
+  };
+  const resolved = await resolveSkillContentPath(gh, 'demo', listContents);
+  assert.equal(resolved, '.claude/skills/demo');
+  assert.deepEqual(calls, ['', 'skills/demo', '.claude/skills/demo']);
+});
+
+test('resolveSkillContentPath treats repo root as the skill when it has SKILL.md', async () => {
+  const gh = { owner: 'o', repo: 'r', ref: '', path: '' };
+  const resolved = await resolveSkillContentPath(gh, 'demo', async () => [
+    { type: 'file', name: 'SKILL.md' }
+  ]);
+  assert.equal(resolved, '');
 });

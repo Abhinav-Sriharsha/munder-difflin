@@ -320,6 +320,34 @@ function getJson<T>(url: string): Promise<T> {
   return getText(url).then((t) => JSON.parse(t) as T);
 }
 
+/**
+ * Resolve the directory inside a GitHub repo that actually contains the skill.
+ *
+ * For repo-root URLs we probe the common skill layouts so the installer does
+ * not walk the whole repository and hit the global size/file limits. Tree URLs
+ * are used as-is but still required to contain SKILL.md.
+ */
+export async function resolveSkillContentPath(
+  gh: { owner: string; repo: string; ref: string; path: string },
+  entryName: string,
+  listContents: (path: string) => Promise<GhEntry[]>
+): Promise<string | null> {
+  const candidates = gh.path
+    ? [gh.path]
+    : ['', `skills/${entryName}`, `.claude/skills/${entryName}`, entryName];
+  for (const candidate of candidates) {
+    try {
+      const entries = await listContents(candidate);
+      if (entries.some((it) => it.type === 'file' && it.name === 'SKILL.md')) {
+        return candidate;
+      }
+    } catch {
+      // Directory missing or unreadable — try the next candidate.
+    }
+  }
+  return null;
+}
+
 /** officialskills.sh pages are a rendering of a GitHub folder and link back to
  *  it. Resolving that link is one request and turns 578 otherwise un-installable
  *  catalog rows into installable ones. */
@@ -350,18 +378,28 @@ export async function installSkill(
   const gh = parseGitHubSourceUrl(source);
   if (!gh) return { ok: false, unsupported: true, error: 'Source is not a GitHub folder.' };
 
-  const dirName = safeSkillDirName(gh.path || entryName);
-  if (!dirName) return { ok: false, error: 'That skill has a name this app will not create a folder for.' };
-
-  const root = join(homedir(), '.claude', 'skills');
-  const dest = join(root, dirName);
-  if (existsSync(dest)) return { ok: false, error: `Already installed at ${dest}` };
-
   // An empty ref means "the repo's default branch" — omit the parameter entirely
   // rather than guessing main vs master.
   const api = (p: string) =>
     `https://api.github.com/repos/${gh.owner}/${gh.repo}/contents/${p ? encodeURI(p) : ''}`
     + (gh.ref ? `?ref=${encodeURIComponent(gh.ref)}` : '');
+
+  const listContents = async (p: string): Promise<GhEntry[]> => {
+    const res = await getJson<GhEntry[] | GhEntry>(api(p));
+    return Array.isArray(res) ? res : [res];
+  };
+
+  const skillPath = await resolveSkillContentPath(gh, entryName, listContents);
+  if (skillPath === null) {
+    return { ok: false, error: 'That source does not contain a SKILL.md.' };
+  }
+
+  const dirName = safeSkillDirName(skillPath || entryName);
+  if (!dirName) return { ok: false, error: 'That skill has a name this app will not create a folder for.' };
+
+  const root = join(homedir(), '.claude', 'skills');
+  const dest = join(root, dirName);
+  if (existsSync(dest)) return { ok: false, error: `Already installed at ${dest}` };
 
   const files: { path: string; url: string; size: number }[] = [];
   let total = 0;
@@ -386,13 +424,13 @@ export async function installSkill(
       const size = it.size ?? 0;
       total += size;
       if (total > MAX_TOTAL_BYTES) return 'that skill is larger than this installer will fetch';
-      const rel = gh.path ? it.path.slice(gh.path.length).replace(/^\/+/, '') : it.path;
+      const rel = skillPath ? it.path.slice(skillPath.length).replace(/^\/+/, '') : it.path;
       files.push({ path: rel, url: it.download_url, size });
     }
     return null;
   };
 
-  const walkErr = await walk(gh.path, 0);
+  const walkErr = await walk(skillPath, 0);
   if (walkErr) return { ok: false, error: walkErr };
   if (files.length === 0) return { ok: false, error: 'No files found at that source.' };
 
