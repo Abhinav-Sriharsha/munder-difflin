@@ -82,7 +82,7 @@ const DESCRIPTION_TEMPLATES: { labelKey: string; description: string; goal: stri
 // Copy-paste prompt the user hands to any AI to generate a hire manifest. It pins
 // the exact JSON shape the importer accepts and ends with a fill-in section so the
 // user adds their own details (item 7). Kept in sync with the HireManifest schema
-// (src/shared/hire.ts) — provider allowlist is claude | codex | antigravity | cursor.
+// (src/shared/hire.ts) — provider allowlist is claude | codex | antigravity | cursor | mcode.
 const HIRE_PROMPT = `You are designing a "hire" — a ready-to-spawn AI agent for Munder Difflin, an app that runs a team of CLI coding agents. Output ONE JSON object (a hire manifest) and nothing else.
 
 Make the agent genuinely useful: give it a sharp role, a concrete standing goal, and a description that makes it behave like an expert operator of its CLI engine (Claude Code, Codex, or Antigravity/Gemini). It should know how to use the terminal, read and edit files, run and inspect commands, lean on available skills and MCP tools, keep notes in memory, and work autonomously toward its goal without hand-holding.
@@ -103,7 +103,7 @@ Return EXACTLY this shape (omit optional fields you don't need; keep the spec st
 }
 
 Rules:
-- "provider" MUST be one of: cursor | claude | codex | antigravity. "model" must be a real model id for that provider (e.g. gpt-5.6-luna-high, claude-opus-4-8[1m], gpt-5-codex, "Gemini 3.1 Pro (High)").
+- "provider" MUST be one of: cursor | claude | codex | antigravity | mcode. "model" must be a real model id for that provider (e.g. gpt-5.6-luna-high, claude-opus-4-8[1m], gpt-5-codex, "Gemini 3.1 Pro (High)", MiniMax-M3).
 - Do NOT include shell commands or any flags beyond these fields.
 - Make "description" + "goal" concrete enough that the agent knows exactly what to do on its first turn.
 
@@ -409,6 +409,10 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
       command: exe,
       provider,
       args,
+      // Config-only engines (mcode) cannot take `--model` on argv — their TUI
+      // rejects unknown flags — so the selected model has to travel beside the
+      // command. Ignored by every provider that already carries it in `args`.
+      model,
       cols: 100,
       rows: 30,
       // When set, the main process spawns this agent in its own git worktree.

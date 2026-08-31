@@ -75,6 +75,8 @@ function hookCommandsUnder(home) {
     // JSON hook configs: "command": "<…>"      TOML (codex): command = '<…>'
     for (const m of text.matchAll(/"command"\s*:\s*"((?:[^"\\]|\\.)*)"/g)) found.push(JSON.parse(`"${m[1]}"`));
     for (const m of text.matchAll(/command = '([^']+)'/g)) found.push(m[1]);
+    // Markdown script hooks (mcode): the command is the body of a bash fence.
+    for (const m of text.matchAll(/```(?:bash|shell|sh)\s*\n([\s\S]*?)```/g)) found.push(m[1].trim());
   }
   return found.filter((c) => shim.test(c));
 }
@@ -156,11 +158,12 @@ test('every hook installer routes through the launcher — none left on bare nod
   hive.installGrokHooks();
   hive.installGeminiHooks(path.join(home, 'hive/agents/a1'));
   hive.installCodexHooks(path.join(home, 'hive/agents/a1'), 'a1');
+  hive.installMcodeConfig(path.join(home, 'hive/agents/a1'), 'MiniMax-M3', true);
 
   const launcher = launcherIn(home);
   const commands = hookCommandsUnder(home);
-  // claude (Stop/statusLine/…) + agy + grok + codex.
-  assert.ok(commands.length >= 4, `expected commands from all installers, got ${commands.length}`);
+  // claude (Stop/statusLine/…) + agy + grok + codex + mcode.
+  assert.ok(commands.length >= 5, `expected commands from all installers, got ${commands.length}`);
   const bare = commands.filter((c) => !usesLauncher(c, launcher));
   assert.deepEqual(bare, [], 'these hook commands would exit 127 wherever node is not on the bare PATH');
 

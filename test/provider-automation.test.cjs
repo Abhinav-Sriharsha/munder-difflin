@@ -17,7 +17,7 @@ const {
 // — the queue's one-pending-compact invariant depends entirely on this predicate —
 
 test('isCompactionCommand matches every provider that has a compact verb', () => {
-  for (const p of ['claude', 'codex', 'grok', 'kimi', 'qwen', 'opencode', 'pi', 'copilot', 'cursor']) {
+  for (const p of ['claude', 'codex', 'grok', 'kimi', 'qwen', 'opencode', 'pi', 'copilot', 'cursor', 'mcode']) {
     const cmd = compactionCommandForProvider(p, '');
     if (!cmd) continue; // provider has no typeable compaction — nothing to dedupe
     assert.equal(isCompactionCommand(cmd), true, `${p}: ${cmd}`);

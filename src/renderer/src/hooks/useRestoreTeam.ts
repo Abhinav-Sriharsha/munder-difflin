@@ -135,6 +135,10 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
             command: exe,
             provider,
             args,
+            // Config-only engines (mcode) cannot take `--model` on argv — their TUI
+            // rejects unknown flags — so the selected model has to travel beside the
+            // command. Ignored by every provider that already carries it in `args`.
+            model: a.model,
             cols: 100,
             rows: 30,
             // Worktree (if any) already exists on disk — cd into it, don't create a

@@ -144,6 +144,17 @@ const CONTEXT_COMMANDS: Record<AgentProvider, ProviderContextCommands> = {
   // auto-compact. Revisit when a shipped command table is transcribed.
   cursor: NO_CONTEXT_COMMANDS,
 
+  // MiniMax Code's bundled command registry, verbatim:
+  //   { name:"compact", description:"Manually compact the session context" }
+  //   { name:"new",     description:"Start a new session" }
+  // Read out of the SHIPPED BINARY, which is why it outranks the docs site. There
+  // is no `/clear` literal anywhere in it, so `/new` is the fresh-session verb.
+  // compactTakesFocus is FALSE: unlike pi (whose docs spell `/compact
+  // [instructions]`) mcode's description declares no argument, and a TUI that
+  // re-read the trailing prose as a fresh prompt would turn one compaction into a
+  // whole extra turn — the exact failure this flag exists to prevent.
+  mcode: { compact: '/compact', clear: '/new', compactTakesFocus: false },
+
   // An arbitrary user binary. We cannot know its command surface, and guessing
   // means typing slashes into someone's unknown REPL.
   custom: NO_CONTEXT_COMMANDS

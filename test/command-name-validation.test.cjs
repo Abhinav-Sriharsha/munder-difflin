@@ -29,7 +29,7 @@ const { buildWorkerLaunch } = loadTs('src/main/workerLaunch.ts');
 
 test('legit engine binary names are accepted', () => {
   for (const name of ['claude', 'codex', 'grok', 'kimi', 'agy', 'qwen', 'opencode',
-                       'crush', 'pi', 'copilot', 'cursor-agent', 'node', 'npm', 'node.js', 'a_b+c']) {
+                       'crush', 'pi', 'copilot', 'cursor-agent', 'mcode', 'node', 'npm', 'node.js', 'a_b+c']) {
     assert.equal(isSafeCommandName(name), true, `${name} should be safe`);
   }
 });

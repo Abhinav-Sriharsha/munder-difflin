@@ -32,16 +32,33 @@ export type InstallRungKind = 'npm' | 'node-then-npm' | 'native' | 'manual';
  *  (offline, or a platform nodejs.org ships no package for).
  *
  *  `npmAvailable` means npm is present AND its Node is new enough (see
- *  nodeInstall.NODE_FLOOR_MAJOR) — an ancient Node routes into the upgrade rung. */
+ *  nodeInstall.NODE_FLOOR_MAJOR) — an ancient Node routes into the upgrade rung.
+ *
+ *  `installedNodeMajor` is this machine's Node major, consulted ONLY against a
+ *  provider that declares its own higher floor (`minNodeMajor`). The app's floor is
+ *  20 and every engine but one is happy there, so "npm is present" used to be a
+ *  sufficient test. mcode is not: its package declares `>=22.19 <23 || >=24 <27` and
+ *  its own postinstall enforces it, so on a Node 20/21 machine the npm rung would
+ *  print `npm install -g @minimax-ai/code` and the user would watch EBADENGINE
+ *  scroll past — precisely the doomed-command failure this ladder exists to stop.
+ *  Treating that as "npm unusable" drops it to the node-then-npm rung, which fixes
+ *  the machine and then installs. Undefined (unprobed) never blocks: it fails open
+ *  to today's behavior rather than routing a fine machine into a Node install. */
 export function chooseInstallRung(
   info: ProviderInstallInfo,
   npmAvailable: boolean,
-  nodeInstaller?: NodeInstaller | null
+  nodeInstaller?: NodeInstaller | null,
+  installedNodeMajor?: number | null
 ): { command?: string; kind: InstallRungKind; nodeMissing: boolean } {
-  if (info.command && npmAvailable) return { command: info.command, kind: 'npm', nodeMissing: false };
+  const meetsEngineFloor =
+    info.minNodeMajor === undefined ||
+    installedNodeMajor === undefined || installedNodeMajor === null ||
+    installedNodeMajor >= info.minNodeMajor;
+  const npmUsable = npmAvailable && meetsEngineFloor;
+  if (info.command && npmUsable) return { command: info.command, kind: 'npm', nodeMissing: false };
   if (info.command && nodeInstaller) return { command: info.command, kind: 'node-then-npm', nodeMissing: true };
-  if (info.nativeCommand) return { command: info.nativeCommand, kind: 'native', nodeMissing: !npmAvailable };
-  return { kind: 'manual', nodeMissing: !npmAvailable };
+  if (info.nativeCommand) return { command: info.nativeCommand, kind: 'native', nodeMissing: !npmUsable };
+  return { kind: 'manual', nodeMissing: !npmUsable };
 }
 
 /** Build the shell script the missing-CLI auto-install path runs IN PLACE of a
@@ -57,11 +74,12 @@ export function buildMissingCliScript(
   provider: AgentProvider,
   npmAvailable: boolean,
   platform: string = process.platform,
-  nodeInstaller?: NodeInstaller | null
+  nodeInstaller?: NodeInstaller | null,
+  installedNodeMajor?: number | null
 ): string {
   const info: ProviderInstallInfo = installInfoForProvider(provider, platform);
   const safeBin = (bin || provider).replace(/[^A-Za-z0-9._-]/g, '') || provider;
-  const rung = chooseInstallRung(info, npmAvailable, nodeInstaller);
+  const rung = chooseInstallRung(info, npmAvailable, nodeInstaller, installedNodeMajor);
   // Only the rung that actually needs it gets the Node install spliced in.
   const nodeSteps = rung.kind === 'node-then-npm' && nodeInstaller
     ? buildNodeInstallScript(nodeInstaller, platform)

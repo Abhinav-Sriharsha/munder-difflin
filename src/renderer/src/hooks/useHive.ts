@@ -406,6 +406,10 @@ export function useHive(config: HarnessConfig | null): void {
         command: exe,
         provider: godProvider,
         args,
+        // Config-only engines (mcode) cannot take `--model` on argv — their TUI
+        // rejects unknown flags — so the selected model has to travel beside the
+        // command. Ignored by every provider that already carries it in `args`.
+        model: godModel,
         cols: 100,
         rows: 30,
         // Restore Michael's prior conversation across an app restart. His session
@@ -1218,6 +1222,10 @@ export function useHive(config: HarnessConfig | null): void {
           command: exe,
           provider,
           args,
+          // Config-only engines (mcode) cannot take `--model` on argv — their TUI
+          // rejects unknown flags — so the selected model has to travel beside the
+          // command. Ignored by every provider that already carries it in `args`.
+          model: a.model,
           cols,
           rows,
           // The worktree (if any) already exists on disk — re-enter it, do NOT

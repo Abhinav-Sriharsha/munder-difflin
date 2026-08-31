@@ -634,6 +634,17 @@ export class HiveManager {
        *  MemPalace dir, which `mempalace` mutates). Absolute paths; ignored
        *  for providers without a sandbox. */
       extraWritableDirs?: string[];
+      /** The model the user picked, for an engine that takes it via CONFIG rather
+       *  than argv. Every other provider gets `--model` spliced into its command by
+       *  buildSpawnCommand, so this stays undefined for them; mcode's interactive
+       *  TUI rejects unknown flags outright, so its model can only arrive here and
+       *  be written into the per-agent config.yaml. */
+      model?: string;
+      /** The floor's auto-mode toggle, for the same config-only engines. Every other
+       *  provider expresses its permission posture as a CLI flag appended by
+       *  buildSpawnCommand; mcode expresses it as config.yaml `permissionMode`, and
+       *  it must stay gated on this toggle like the rest (Pam guardrail #2). */
+      autoMode?: boolean;
     } = {}
   ): Promise<SpawnInjection> {
     const root = this.root();
@@ -813,6 +824,15 @@ export class HiveManager {
               // Point only this worker at a per-agent system settings file so
               // the bridge is trusted and ~/.gemini/settings.json stays untouched.
               env.GEMINI_CLI_SYSTEM_SETTINGS_PATH = this.installGeminiHooks(dir);
+            }
+            else if (desc.shim === 'mcode') {
+              // MiniMax Code reads lifecycle hooks from $MINIMAX_DATA_DIR/hooks/ AND
+              // takes its model + permission posture only from
+              // $MINIMAX_DATA_DIR/config.yaml — its interactive root command declares
+              // a closed flag set and calls allowExcessArguments(false), so neither
+              // can ride on argv. One per-agent data dir therefore carries all three,
+              // with the user's own ~/.minimax left untouched.
+              env.MINIMAX_DATA_DIR = this.installMcodeConfig(dir, opts.model, opts.autoMode);
             }
             else if (desc.shim === 'grok') this.installGrokHooks();
           } else if (desc.kind === 'proxy') {
@@ -2217,6 +2237,143 @@ export class HiveManager {
     return home;
   }
 
+  /** MiniMax Code (`mcode`) bridge. mcode ships a faithful re-implementation of
+   *  Claude Code's hook engine — same event names, the same stdout-JSON / exit-2
+   *  response contract, and `Stop` + `{decision:'block', reason}` resolving to a
+   *  continue-with-prompt — so it reuses the `cth-hook` shim VERBATIM (no
+   *  translator, unlike agy) and gets real Stop->drain rather than nudge-only mail.
+   *
+   *  ONE DIR, THREE JOBS. mcode's interactive root command declares a closed flag
+   *  set (`[prompt] --session -c/--continue --tui-mode --resume`) and then calls
+   *  `allowExcessArguments(false)`, so an unrecognized flag is a hard startup error,
+   *  not a warning. `--model` and `--permission` exist only on `mcode exec`, which
+   *  exits per turn. That means neither the model nor the permission posture can
+   *  ride on argv for a TUI-resident worker: both live in `$MINIMAX_DATA_DIR/
+   *  config.yaml`, and the hook files live in `$MINIMAX_DATA_DIR/hooks/`. Pointing
+   *  the worker at a per-agent data dir is therefore the only lever that carries all
+   *  three at once.
+   *
+   *  ISOLATION + LOGIN. That same dir also holds the user's `mcode login`, so an
+   *  empty one would spawn a logged-out worker. Rather than guess which file carries
+   *  the credential (the shipped bundle does not name one unambiguously), every
+   *  entry of ~/.minimax is symlinked in EXCEPT the two we author — correct whatever
+   *  the credential is called, and the user's own ~/.minimax is never mutated.
+   *
+   *  Returns the data-dir path for the worker's MINIMAX_DATA_DIR.
+   *
+   *  LIVE-UNVERIFIED: the hook schema, the Stop contract and the config keys were
+   *  all read out of the shipped bundle, but firing them end to end needs a MiniMax
+   *  login. Wrapped so a wrong guess can never break the spawn; the renderer's idle
+   *  inbox-wake nudge remains the guaranteed drain either way. */
+  private installMcodeConfig(dir: string, model?: string, autoMode?: boolean): string {
+    const home = join(dir, '.minimax');
+    try {
+      mkdirSync(home, { recursive: true });
+      // 1) Mirror the user's login. Name-agnostic on purpose (see above): every
+      //    top-level FILE except the config we author is linked through, so whatever
+      //    the credential is called it comes with us.
+      //
+      //    FILES ONLY, deliberately. Linking the directories too would look more
+      //    thorough and be worse: ~/.minimax's subdirectories are mcode's session,
+      //    log and event stores, so sharing them would put every concurrent worker
+      //    on one session database — contention plus a cross-agent history leak —
+      //    and would undo the isolation this whole per-agent dir exists to provide.
+      //    mcode recreates those directories on first run, so each worker gets its
+      //    own, and they persist in the agent dir across restarts, which is what
+      //    `--session <id>` resume needs. Credentials are files; state is not.
+      const userHome = join(homedir(), '.minimax');
+      if (existsSync(userHome)) {
+        for (const entry of readdirSync(userHome)) {
+          if (entry === 'config.yaml') continue;
+          const src = join(userHome, entry);
+          const dest = join(home, entry);
+          // lstat, not existsSync: a BROKEN symlink left by an earlier spawn reads
+          // as "does not exist" but still makes symlinkSync throw EEXIST.
+          try { lstatSync(dest); continue; } catch { /* nothing there — link it */ }
+          try {
+            if (!statSync(src).isFile()) continue; // directories: see above
+            symlinkSync(src, dest, 'file');
+          } catch {
+            // Symlinks need privilege on Windows — copy instead. A credential copy
+            // goes stale if the user re-logs in, but it is regenerated every spawn.
+            try { if (statSync(src).isFile()) copyFileSync(src, dest); } catch { /* best-effort */ }
+          }
+        }
+      }
+
+      // 2) config.yaml — seeded from the user's so their provider/BYOK settings carry
+      //    over, with OUR two keys re-stated at the end. Regenerated every spawn.
+      //    permissionMode is gated on the floor's auto toggle exactly like every
+      //    other engine's auto flag: `bypassPermissions` never prompts but keeps
+      //    mcode's own deny rules and Windows hard-safety checks, and `default`
+      //    restores normal prompting when the floor's auto mode is off.
+      const seed = existsSync(join(userHome, 'config.yaml'))
+        ? readFileSync(join(userHome, 'config.yaml'), 'utf8') : '';
+      let config = this.stripTopLevelYamlKeys(seed, ['permissionMode', 'defaultModel']);
+      if (config && !config.endsWith('\n')) config += '\n';
+      config += '\n# --- munder-hive (auto-generated; do not edit) ---\n';
+      config += `permissionMode: ${autoMode ? 'bypassPermissions' : 'default'}\n`;
+      // Omitted entirely for "CLI default", so mcode uses whatever the user
+      // configured rather than a slug this app invented. JSON.stringify gives a
+      // valid YAML double-quoted scalar for ids carrying spaces or punctuation.
+      if (model) config += `defaultModel: ${JSON.stringify(model)}\n`;
+      writeFileSync(join(home, 'config.yaml'), config, 'utf8');
+
+      // 3) Lifecycle hooks. mcode scans `<dataDir>/hooks` for BOTH a `hooks.json`
+      //    and every `*.md` hook file. We write .md files: hooks.json is a single
+      //    un-namespaced object keyed by event, so authoring it would entangle (or
+      //    clobber) hooks the user wrote, whereas a `munder-hive-*.md` per event is
+      //    namespaced by filename and cannot collide. Bundled node, not bare `node`
+      //    — hooks run with a stripped PATH here for the same reason they do under
+      //    agy and grok, where a bare `node` is a 127.
+      const shim = this.shimPath();
+      if (shim) {
+        const hooksDir = join(home, 'hooks');
+        mkdirSync(hooksDir, { recursive: true });
+        const command = this.nodeRunUnquoted(shim);
+        // Tool-scoped events take a matcher (mcode anchors it to ^...$ itself);
+        // the session-scoped ones match everything by definition.
+        const events: Array<[string, string | undefined]> = [
+          ['PreToolUse', '.*'], ['PostToolUse', '.*'],
+          ['Stop', undefined], ['SubagentStop', undefined],
+          ['SessionStart', undefined], ['UserPromptSubmit', undefined],
+          ['PreCompact', undefined], ['PostCompact', undefined]
+        ];
+        for (const [event, matcher] of events) {
+          writeFileSync(
+            join(hooksDir, `munder-hive-${event.toLowerCase()}.md`),
+            mcodeHookFile(event, command, matcher),
+            'utf8'
+          );
+        }
+      }
+    } catch (e) { console.error('[hive] installMcodeConfig failed:', e); }
+    return home;
+  }
+
+  /** Drop the named TOP-LEVEL keys (and any indented continuation lines under them)
+   *  from a YAML document, so re-stating them at the end of the file is an override
+   *  rather than a duplicate-key document. Column-0 only: a `defaultModel:` nested
+   *  inside some other block belongs to that block and is left alone. Deliberately
+   *  line-based — the alternative is parsing and re-emitting the user's whole config
+   *  with a YAML library, which would silently reformat and drop their comments. */
+  private stripTopLevelYamlKeys(text: string, keys: string[]): string {
+    if (!text.trim()) return '';
+    const out: string[] = [];
+    let skipping = false;
+    for (const line of text.split('\n')) {
+      if (skipping) {
+        // A continuation line is indented or blank; anything at column 0 ends the run.
+        if (/^\s+\S/.test(line) || line.trim() === '') continue;
+        skipping = false;
+      }
+      const m = /^([A-Za-z0-9_.-]+)\s*:/.exec(line);
+      if (m && keys.includes(m[1])) { skipping = true; continue; }
+      out.push(line);
+    }
+    return out.join('\n').replace(/\n{3,}$/, '\n');
+  }
+
   /** Crush (charmbracelet/crush) proxy routing. Crush has NO base-URL env override, so
    *  the generic proxy env-rewrite is a no-op for it; instead we write a per-agent
    *  CRUSH_GLOBAL_CONFIG whose standard providers' `base_url` all point at the loopback
@@ -2757,6 +2914,35 @@ searchable MemPalace and you have the \`mempalace\` CLI:
 Your \`memory.md\` is mined into the palace automatically, so the durable facts you
 write there become searchable by every agent. You don't run \`mine\` yourself.
 `;
+
+// ─── mcode hook files (written to <agentDir>/.minimax/hooks/*.md) ────────────
+/**
+ * One MiniMax Code `.md` hook file. Exported so its shape is assertable without
+ * booting a HiveManager.
+ *
+ * The schema is mcode's, read out of its shipped parser: frontmatter must exist and
+ * must carry `hookEvent` (or `event`) and a `type` of `script`/`bash`/`prompt`, and
+ * a `script` hook's BODY must contain a fenced ```bash|shell|sh``` block — the
+ * parser pulls the command out with a regex and skips the file with a warning if
+ * there is no fence. `matcher` is anchored to ^...$ by mcode itself, so a bare
+ * `.*` is the match-everything form.
+ *
+ * `timeout` here is MILLISECONDS (mcode: `typeof n.timeout === 'number' ? n.timeout
+ * : 3e4`). Do NOT copy the Codex hook writer's `timeout = 30`, which is seconds in
+ * that file, and do not copy Claude's `timeout: 0` sentinel — 30_000 is the same
+ * real budget the Codex bridge settled on after cold-start timeouts under load.
+ */
+export function mcodeHookFile(event: string, command: string, matcher?: string): string {
+  const front = [
+    '---',
+    `hookEvent: ${event}`,
+    'type: script',
+    ...(matcher ? [`matcher: "${matcher}"`] : []),
+    'timeout: 30000',
+    '---'
+  ].join('\n');
+  return `${front}\n\n<!-- munder-hive lifecycle bridge (auto-generated; do not edit) -->\n\n\`\`\`bash\n${command}\n\`\`\`\n`;
+}
 
 // ─── cth-hook shim (written to <hive>/bin/cth-hook.cjs) ──────────────────────
 // A minimal pipe: read the hook payload on stdin, tag it with this agent's id,

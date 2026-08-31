@@ -501,6 +501,10 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
         command: exe,
         args,
         provider,
+        // Config-only engines (mcode) cannot take `--model` on argv — their TUI
+        // rejects unknown flags — so the selected model has to travel beside the
+        // command. Ignored by every provider that already carries it in `args`.
+        model,
         cols,
         rows,
         hive,
